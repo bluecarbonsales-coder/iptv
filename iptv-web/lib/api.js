@@ -214,7 +214,7 @@ function createApi(catalog, refresh, dataDir) {
       let candidates = [];
       try { candidates = vodLib.parseSourceList(config); }
       catch (err) {
-        if (!Array.isArray(config && config.liveSources)) throw err;
+        if (!Array.isArray(config && config.liveSources) && !Array.isArray(config && config.lives)) throw err;
       }
       const liveCandidates = sourceLib.parseRegistrySources(config);
       if (!candidates.length && !liveCandidates.length) {
