@@ -7,6 +7,11 @@ const path = require('path');
 const settings = require('../lib/agent-settings');
 const sources = require('../lib/sources');
 
+test('defaults to the maintained TVboxorg community registry', () => {
+  const list = settings.defaults().sourceListUrls;
+  assert.ok(list.includes('https://raw.githubusercontent.com/TVboxorg/TVbox/main/dist/official.json'));
+});
+
 test('persists agent-controlled runtime settings and enforces validated types', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'iptv-agent-settings-'));
   try {
