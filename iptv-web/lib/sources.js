@@ -53,6 +53,35 @@ function loadSourcesSync(dataDir) {
   return { sources: [] };
 }
 
+function parseRegistrySources(config) {
+  const items = config && Array.isArray(config.liveSources) ? config.liveSources : [];
+  const result = new Map();
+  for (const item of items) {
+    if (!item || typeof item.url !== 'string') continue;
+    let url;
+    try { url = new URL(item.url.trim()); } catch { continue; }
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) continue;
+    url.hash = '';
+    const normalized = url.toString();
+    let epg = null;
+    if (typeof item.epg === 'string') {
+      try {
+        const epgUrl = new URL(item.epg.trim());
+        if (['http:', 'https:'].includes(epgUrl.protocol) && !epgUrl.username && !epgUrl.password) {
+          epgUrl.hash = '';
+          epg = epgUrl.toString();
+        }
+      } catch {}
+    }
+    if (!result.has(normalized)) result.set(normalized, {
+      name: String(item.name || url.hostname).trim().slice(0, 80) || url.hostname,
+      url: normalized,
+      epg,
+    });
+  }
+  return [...result.values()];
+}
+
 function newId() {
   return 's' + crypto.randomBytes(5).toString('hex');
 }
@@ -210,6 +239,7 @@ module.exports = {
   saveSources,
   mergeStatuses,
   newId,
+  parseRegistrySources,
   isHttpUrl,
   fetchSource,
   buildChannels,
