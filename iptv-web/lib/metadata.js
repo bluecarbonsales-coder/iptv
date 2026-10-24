@@ -1,13 +1,14 @@
 'use strict';
 
 const { sendJson } = require('./util');
+const publicDevelopmentConfig = require('./metadata-config');
 
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 const OMDB_BASE = 'https://www.omdbapi.com/';
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const MAX_CACHE_ENTRIES = 200;
 
-function createMetadataApi({ fetchImpl = globalThis.fetch, env = process.env, now = Date.now } = {}) {
+function createMetadataApi({ fetchImpl = globalThis.fetch, env = { ...publicDevelopmentConfig, ...process.env }, now = Date.now } = {}) {
   const cache = new Map();
 
   function cached(key) {
