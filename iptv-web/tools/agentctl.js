@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 'use strict';
+const fs = require('fs');
+const path = require('path');
 // Dependency-free CLI for Hermes and other trusted agents. It uses only the documented agent API.
 const DEFAULT_BASE = process.env.IPTV_BASE_URL || 'http://127.0.0.1:3920';
 const TOKEN = process.env.AGENT_API_TOKEN || '';
@@ -26,6 +28,20 @@ function usage() {
   agentctl.js enable-live <id>
   agentctl.js disable-live <id>
   agentctl.js delete-live <id>
+  agentctl.js project-status
+  agentctl.js project-tree [path] [ref]
+  agentctl.js project-file <path> [ref]
+  agentctl.js project-commit <changes.json>
+  agentctl.js project-branch <name> [base]
+  agentctl.js project-pr <head> <base> <title> [body]
+  agentctl.js project-merge <number> [merge|squash|rebase] [commit title]
+  agentctl.js project-dispatch <workflow-file> [ref] [inputs-json]
+  agentctl.js project-actions [branch] [limit]
+  agentctl.js project-checks <commit-sha>
+
+A project commit JSON file can contain:
+  {"message":"Fix issue","baseBranch":"main","createPullRequest":true,
+   "pullRequestTitle":"Fix issue","changes":[{"path":"file.js","content":"..."}]}
 
 Environment:
   IPTV_BASE_URL=https://your-private-deployment
@@ -113,6 +129,55 @@ async function main(argv) {
     if (!id) throw new Error(command + ' requires a source ID');
     if (command === 'delete-live') return print(await request('/api/agent/v1/live/sources/' + encodeURIComponent(id), 'DELETE'));
     return print(await request('/api/agent/v1/live/sources/' + encodeURIComponent(id), 'PATCH', { enabled: command === 'enable-live' }));
+  }
+  if (command === 'project-status') return print(await request('/api/agent/v1/project/status'));
+  if (command === 'project-tree') {
+    const prefix = args[0] || '';
+    const ref = args[1] || 'main';
+    return print(await request('/api/agent/v1/project/tree?path=' + encodeURIComponent(prefix) + '&ref=' + encodeURIComponent(ref) + '&recursive=true'));
+  }
+  if (command === 'project-file') {
+    if (!args[0]) throw new Error('project-file requires a repository path');
+    const ref = args[1] || 'main';
+    return print(await request('/api/agent/v1/project/file?path=' + encodeURIComponent(args[0]) + '&ref=' + encodeURIComponent(ref)));
+  }
+  if (command === 'project-commit') {
+    if (!args[0]) throw new Error('project-commit requires a JSON file containing message and changes');
+    const filePath = path.resolve(args[0]);
+    let payload;
+    try { payload = JSON.parse(fs.readFileSync(filePath, 'utf8')); }
+    catch (err) { throw new Error('Could not read project change JSON: ' + err.message); }
+    if (!payload.createPullRequest) payload.createPullRequest = true;
+    return print(await request('/api/agent/v1/project/commit', 'POST', payload));
+  }
+  if (command === 'project-branch') {
+    if (!args[0]) throw new Error('project-branch requires a branch name');
+    return print(await request('/api/agent/v1/project/branch', 'POST', { name: args[0], base: args[1] || 'main' }));
+  }
+  if (command === 'project-pr') {
+    if (args.length < 3) throw new Error('project-pr requires head branch, base branch, and title');
+    return print(await request('/api/agent/v1/project/pr', 'POST', { head: args[0], base: args[1], title: args[2], body: args.slice(3).join(' ') }));
+  }
+  if (command === 'project-merge') {
+    if (!args[0]) throw new Error('project-merge requires a pull-request number');
+    return print(await request('/api/agent/v1/project/pr/' + encodeURIComponent(args[0]) + '/merge', 'POST', { method: args[1] || 'squash', commitTitle: args.slice(2).join(' ') }));
+  }
+  if (command === 'project-dispatch') {
+    if (!args[0]) throw new Error('project-dispatch requires a workflow filename');
+    let inputs = {};
+    if (args[2]) {
+      try { inputs = JSON.parse(args[2]); } catch { throw new Error('workflow inputs must be valid JSON'); }
+    }
+    return print(await request('/api/agent/v1/project/dispatch', 'POST', { workflow: args[0], ref: args[1] || 'main', inputs }));
+  }
+  if (command === 'project-actions') {
+    const branch = args[0] || 'main';
+    const limit = args[1] || '10';
+    return print(await request('/api/agent/v1/project/actions?branch=' + encodeURIComponent(branch) + '&limit=' + encodeURIComponent(limit)));
+  }
+  if (command === 'project-checks') {
+    if (!args[0]) throw new Error('project-checks requires a commit SHA');
+    return print(await request('/api/agent/v1/project/checks/' + encodeURIComponent(args[0])));
   }
   usage();
   throw new Error('unknown command: ' + command);
