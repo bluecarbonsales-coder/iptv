@@ -62,7 +62,7 @@ function createNavigationConfig(dataDir) {
     if (!fs.existsSync(file)) fs.writeFileSync(file, JSON.stringify(DEFAULT_NAVIGATION, null, 2) + '\n', { mode: 0o600 });
     const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
     if (!Array.isArray(parsed.items)) throw new Error('navigation config has an invalid format');
-    return { version: 1, items: parsed.items.filter((item) => item && item.enabled !== false).sort((a, b) => (a.order || 0) - (b.order || 0)) };
+    return { version: 1, items: parsed.items.filter((item) => item && typeof item === 'object').sort((a, b) => (a.order || 0) - (b.order || 0)) };
   }
   function replace(input) {
     const validated = validateNavigation(input);
