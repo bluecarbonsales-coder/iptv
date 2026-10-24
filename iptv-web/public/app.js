@@ -837,18 +837,7 @@
     });
     loadMoreBtn.hidden = true;
 
-    const sentinel = document.createElement('div');
-    sentinel.style.height = '1px';
-    $('.main').appendChild(sentinel);
-    new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && !state.loading && state.page < state.pages && state.view !== 'playlists') {
-          state.page++;
-          load(false);
-        }
-      },
-      { rootMargin: '600px' }
-    ).observe(sentinel);
+    // Catalogue paging is explicit: visitors choose a numbered page.
 
     $('#btnFilters').onclick = () => {
       const sb = $('#sidebar');
