@@ -52,6 +52,7 @@ function normalizedDoc(doc) {
     category: cleanText(doc.subject || ''),
     remarks: license.label,
     licenseUrl: license.url,
+    pageUrl: 'https://archive.org/details/' + encodeURIComponent(id),
     kind: classify(doc),
     vod: true,
   };
