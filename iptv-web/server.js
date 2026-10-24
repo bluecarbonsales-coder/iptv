@@ -81,10 +81,13 @@ function refreshGuard(req, res, params, query) {
   const viaProxy = !!req.headers['x-forwarded-for'] || !!req.headers['x-real-ip'];
   const remote = (req.socket.remoteAddress || '').replace(/^::ffff:/, '');
   const local = remote === '127.0.0.1' || remote === '::1' || isPrivateIp(remote);
-  const token = process.env.REFRESH_TOKEN;
+  const token = process.env.REFRESH_TOKEN || '';
   if (!viaProxy && local) return api.refreshNow(req, res, params, query);
-  const given = req.headers['x-refresh-token'] || query.token;
-  if (token && given === token) return api.refreshNow(req, res, params, query);
+  const given = req.headers['x-refresh-token'];
+  const tokenMatches = typeof given === 'string' && token &&
+    Buffer.from(given).length === Buffer.from(token).length &&
+    require('crypto').timingSafeEqual(Buffer.from(given), Buffer.from(token));
+  if (tokenMatches) return api.refreshNow(req, res, params, query);
   return sendJson(req, res, 403, { error: 'refresh is restricted', hint: 'send X-Refresh-Token' });
 }
 
