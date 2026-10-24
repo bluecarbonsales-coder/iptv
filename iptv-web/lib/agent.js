@@ -19,7 +19,7 @@ function safeUrlSummary(raw) {
     return u.origin + u.pathname + (u.search ? '?[query-redacted]' : '');
   } catch { return '[invalid URL]'; }
 }
-function createAgentApi({ dataDir, catalog, refresh, api, automation }) {
+function createAgentApi({ dataDir, catalog, refresh, api, automation, navigationConfig, visitorContext }) {
   const project = createGitHubProject();
   function authenticate(req, res) {
     const expected = process.env.AGENT_API_TOKEN;
@@ -74,6 +74,8 @@ function createAgentApi({ dataDir, catalog, refresh, api, automation }) {
         'discover open-license video files through Wikimedia Commons',
         'import configured LibreTV/MoonTV/TVBox-compatible provider registries',
         'add, update, enable, disable, and delete providers',
+        'read and replace Theatre navigation configuration',
+        'read privacy-preserving aggregate visitor resource trends after explicit visitor consent',
         'run source checks and scheduled maintenance',
         'refresh the live IPTV catalogue',
         'read an audit history of agent/automation actions',
@@ -295,6 +297,35 @@ function createAgentApi({ dataDir, catalog, refresh, api, automation }) {
     }
   };
 
+  const navigationGet = (req, res) => {
+    if (!navigationConfig) return sendJson(req, res, 503, { error: 'navigation config is unavailable' });
+    try { sendJson(req, res, 200, navigationConfig.read()); }
+    catch (err) { sendJson(req, res, 500, { error: err.message || 'could not read navigation config' }); }
+  };
+
+  const navigationReplace = async (req, res) => {
+    if (!navigationConfig) return sendJson(req, res, 503, { error: 'navigation config is unavailable' });
+    try {
+      const body = JSON.parse(await readBody(req, 65536));
+      const config = navigationConfig.replace(body);
+      automation.audit({ actor: 'agent', action: 'navigation.replace', status: 'ok', summary: 'Saved ' + config.items.length + ' navigation items' });
+      sendJson(req, res, 200, { ok: true, ...config });
+    } catch (err) {
+      automation.audit({ actor: 'agent', action: 'navigation.replace', status: 'error', summary: String(err.message || err).slice(0, 240) });
+      sendJson(req, res, err.statusCode || 400, { error: err.message || 'could not update navigation config' });
+    }
+  };
+
+  const visitorTrends = (req, res) => {
+    if (!visitorContext) return sendJson(req, res, 503, { error: 'visitor context collector is unavailable' });
+    sendJson(req, res, 200, {
+      trends: visitorContext.trends(),
+      retentionDays: 30,
+      privacy: 'Aggregate daily country/region/language/category counts only; groups below three requests are omitted. No raw IP, precise coordinates, account IDs, or per-person history is stored.',
+      use: 'Use trends to prioritize discovery of official and open-license local resources; never treat demand as permission to redistribute content.',
+    });
+  };
+
   const auditLog = (req, res, params, query) => {
     const limit = Math.max(1, Math.min(200, parseInt(query.limit, 10) || 50));
     sendJson(req, res, 200, { entries: automation.readAudit(limit) });
@@ -327,6 +358,8 @@ function createAgentApi({ dataDir, catalog, refresh, api, automation }) {
       },
     },
     paths: {
+      "/api/agent/v1/navigation": { get: { summary: "Read Theatre navigation configuration", responses: { '200': { description: "Navigation configuration" } } }, put: { summary: "Replace Theatre navigation configuration", responses: { '200': { description: "Navigation updated" } } } },
+      "/api/agent/v1/discovery/visitor-trends": { get: { summary: "Read privacy-preserving aggregate visitor resource trends", responses: { '200': { description: "Aggregated visitor trends" } } } },
       "/api/agent/v1/capabilities": { get: { summary: "Describe capabilities, limits and autonomy policy", responses: { '200': { description: "GET /api/agent/v1/capabilities" }, '201': { description: 'Operation completed' } } } },
       "/api/agent/v1/status": { get: { summary: "Get live catalog, resource, provider and automation status", responses: { '200': { description: "GET /api/agent/v1/status" }, '201': { description: 'Operation completed' } } } },
       "/api/agent/v1/settings": { get: { summary: "Read runtime automation settings", responses: { '200': { description: "GET /api/agent/v1/settings" }, '201': { description: 'Operation completed' } } } },
@@ -359,6 +392,9 @@ function createAgentApi({ dataDir, catalog, refresh, api, automation }) {
   });
 
   return {
+    navigationGet: gate('agent.navigation.read', false, navigationGet),
+    navigationReplace: gate('agent.navigation.replace', true, navigationReplace),
+    visitorTrends: gate('agent.discovery.visitor_trends', false, visitorTrends),
     capabilities: gate('agent.capabilities', false, capabilities),
     projectStatus: gate('agent.project.status', false, projectStatus),
     projectTree: gate('agent.project.tree', false, projectTree),
