@@ -120,7 +120,7 @@
   async function loadAvailability(force) {
     try {
       const url = '/api/portal/availability' + (force ? '?refresh=1' : '');
-      const data = await request(url);
+      const data = await request(url, { cache: 'no-store' });
       state.availability = Object.fromEntries((data.statuses || []).map((item) => [String(item.id), item]));
       state.availabilityScanning = Boolean(data.scanning);
       state.fastestResource = data.fastest || null;
