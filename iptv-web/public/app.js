@@ -367,8 +367,15 @@
 
   function setView(v, reload) {
     state.view = v;
-    $$('.tab').forEach((b) => b.classList.toggle('active', b.dataset.view === v));
+    $('.tab').forEach((b) => b.classList.toggle('active', b.dataset.view === v));
     if (v !== 'playlists' || !state.playlistId) state.playlistId = null;
+    const vodView = isVodView(v);
+    $('#channelFilters').hidden = vodView;
+    $('#playlistSide').hidden = vodView;
+    $('#resourceManager').hidden = vodView;
+    $('#vodManager').hidden = !vodView;
+    $('#btnExport').hidden = vodView;
+    $('#q').placeholder = vodView ? 'Search movies, series and anime…' : 'Search 10,000+ channels…  (press /)';
     if (reload !== false) load(true);
   }
 
@@ -916,6 +923,62 @@
       }
     });
     loadServerSources();
+
+    async function loadVodSources() {
+      const list = $('#vodList');
+      try {
+        const data = await sourceRequest('/api/vod/sources', { headers: sourceHeaders() });
+        list.innerHTML = (data.sources || []).map((s) => {
+          const kind = s.kind === 'all' ? 'All VOD' : s.kind === 'movies' ? 'Movies' : s.kind === 'series' ? 'Series' : 'Anime';
+          return '<li data-vod-source="' + esc(s.id) + '"><div class="pl-info"><strong>' + esc(s.name) + '</strong><small>' + esc(kind + (s.lastError ? ' · ' + s.lastError : '')) + '</small></div><button type="button" class="link-btn" data-vod-toggle="' + esc(s.id) + '" data-enabled="' + (!s.enabled) + '">' + (s.enabled ? 'Disable' : 'Enable') + '</button><button type="button" class="link-btn del" data-vod-delete="' + esc(s.id) + '" aria-label="Delete ' + esc(s.name) + '">Delete</button></li>';
+        }).join('');
+        if (!(data.sources || []).length) list.innerHTML = '<li><small>No VOD APIs configured yet.</small></li>';
+        $('#vodStatus').textContent = data.sources.length + ' VOD provider(s) configured.';
+      } catch (err) {
+        $('#vodStatus').textContent = err.message;
+      }
+    }
+    $('#vodReload').onclick = loadVodSources;
+    $('#vodAdd').onclick = async () => {
+      try {
+        const headers = sourceHeaders();
+        const name = $('#vodName').value.trim();
+        const api = $('#vodApi').value.trim();
+        const kind = $('#vodKind').value;
+        if (!name || !api) throw new Error('Enter a provider name and API URL.');
+        $('#vodAdd').disabled = true;
+        $('#vodStatus').textContent = 'Checking provider compatibility…';
+        await sourceRequest('/api/vod/sources', { method: 'POST', headers, body: JSON.stringify({ name, api, kind }) });
+        $('#vodName').value = '';
+        $('#vodApi').value = '';
+        await loadVodSources();
+        $('#vodStatus').textContent = 'Provider added. Searching the selected section…';
+        if (isVodView(state.view)) await load(true);
+      } catch (err) {
+        $('#vodStatus').textContent = err.message;
+      } finally {
+        $('#vodAdd').disabled = false;
+      }
+    };
+    $('#vodList').addEventListener('click', async (e) => {
+      const toggle = e.target.closest('[data-vod-toggle]');
+      const remove = e.target.closest('[data-vod-delete]');
+      if (!toggle && !remove) return;
+      try {
+        const headers = sourceHeaders();
+        if (remove) {
+          if (!confirm('Remove this VOD provider?')) return;
+          await sourceRequest('/api/vod/sources/' + encodeURIComponent(remove.dataset.vodDelete), { method: 'DELETE', headers });
+        } else {
+          await sourceRequest('/api/vod/sources/' + encodeURIComponent(toggle.dataset.vodToggle), { method: 'PATCH', headers, body: JSON.stringify({ enabled: toggle.dataset.enabled === 'true' }) });
+        }
+        await loadVodSources();
+        if (isVodView(state.view)) await load(true);
+      } catch (err) {
+        $('#vodStatus').textContent = err.message;
+      }
+    });
+    loadVodSources();
 
     // player wiring
     $('#pClose').onclick = closePlayer;
