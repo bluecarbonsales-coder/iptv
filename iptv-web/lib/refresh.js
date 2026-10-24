@@ -202,6 +202,11 @@ async function main() {
   }
 
   let { channels, meta } = build(api, stats);
+  // Keep a previous custom-source snapshot available so a failed refresh can retain its last-known-good channels.
+  try {
+    const previous = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'catalog.json'), 'utf8'));
+    channels = channels.concat((previous.channels || []).filter((channel) => channel.src));
+  } catch {}
   // Merge user-managed M3U sources into the catalogue without replacing the upstream base data.
   const merged = await require('./sources').mergeInto({ channels, meta }, DATA_DIR, log);
   channels = merged.channels;
