@@ -102,3 +102,11 @@ For movie/series metadata work, read [METADATA-APIS.md](METADATA-APIS.md) first.
 - If wiring these APIs into the Theatre UI, keep calls behind Node server routes (for example `/api/metadata/search` and `/api/metadata/title`) rather than embedding the keys in browser JavaScript or URLs rendered in the page. Validate and cap query lengths, set short timeouts, handle rate limits and provider errors, and cache responses.
 - Preserve the existing Theatre UI and source/provider APIs. Add tests for empty input, provider errors, rate limits, and fallback behavior; run the full `node --test iptv-web/test/*.test.js` suite.
 - The keys are currently committed only because the owner explicitly requested this for a non-production experiment. If the repo is public, assume both keys are already exposed; rotate them if abuse appears, and move production credentials to deployment secrets.
+
+
+## TVmaze API
+
+- Public TVmaze metadata endpoints are free and do not require an API key. Do not append the separately supplied account key to public show-search requests or commit it to this repository.
+- Use `https://api.tvmaze.com/search/shows?q={URL-encoded query}` for TV-series discovery. Backend route: `GET /api/metadata/tvmaze?q=...`.
+- Attribute TVmaze and follow its CC BY-SA/share-alike requirements: https://www.tvmaze.com/api
+- Treat the supplied TVmaze account key as sensitive; if Premium user endpoints are needed, keep it in deployment secrets, never public docs or client code.
