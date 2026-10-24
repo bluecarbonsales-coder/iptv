@@ -91,7 +91,7 @@ function createMediaDiscovery({ dataDir }) {
           if (Buffer.byteLength(xml) > 2 * 1024 * 1024) throw new Error('Jackett response too large');
           const items = xml.match(/<item\b[\s\S]*?<\/item>/gi) || [];
           for (const item of items.slice(0, 30)) {
-            const get = (tag) => { const m = item.match(new RegExp('<' + tag + '(?:\s[^>]*)?>([\s\S]*?)<\/' + tag + '>', 'i')); return m ? m[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').trim() : ''; };
+            const get = (tag) => { const m = item.match(new RegExp('<' + tag + '(?:\\s[^>]*)?>([\\s\\S]*?)<\\/' + tag + '>', 'i')); return m ? m[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').trim() : ''; };
             const attrs = item.match(/<enclosure\b[^>]*url=["']([^"']+)["'][^>]*>/i);
             const link = get('link') || (attrs ? attrs[1] : '');
             const title = get('title');
