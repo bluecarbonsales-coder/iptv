@@ -85,7 +85,7 @@
   }
   function makeCard(service) {
     const card = document.createElement('article');
-    card.className = 'service-card';
+    card.className = 'service-card' + (service.featured ? ' featured' : '');
     const top = document.createElement('div');
     top.className = 'card-top';
     top.append(makeIcon(service));
