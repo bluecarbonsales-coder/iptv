@@ -89,9 +89,12 @@ function classify(item) {
 }
 function parseEpisodes(item) {
   const urlFields = String(item.vod_play_url || item.play_url || item.playUrl || '');
+  const sourceNames = String(item.vod_play_from || item.play_from || '').split('$$$');
   const sourceGroups = urlFields.split('$$$');
   const episodes = [];
-  for (const group of sourceGroups) {
+  for (let groupIndex = 0; groupIndex < sourceGroups.length; groupIndex++) {
+    const sourceName = text(sourceNames[groupIndex] || '');
+    const group = sourceGroups[groupIndex];
     for (const raw of group.split('#')) {
       const row = raw.trim();
       if (!row) continue;
@@ -99,11 +102,12 @@ function parseEpisodes(item) {
       const title = sep >= 0 ? text(row.slice(0, sep)) : 'Play';
       const url = (sep >= 0 ? row.slice(sep + 1) : row).trim();
       if (!/^https?:\/\//i.test(url)) continue;
-      if (!episodes.some((ep) => ep.url === url)) episodes.push({ title: title || ('Episode ' + (episodes.length + 1)), url });
+      const label = [sourceName, title || ('Episode ' + (episodes.length + 1))].filter(Boolean).join(' · ');
+      if (!episodes.some((episode) => episode.url === url)) episodes.push({ title: label, url });
+      if (episodes.length >= 500) return episodes;
     }
-    if (episodes.length) break;
   }
-  return episodes.slice(0, 500);
+  return episodes;
 }
 function normalizeItem(item, source) {
   const id = String(item.vod_id ?? item.id ?? item.id_vod ?? '').trim();
