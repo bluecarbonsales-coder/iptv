@@ -10,6 +10,7 @@ function responseRecorder() {
     body: '',
     writeHead(status, headers) { this.status = status; this.headers = headers || {}; },
     end(body) { this.body = body == null ? '' : String(body); },
+    on() { return this; },
   };
 }
 function request(url) {
@@ -113,4 +114,55 @@ test('radio filter options are restricted to the documented directory lists', as
   await api.listOptions(request('/api/radio/options?type=unknown'), bad);
   assert.equal(bad.status, 400);
   assert.equal(calls.length, 1);
+});
+
+
+test('radio resolve counts station clicks and creates a short-lived ticket for compatible HTTP playback', async () => {
+  const calls = [];
+  let piped = false;
+  const uuid = '01234567-89ab-cdef-0123-456789abcdef';
+  const api = createRadioApi({
+    mirrors: ['https://de1.api.radio-browser.info'],
+    minRequestIntervalMs: 0,
+    assertSafeUrl: async () => {},
+    upstreamFetch: async (url, opts) => {
+      calls.push({ url, opts });
+      if (url.includes('/json/url/')) {
+        return { response: new Response(JSON.stringify({ ok: 'true', stationuuid: uuid, name: 'Test Radio', url: 'http://streams.example/radio.mp3' }), { status: 200 }) };
+      }
+      return { response: new Response('audio-bytes', { status: 200, headers: { 'content-type': 'audio/mpeg' } }) };
+    },
+    pipeBody: (response, output) => { piped = true; },
+  });
+  const resolved = responseRecorder();
+  await api.resolveStation(request('/api/radio/resolve/' + uuid), resolved, { uuid });
+  assert.equal(resolved.status, 200);
+  const payload = JSON.parse(resolved.body);
+  assert.equal(payload.url, 'http://streams.example/radio.mp3');
+  assert.match(payload.proxyUrl, /^\/api\/radio\/stream\/[A-Za-z0-9_-]+$/);
+  assert.match(calls[0].url, /\/json\/url\//);
+  const ticket = payload.proxyUrl.split('/').pop();
+  const streamed = responseRecorder();
+  await api.stream(request('/api/radio/stream/' + ticket), streamed, { ticket });
+  assert.equal(streamed.status, 200);
+  assert.equal(streamed.headers['Content-Type'], 'audio/mpeg');
+  assert.equal(piped, true);
+});
+
+test('radio resolve refuses a private or otherwise unsafe broadcaster endpoint', async () => {
+  const uuid = '01234567-89ab-cdef-0123-456789abcdef';
+  const api = createRadioApi({
+    mirrors: ['https://de1.api.radio-browser.info'],
+    minRequestIntervalMs: 0,
+    assertSafeUrl: async (url) => {
+      if (url.includes('127.0.0.1')) throw Object.assign(new Error('private address blocked'), { statusCode: 403 });
+    },
+    upstreamFetch: async () => ({
+      response: new Response(JSON.stringify({ ok: 'true', url: 'http://127.0.0.1/admin' }), { status: 200 }),
+    }),
+  });
+  const res = responseRecorder();
+  await api.resolveStation(request('/api/radio/resolve/' + uuid), res, { uuid });
+  assert.equal(res.status, 403);
+  assert.match(JSON.parse(res.body).error, /private address blocked/);
 });
