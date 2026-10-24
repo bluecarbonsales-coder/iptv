@@ -29,3 +29,33 @@ test('groups duplicate channel names and retains unique stream URLs', () => {
   assert.equal(news.src, 'stest');
   assert.equal(news.logo, 'https://one.example/logo.png');
 });
+
+test('parses LibreTV liveSources and TVBox lives entries from one registry', () => {
+  const parsed = sources.parseRegistrySources({
+    liveSources: [
+      { name: 'Libre channels', url: 'https://example.org/live.m3u', epg: 'https://example.org/epg.xml' },
+      { name: 'Duplicate endpoint', url: 'https://example.org/live.m3u' },
+      { name: 'Bad scheme', url: 'file:///etc/passwd' },
+      { name: 'Credentials', url: 'https://user:pass@example.org/private.m3u' },
+    ],
+    lives: [
+      { name: 'TVBox live', url: 'https://example.org/tv.txt', epg: 'https://example.org/epg.xml' },
+    ],
+  });
+  assert.equal(parsed.length, 2);
+  assert.equal(parsed[0].name, 'Libre channels');
+  assert.equal(parsed[0].epg, 'https://example.org/epg.xml');
+  assert.equal(parsed[1].name, 'TVBox live');
+});
+
+test('normalizes plain-text channel,url lines and rejects invalid/duplicate stream URLs', () => {
+  const parsed = sources.normalizePlaylistItems([
+    { name: 'live.m3u8', url: 'CCTV 1,https://tv.example/live.m3u8' },
+    { name: 'direct stream', url: 'https://tv.example/live.m3u8' },
+    { name: 'Invalid file', url: 'file:///etc/passwd' },
+    { name: 'Malformed', url: 'not a playlist URL' },
+  ]);
+  assert.equal(parsed.length, 1);
+  assert.equal(parsed[0].name, 'CCTV 1');
+  assert.equal(parsed[0].url, 'https://tv.example/live.m3u8');
+});
