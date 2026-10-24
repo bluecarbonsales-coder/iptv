@@ -67,7 +67,7 @@ function parseLiveRegistry(config) {
     if (!candidates.has(url)) candidates.set(url, {
       name: String(item.name || parsed.hostname).trim().slice(0, 80) || parsed.hostname,
       url,
-      epg: typeof item.epg === 'string' && /^https?:\\/\\//i.test(item.epg) ? item.epg : null,
+      epg: typeof item.epg === 'string' && /^https?:\/\//i.test(item.epg) ? item.epg : null,
     });
   }
   return [...candidates.values()];
