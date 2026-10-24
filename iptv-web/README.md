@@ -91,11 +91,20 @@ play fine through it.
 | `GET /img?u=` | channel-logo relay with a disk cache |
 | `GET /api/agent/v1/openapi.json` | OpenAPI schema for agent control |
 | `GET /api/agent/v1/capabilities` | capabilities, autonomy policy, source limits |
-| `GET/PATCH /api/agent/v1/settings` | inspect/change trusted registry URLs, autonomy mode, refresh cadence without rebuild |
-| `GET /api/agent/v1/commons/search?q=&type=` | search Commons video files with declared open licenses |
 | `GET/PATCH /api/agent/v1/settings` | inspect/update runtime schedule and trusted registry URLs without rebuilding |
 | `GET /api/agent/v1/status` | live catalog, source/provider health, automation status |
 | `GET /api/agent/v1/audit?limit=50` | recent automation/agent audit events |
+| `GET /api/agent/v1/project/status` | repository identity, permissions, workflows and GitHub-token readiness |
+| `GET /api/agent/v1/project/tree?path=&ref=` | inspect a branch's repository tree |
+| `GET /api/agent/v1/project/file?path=&ref=` | read any tracked repository file |
+| `POST /api/agent/v1/project/commit` | commit multi-file edits/deletions to any branch and optionally open a PR |
+| `POST /api/agent/v1/project/branch` | create a project branch |
+| `POST /api/agent/v1/project/pr` | create a pull request |
+| `POST /api/agent/v1/project/pr/:number/merge` | merge a pull request after validation |
+| `GET /api/agent/v1/project/actions?branch=` | inspect CI/deployment runs |
+| `GET /api/agent/v1/project/checks/:sha` | inspect commit checks |
+| `POST /api/agent/v1/project/dispatch` | trigger a configured GitHub Actions workflow, including deployment |
+
 | `GET /api/agent/v1/archive/search?q=&type=` | search Internet Archive public-domain/CC candidates |
 | `GET /api/agent/v1/commons/search?q=&type=` | search open-license video files on Wikimedia Commons |
 | `POST /api/agent/v1/tasks/run` | run `maintain_sources`, `sync_source_lists`, `check_vod_providers`, or `refresh_live_catalog` |
@@ -165,7 +174,7 @@ deploy/              scripts used to stand the site up on the server
 
 ## Hermes / agent CLI
 
-The dependency-free `tools/agentctl.js` CLI wraps the authenticated agent API and returns JSON for automation. Set `IPTV_BASE_URL` and `AGENT_API_TOKEN` in your Hermes service environment; do not store the token in the repository or a prompt.
+The dependency-free `tools/agentctl.js` CLI wraps the authenticated agent API and returns JSON for automation. Set `IPTV_BASE_URL` and `AGENT_API_TOKEN` in your Hermes service environment; do not store the token in the repository or a prompt. For a **local agent on the deployment server**, see [`AGENTS.md`](AGENTS.md): give the agent's OS account write access to the real checkout and the privileges needed for tests, Docker rebuilds and deployment. Local editing of the repository and UI does not require `GITHUB_REPO_TOKEN`; that server-side token is only for remote GitHub operations through the HTTP API.
 
 ```bash
 node iptv-web/tools/agentctl.js capabilities
@@ -176,9 +185,14 @@ node iptv-web/tools/agentctl.js vod-search anime cyberpunk
 node iptv-web/tools/agentctl.js archive-search public domain comedy
 node iptv-web/tools/agentctl.js commons-search open license animation
 node iptv-web/tools/agentctl.js settings-patch '{"sourceListUrls":["https://registry.example/sources.json"],"autoSourceSyncHours":12,"autonomy":"full"}'
+node iptv-web/tools/agentctl.js project-status
+node iptv-web/tools/agentctl.js project-tree iptv-web/lib main
+node iptv-web/tools/agentctl.js project-file iptv-web/server.js main
+node iptv-web/tools/agentctl.js project-commit changes.json
+node iptv-web/tools/agentctl.js project-actions main 10
 ```
 
-The HTTP agent API can manage live/VOD providers and recurring maintenance; trusted agents can also use their normal repository workspace/shell tools to change code, run tests, and deploy. See the repository-root [`AGENTS.md`](../AGENTS.md) for the workflow and API contract.
+The HTTP agent API can manage live/VOD providers and recurring maintenance. For local execution, see [`AGENTS.md`](AGENTS.md) in this packaged directory; it gives the local agent full project/file/UI authority and the test/build/deploy workflow. The root [`AGENTS.md`](../AGENTS.md) contains the broader project policy.
 
 ## Running it
 
