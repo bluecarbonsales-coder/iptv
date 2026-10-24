@@ -85,6 +85,12 @@ The built-in Internet Archive and Wikimedia Commons adapters find open-license m
 
 Source mutations use `POST`, `PATCH`, and `DELETE` under `/api/agent/v1/live/sources` and `/api/agent/v1/vod/sources`. Use the IDs returned by the API; avoid duplicate providers. Validate input and inspect the response body, not only the HTTP status.
 
+## Public radio directory and player
+
+The project includes a Radio Browser-powered station browser at `/radio.html`. Maintain it as a standalone page alongside the service portal (`/`) and IPTV player (`/watch.html`), not as a player-specific OpenResty feature. Its UI files are `iptv-web/public/radio.html`, `radio.css`, and `radio.js`; its backend and tests are `iptv-web/lib/radio.js` and `iptv-web/test/radio.test.js`. API routes are `/api/radio/stations`, `/api/radio/options`, `/api/radio/resolve/:uuid`, and `/api/radio/stream/:ticket`.
+
+Prefer the documented Radio Browser DNS-SRV mirror discovery and failover rather than hard-coding a single API server. Keep station search and filter results cached to respect the community API. Preserve attribution and the station-click-counter call. Prefer direct HTTPS playback; route HTTP-only audio through the short-lived ticket that is issued only after resolving a station UUID. HLS stations use the existing guarded HLS relay. Do not add arbitrary URL proxy inputs, bypass redirect SSRF validation, trust stream metadata as safe, or relay non-audio responses. Run `node --test iptv-web/test/*.test.js` and the normal CI checks after changes. Some stations may be unavailable, geo-restricted, or not playable in every browser.
+
 ## 4. Autonomous maintenance and project authority
 
 The owner explicitly authorizes full autonomy inside this repository. Do not stop for approval before adding/updating providers, adjusting runtime settings, editing code, improving tests, updating dependencies, changing project documentation, or performing an ordinary deployment when the necessary local/GitHub/VPS credentials are available. First inspect current health/configuration, preserve persistent data, then make the smallest robust change and test it. Use commits and clear audit summaries so actions remain traceable.
