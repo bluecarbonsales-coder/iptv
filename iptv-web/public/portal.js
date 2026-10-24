@@ -294,6 +294,7 @@
     });
     $('#btnManage').addEventListener('click', () => {
       $('#unlockPanel').hidden = false;
+      $('#unlockPanel').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       $('#manageToken').focus();
       $('#manageStatus').textContent = 'Use SOURCE_TOKEN, REFRESH_TOKEN or AGENT_API_TOKEN from the server environment.';
       $('#manageStatus').className = 'status';
