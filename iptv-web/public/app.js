@@ -987,11 +987,12 @@
         });
         $('#vodListUrl').value = '';
         await loadVodSources();
+        await loadServerSources();
         const details = [];
         details.push((data.imported || 0) + ' provider(s) imported');
         if (data.duplicates) details.push(data.duplicates + ' already configured');
         if (data.skippedLimit) details.push(data.skippedLimit + ' skipped (provider limit reached)');
-        $('#vodStatus').textContent = details.join(' · ') + '. Imported providers have not been individually verified.';
+        $('#vodStatus').textContent = details.join(' · ') + '. Imported endpoints passed compatibility checks; verify content rights separately.';
         if (isVodView(state.view)) await load(true);
       } catch (err) {
         $('#vodStatus').textContent = err.message;
@@ -1012,7 +1013,8 @@
           body: JSON.stringify({ config, sourceName: file.name }),
         });
         await loadVodSources();
-        const details = [(data.imported || 0) + ' provider(s) imported'];
+        await loadServerSources();
+        const details = [(data.imported || 0) + ' resource(s) imported'];
         if (data.duplicates) details.push(data.duplicates + ' already configured');
         if (data.skippedLimit) details.push(data.skippedLimit + ' skipped (provider limit reached)');
         $('#vodStatus').textContent = details.join(' · ') + '. Imported providers have not been individually verified.';
