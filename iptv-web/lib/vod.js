@@ -156,8 +156,11 @@ async function probeSource(source) {
   }
   throw lastError || Object.assign(new Error('Provider did not support Apple CMS / MacCMS list actions'), { statusCode: 400 });
 }
+function preferredListAction(source) {
+  return source && source.listAction === 'list' ? 'list' : 'videolist';
+}
 async function searchSource(source, query, page) {
-  const action = source.listAction === 'list' ? 'list' : 'videolist';
+  const action = preferredListAction(source);
   let payload;
   try {
     payload = await fetchJson(apiQuery(source, { ac: action, wd: query, pg: page }));
@@ -270,11 +273,12 @@ function publicSource(source) {
     lastChecked: source.lastChecked || null,
     lastError: source.lastError || null,
     lastItemCount: source.lastItemCount ?? null,
+    listAction: source.listAction || 'videolist',
     importedFrom: source.importedFrom ? (() => { try { const u = new URL(source.importedFrom); return u.origin + u.pathname + (u.search ? '?[query-redacted]' : ''); } catch { return 'uploaded config'; } })() : null,
   };
 }
 module.exports = {
   MAX_VOD_SOURCES, KINDS, registryPath, loadSourcesSync, saveSources,
   newId, isHttpUrl, normalizeApiUrl, apiQuery, fetchJson, listFrom, classify,
-  parseEpisodes, normalizeItem, probeSource, searchSource, getDetail, parseSourceList, redactUrl, publicSource,
+  parseEpisodes, normalizeItem, probeSource, preferredListAction, searchSource, getDetail, parseSourceList, redactUrl, publicSource,
 };
