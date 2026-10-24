@@ -785,7 +785,7 @@
       const list = $('#sourceList');
       $('#sourceStatus').textContent = 'Loading resources…';
       try {
-        const data = await sourceRequest('/api/sources');
+        const data = await sourceRequest('/api/sources', { headers: sourceHeaders() });
         list.innerHTML = (data.sources || []).map((s) => {
           const status = s.error ? 'Error: ' + s.error : (s.count + ' channels · ' + s.streams + ' streams');
           return '<li data-source="' + esc(s.id) + '"><div class="pl-info"><strong>' + esc(s.name) + '</strong><small>' + esc(status) + '</small></div><button type="button" class="link-btn" data-source-toggle="' + esc(s.id) + '" data-enabled="' + (!s.enabled) + '">' + (s.enabled ? 'Disable' : 'Enable') + '</button><button type="button" class="link-btn del" data-source-delete="' + esc(s.id) + '" aria-label="Delete ' + esc(s.name) + '">Delete</button></li>';
