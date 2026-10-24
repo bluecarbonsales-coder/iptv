@@ -169,6 +169,11 @@ async function searchSource(source, query, page) {
       (payload && Array.isArray(payload.list)) ||
       (payload && payload.data && (Array.isArray(payload.data.list) || Array.isArray(payload.data)));
     if (!hasResultShape) throw new Error('Provider returned an unsupported VOD list response');
+    if (action === 'list' && String(query || '').trim() && listFrom(payload).length === 0) {
+      // Some providers accept ac=list for probing but require ac=videolist for search.
+      payload = await fetchJson(apiQuery(source, { ac: 'videolist', wd: query, pg: page }));
+      providerStatus(payload);
+    }
   } catch (err) {
     if (action !== 'list') throw err;
     // Prefer the standard video-list action for providers whose list action only supports
