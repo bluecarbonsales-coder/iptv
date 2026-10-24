@@ -176,6 +176,7 @@ app.post('/api/agent/v1/mail/drafts/:id/send', mail.agentDraftSend);
 
 // Movie metadata search and title enrichment (API keys remain server-side).
 app.get('/api/metadata/search', metadata.search);
+app.get('/api/metadata/tvmaze', metadata.tvmazeSearch);
 app.get('/api/metadata/title', metadata.title);
 
 // Public Radio Browser directory and UUID-based stream relay (no arbitrary URL proxy).
