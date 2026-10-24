@@ -158,7 +158,7 @@ function createResourceAvailability(options = {}) {
   function startScan(force = false) {
     if (scanPromise) return scanPromise;
     const timestamp = now();
-    if (force && timestamp - scanStartedAt < FORCE_COOLDOWN_MS) return Promise.resolve(false);
+    if (force && scanStartedAt && timestamp - scanStartedAt < FORCE_COOLDOWN_MS) return Promise.resolve(false);
     if (!force && timestamp - scanStartedAt < refreshMs) return Promise.resolve(false);
 
     scanStartedAt = timestamp;
