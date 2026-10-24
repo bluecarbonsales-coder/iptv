@@ -93,6 +93,16 @@ function refreshGuard(req, res, params, query) {
 
 // Agent-native API: header-authenticated, machine-readable, audited, and autonomy-gated.
 app.get('/api/agent/v1/openapi.json', agent.openApi);
+app.get('/api/agent/v1/project/status', agent.projectStatus);
+app.get('/api/agent/v1/project/tree', agent.projectTree);
+app.get('/api/agent/v1/project/file', agent.projectFile);
+app.post('/api/agent/v1/project/commit', agent.projectCommit);
+app.post('/api/agent/v1/project/branch', agent.projectBranch);
+app.post('/api/agent/v1/project/pr', agent.projectPullRequest);
+app.post('/api/agent/v1/project/pr/:number/merge', agent.projectMerge);
+app.post('/api/agent/v1/project/dispatch', agent.projectDispatch);
+app.get('/api/agent/v1/project/actions', agent.projectActions);
+app.get('/api/agent/v1/project/checks/:sha', agent.projectChecks);
 app.get('/api/agent/v1/capabilities', agent.capabilities);
 app.get('/api/agent/v1/status', agent.status);
 app.get('/api/agent/v1/settings', agent.settingsView);
