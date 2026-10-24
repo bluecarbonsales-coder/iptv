@@ -27,6 +27,7 @@ const img = require('./lib/img');
 const refreshLib = require('./lib/refresh');
 const { createAutomation } = require('./lib/automation');
 const { createAgentApi } = require('./lib/agent');
+const { createPortalApi } = require('./lib/portal');
 
 const PORT = parseInt(process.env.PORT, 10) || 3920;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -73,6 +74,7 @@ const automation = createAutomation({
 });
 api = createApi(catalog, refreshNow, DATA_DIR, automation);
 const agent = createAgentApi({ dataDir: DATA_DIR, catalog, refresh: refreshNow, api, automation });
+const portal = createPortalApi({ dataDir: DATA_DIR });
 const staticHandler = serveStatic(PUBLIC_DIR);
 
 // POST /api/refresh drags 18 MB from iptv-org: allow it freely from the host itself,
@@ -122,6 +124,12 @@ app.get('/api/agent/v1/vod/search', agent.vodSearch);
 app.get('/api/agent/v1/vod/:sourceId/:vodId', agent.vodDetail);
 app.get('/api/agent/v1/archive/search', agent.archiveSearch);
 app.get('/api/agent/v1/commons/search', agent.commonsSearch);
+
+// Persistent home-page links; only reads are public, all mutations require an existing management token.
+app.get('/api/portal/services', portal.list);
+app.post('/api/portal/services', portal.add);
+app.patch('/api/portal/services/:id', portal.update);
+app.delete('/api/portal/services/:id', portal.remove);
 
 app.get('/healthz', api.health);
 app.get('/api/meta', api.meta);
