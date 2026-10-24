@@ -201,7 +201,11 @@ async function main() {
     if (!api) throw lastErr || new Error('all sources failed');
   }
 
-  const { channels, meta } = build(api, stats);
+  let { channels, meta } = build(api, stats);
+  // Merge user-managed M3U sources into the catalogue without replacing the upstream base data.
+  const merged = await require('./sources').mergeInto({ channels, meta }, DATA_DIR, log);
+  channels = merged.channels;
+  meta = merged.meta;
   fs.mkdirSync(DATA_DIR, { recursive: true });
   const payload = JSON.stringify({ meta, channels });
   const out = path.join(DATA_DIR, 'catalog.json');
