@@ -6,6 +6,8 @@ const fs = require('fs');
 const path = require('path');
 const { upstreamFetch, bodyToString } = require('./fetch-upstream');
 const vod = require('./vod');
+const live = require('./sources');
+const { withLock } = require('./registry-lock');
 
 const MAX_REGISTRY_BYTES = 1024 * 1024;
 const MAX_NEW_PER_CYCLE = 24;
@@ -56,11 +58,28 @@ async function readConfig(url) {
   if (length > MAX_REGISTRY_BYTES) throw new Error('Registry exceeds 1 MB');
   const body = await bodyToString(response);
   if (Buffer.byteLength(body, 'utf8') > MAX_REGISTRY_BYTES) throw new Error('Registry exceeds 1 MB');
-  let parsed;
-  try { parsed = JSON.parse(body.replace(/^\uFEFF/, '')); }
+  try { return JSON.parse(body.replace(/^\\uFEFF/, '')); }
   catch { throw new Error('Registry is not valid JSON'); }
-  return vod.parseSourceList(parsed);
 }
+function parseLiveRegistry(config) {
+  const items = Array.isArray(config && config.liveSources) ? config.liveSources : [];
+  const candidates = new Map();
+  for (const item of items) {
+    if (!item || typeof item.url !== 'string') continue;
+    let parsed;
+    try { parsed = new URL(item.url.trim()); } catch { continue; }
+    if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) continue;
+    parsed.hash = '';
+    const url = parsed.toString();
+    if (!candidates.has(url)) candidates.set(url, {
+      name: String(item.name || parsed.hostname).trim().slice(0, 80) || parsed.hostname,
+      url,
+      epg: typeof item.epg === 'string' && /^https?:\\/\\//i.test(item.epg) ? item.epg : null,
+    });
+  }
+  return [...candidates.values()];
+}
+
 async function mapLimit(items, limit, fn) {
   const output = new Array(items.length);
   let next = 0;
@@ -106,41 +125,56 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
 
   async function syncSourceLists(actor = 'automation') {
     const urls = registryUrls();
-    const report = { registriesChecked: 0, imported: 0, updated: 0, duplicates: 0, rejected: 0, errors: [] };
+    const report = {
+      registriesChecked: 0, vodImported: 0, vodUpdated: 0, liveImported: 0, liveUpdated: 0,
+      duplicates: 0, rejected: 0, errors: [],
+    };
+    report.imported = 0;
+    report.updated = 0;
+    report.liveChanged = false;
     if (autonomy() === 'off') {
       report.skipped = 'AGENT_AUTONOMY=off';
-      audit(dataDir, { actor, action: 'source_list.sync', status: 'blocked', summary: 'Automatic source discovery disabled by policy' });
+      audit(dataDir, { actor, action: 'source_list.sync', status: 'blocked', summary: 'Automatic provider discovery disabled by policy' });
       return report;
     }
     if (!urls.length) return report;
+
     for (const listUrl of urls) {
-      let candidates;
+      let config;
+      let vodCandidates = [];
+      let liveCandidates = [];
       try {
-        candidates = await readConfig(listUrl);
+        config = await readConfig(listUrl);
+        try { vodCandidates = vod.parseSourceList(config); } catch (err) {
+          if (!Array.isArray(config.liveSources)) throw err;
+        }
+        liveCandidates = parseLiveRegistry(config);
+        if (!vodCandidates.length && !liveCandidates.length) throw new Error('Registry has no compatible VOD sources[] / api_site{} / sites[] or liveSources[] entries');
         report.registriesChecked++;
       } catch (err) {
-        report.errors.push({ host: (() => { try { return new URL(listUrl).host; } catch { return 'invalid'; } })(), error: String(err.message || err).slice(0, 180) });
-        audit(dataDir, { actor, action: 'source_list.sync', status: 'error', summary: 'Could not read configured provider registry' });
+        report.errors.push({
+          host: (() => { try { return new URL(listUrl).host; } catch { return 'invalid'; } })(),
+          error: String(err.message || err).slice(0, 180),
+        });
+        audit(dataDir, { actor, action: 'source_list.sync', status: 'error', summary: 'Could not read a compatible configured provider registry' });
         continue;
       }
 
-      const registry = vod.loadSourcesSync(dataDir);
-      const existingUrls = new Set(registry.sources.map((source) => source.api));
-      const handled = new Set();
-      const updates = [];
-      const additions = [];
-      const sourceCandidates = candidates.slice(0, MAX_NEW_PER_CYCLE);
-      for (const candidate of sourceCandidates) {
-        if (existingUrls.has(candidate.api)) {
+      // VOD registry sync: providers are probed before activation in full autonomy mode.
+      const initialVod = vod.loadSourcesSync(dataDir).sources;
+      const existingVodUrls = new Set(initialVod.map((source) => source.api));
+      const handledVod = new Set();
+      const vodUpdates = [];
+      const vodAdditions = [];
+      for (const candidate of vodCandidates.slice(0, MAX_NEW_PER_CYCLE)) {
+        if (existingVodUrls.has(candidate.api)) {
           report.duplicates++;
           continue;
         }
-        // If a trusted list changes the API URL for a previously imported provider with
-        // the same name, treat it as an update and test before switching over.
-        const prior = registry.sources.find((source) =>
+        const prior = initialVod.find((source) =>
           source.importedFrom === listUrl &&
           normalizeName(source.name) === normalizeName(candidate.name) &&
-          !handled.has(source.id)
+          !handledVod.has(source.id)
         );
         const record = {
           id: prior ? prior.id : vod.newId(),
@@ -162,45 +196,128 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
           } catch (err) {
             report.rejected++;
             report.errors.push({ provider: candidate.name, error: String(err.message || err).slice(0, 180) });
-            audit(dataDir, { actor, action: 'provider.auto_import', status: 'rejected', sourceId: record.id, summary: 'Candidate failed its compatibility probe' });
+            audit(dataDir, { actor, action: 'provider.auto_import', status: 'rejected', sourceId: record.id, summary: 'VOD candidate failed compatibility probe' });
             continue;
           }
         } else {
           record.enabled = false;
           record.lastError = 'Imported in review mode; enable after checking compatibility and rights';
         }
-        existingUrls.add(candidate.api);
+        existingVodUrls.add(candidate.api);
         if (prior) {
-          handled.add(prior.id);
-          updates.push(record);
+          handledVod.add(prior.id);
+          vodUpdates.push(record);
         } else {
-          additions.push(record);
+          vodAdditions.push(record);
         }
       }
-
-      const changedIds = new Set([...updates, ...additions].map((source) => source.id));
-      if (changedIds.size) {
-        const updatedExisting = registry.sources.map((source) => {
-          const replacement = updates.find((candidate) => candidate.id === source.id);
-          return replacement || source;
+      if (vodUpdates.length || vodAdditions.length) {
+        await withLock('vod-sources:' + dataDir, () => {
+          const current = vod.loadSourcesSync(dataDir).sources;
+          const currentUrls = new Set(current.map((source) => source.api));
+          const safeAdds = vodAdditions.filter((item) => !currentUrls.has(item.api));
+          const replacements = new Map(vodUpdates.map((item) => [item.id, item]));
+          const next = current.map((item) => currentUrls.has(item.api) ? (replacements.get(item.id) || item) : item);
+          const knownIds = new Set(next.map((item) => item.id));
+          next.push(...safeAdds.filter((item) => !knownIds.has(item.id)));
+          vod.saveSources(dataDir, next);
+          report.vodImported += safeAdds.length;
+          report.vodUpdated += vodUpdates.filter((item) => current.some((currentItem) => currentItem.id === item.id)).length;
         });
-        updatedExisting.push(...additions);
-        vod.saveSources(dataDir, updatedExisting);
-        report.imported += additions.length;
-        report.updated += updates.length;
-        for (const item of additions) audit(dataDir, {
+        for (const item of vodAdditions) audit(dataDir, {
           actor, action: 'provider.auto_import', status: item.enabled ? 'enabled' : 'pending_review',
-          sourceId: item.id, summary: 'New provider imported from configured registry ' + (item.enabled ? 'and probe passed' : 'as disabled'),
+          sourceId: item.id, summary: 'VOD provider discovered from configured registry',
         });
-        for (const item of updates) audit(dataDir, {
+        for (const item of vodUpdates) audit(dataDir, {
           actor, action: 'provider.auto_update', status: item.enabled ? 'enabled' : 'pending_review',
-          sourceId: item.id, summary: 'Imported provider endpoint refreshed from configured registry',
+          sourceId: item.id, summary: 'VOD endpoint updated from configured registry',
+        });
+      }
+
+      // Live sources in LibreTV SourceList v2 use liveSources[]. Test them before activation.
+      const initialLive = live.loadSourcesSync(dataDir).sources;
+      const existingLiveUrls = new Set(initialLive.map((source) => source.url));
+      const handledLive = new Set();
+      const liveUpdates = [];
+      const liveAdditions = [];
+      for (const candidate of liveCandidates.slice(0, MAX_NEW_PER_CYCLE)) {
+        if (existingLiveUrls.has(candidate.url)) {
+          report.duplicates++;
+          continue;
+        }
+        const prior = initialLive.find((source) =>
+          source.importedFrom === listUrl &&
+          normalizeName(source.name) === normalizeName(candidate.name) &&
+          !handledLive.has(source.id)
+        );
+        const record = {
+          id: prior ? prior.id : live.newId(),
+          name: candidate.name,
+          url: candidate.url,
+          epg: candidate.epg,
+          enabled: autonomy() === 'full',
+          createdAt: prior ? prior.createdAt : new Date().toISOString(),
+          importedFrom: listUrl,
+        };
+        if (autonomy() === 'full') {
+          try {
+            const parsedItems = await live.fetchSource(record);
+            record.lastCount = live.buildChannels(record, parsedItems).length;
+            record.lastStreamCount = parsedItems.length;
+            record.lastUpdated = new Date().toISOString();
+            record.lastError = null;
+          } catch (err) {
+            report.rejected++;
+            report.errors.push({ provider: candidate.name, error: String(err.message || err).slice(0, 180) });
+            audit(dataDir, { actor, action: 'live_source.auto_import', status: 'rejected', sourceId: record.id, summary: 'Live playlist failed validation' });
+            continue;
+          }
+        } else {
+          record.enabled = false;
+          record.lastError = 'Imported in review mode; enable after checking compatibility and rights';
+        }
+        existingLiveUrls.add(candidate.url);
+        if (prior) {
+          handledLive.add(prior.id);
+          liveUpdates.push(record);
+        } else {
+          liveAdditions.push(record);
+        }
+      }
+      if (liveUpdates.length || liveAdditions.length) {
+        await withLock('live-sources:' + dataDir, () => {
+          const current = live.loadSourcesSync(dataDir).sources;
+          const currentUrls = new Set(current.map((source) => source.url));
+          const safeAdds = liveAdditions.filter((item) => !currentUrls.has(item.url));
+          const replacements = new Map(liveUpdates.map((item) => [item.id, item]));
+          const next = current.map((item) => replacements.get(item.id) || item);
+          const knownIds = new Set(next.map((item) => item.id));
+          next.push(...safeAdds.filter((item) => !knownIds.has(item.id)));
+          live.saveSources(dataDir, next);
+          report.liveImported += safeAdds.length;
+          report.liveUpdated += liveUpdates.filter((item) => current.some((currentItem) => currentItem.id === item.id)).length;
+          if (safeAdds.length || liveUpdates.length) report.liveChanged = true;
+        });
+        for (const item of liveAdditions) audit(dataDir, {
+          actor, action: 'live_source.auto_import', status: item.enabled ? 'enabled' : 'pending_review',
+          sourceId: item.id, summary: 'Live playlist discovered from configured registry',
+        });
+        for (const item of liveUpdates) audit(dataDir, {
+          actor, action: 'live_source.auto_update', status: item.enabled ? 'enabled' : 'pending_review',
+          sourceId: item.id, summary: 'Live playlist endpoint updated from configured registry',
         });
       }
     }
-    if (report.imported || report.updated) onProvidersChanged();
-    audit(dataDir, { actor, action: 'source_list.sync', status: report.errors.length ? 'partial' : 'ok',
-      summary: 'Registries ' + report.registriesChecked + '; imported ' + report.imported + '; updated ' + report.updated + '; duplicates ' + report.duplicates + '; rejected ' + report.rejected });
+    report.imported = report.vodImported + report.liveImported;
+    report.updated = report.vodUpdated + report.liveUpdated;
+    if (report.vodImported || report.vodUpdated) onProvidersChanged();
+    audit(dataDir, {
+      actor, action: 'source_list.sync', status: report.errors.length ? 'partial' : 'ok',
+      summary: 'Registries ' + report.registriesChecked +
+        '; VOD +' + report.vodImported + '/~' + report.vodUpdated +
+        '; live +' + report.liveImported + '/~' + report.liveUpdated +
+        '; duplicates ' + report.duplicates + '; rejected ' + report.rejected,
+    });
     return report;
   }
 
