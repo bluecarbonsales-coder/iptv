@@ -185,6 +185,10 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
           normalizeName(source.name) === normalizeName(candidate.name) &&
           !handledVod.has(source.id)
         );
+        if (!prior && initialVod.length + vodAdditions.length >= vod.MAX_VOD_SOURCES) {
+          report.skippedLimit++;
+          continue;
+        }
         const record = {
           id: prior ? prior.id : vod.newId(),
           name: candidate.name,
@@ -281,6 +285,10 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
           normalizeName(source.name) === normalizeName(candidate.name) &&
           !handledLive.has(source.id)
         );
+        if (!prior && initialLive.length + liveAdditions.length >= live.MAX_SOURCES) {
+          report.skippedLimit++;
+          continue;
+        }
         const record = {
           id: prior ? prior.id : live.newId(),
           name: candidate.name,
