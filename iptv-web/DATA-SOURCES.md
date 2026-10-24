@@ -19,6 +19,15 @@ Open-source examples that demonstrate this pattern include:
 - https://github.com/amponce/archive-movie-browser — Internet Archive video plus TMDB metadata, with an MCP server for agent-assisted finding. We use the source/API idea, not their branded interface or copied code.
 - https://github.com/noknows08/free-stream — a small Internet Archive public-domain/Creative Commons movie browser.
 
+## Built-in source: Wikimedia Commons
+
+The app also queries Wikimedia Commons' MediaWiki Action API using `generator=search` plus `imageinfo` URL and `extmetadata` fields. It only returns direct browser-compatible video files whose machine-readable record declares CC0, Public Domain, CC BY, or CC BY-SA metadata; CC non-commercial variants and unknown licenses are filtered out. Results link to the original Commons file page and include attribution data where available.
+
+- Machine-readable file metadata: https://commons.wikimedia.org/wiki/Commons:Machine-readable_data/en
+- API access policy and license guidance: https://www.mediawiki.org/wiki/Wikimedia_APIs/Access_policy
+
+Commons has short films, animations, educational videos, and other freely licensed media, but it is not a complete feature-film or anime catalog. As with Archive metadata, the uploader-provided licensing fields are a discovery filter rather than a legal guarantee.
+
 ## Provider directories supported by import
 
 A provider directory is a JSON list of endpoints. It does not itself host the content or verify the rights to every URL.
@@ -36,7 +45,7 @@ Do not put random source lists into `VOD_SOURCE_LIST_URLS`. Provider endpoint li
 | Source | What it provides | Integration status / notes |
 |---|---|---|
 | Internet Archive | Searchable media files, item metadata, public-domain and CC items | **Built in**; no key. The adapter filters by declared license metadata. |
-| Wikimedia Commons | Media files with explicitly free or public-domain licensing | Good future candidate for short films, animation, and educational video; it is not a comprehensive feature-film/anime streaming catalog. Each file's license and attribution must be retained. https://commons.wikimedia.org/wiki/Commons:Licensing |
+| Wikimedia Commons | Direct video files with machine-readable license and attribution metadata | **Built in**; CC0 / Public Domain / CC BY / CC BY-SA filtering plus original file-page links. Not a comprehensive feature-film catalog. https://commons.wikimedia.org/wiki/Commons:Licensing |
 | TMDB | Movie/series metadata, posters, synopses | Metadata only—not playback URLs. Its developer API is free for non-commercial use with attribution; commercial use requires a separate license. https://developer.themoviedb.org/docs/faq |
 | AniList / Kitsu | Anime catalog metadata | Metadata only—not legal video streams. They can be added for better search, season/episode metadata, and links, but should not be treated as streaming providers. |
 | Official broadcaster or studio APIs | Authorized live/VOD catalogs, where public APIs exist | Add only when the provider permits this use and its playback rights cover your deployment. |
@@ -45,4 +54,4 @@ There is no general public license that makes every commercial film or anime epi
 
 ## Agent automation
 
-See [AGENTS.md](../AGENTS.md) for an actionable Hermes playbook and [the agent OpenAPI endpoint](/api/agent/v1/openapi.json) after deployment. It describes capabilities, write permissions, scheduled source sync, provider health checks, maintenance tasks, and an audit log.
+See [AGENTS.md](../AGENTS.md) for an actionable Hermes playbook and [the agent OpenAPI endpoint](/api/agent/v1/openapi.json) after deployment. It describes capabilities, full authenticated agent writes, mutable runtime settings, scheduled source sync, provider health checks, maintenance tasks, open-license search, and an audit log.
