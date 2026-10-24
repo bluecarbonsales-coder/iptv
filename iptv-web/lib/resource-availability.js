@@ -222,7 +222,7 @@ function createResourceAvailability(options = {}) {
       const force = new URL(req.url, 'http://localhost').searchParams.get('refresh') === '1';
       startScan(force).catch(() => {});
       // Return cached measurements immediately; the browser polls while a fresh check is running.
-      sendJson(req, res, 200, getSnapshot());
+      sendJson(req, res, 200, getSnapshot(), { 'Cache-Control': 'no-store' });
     } catch (err) {
       sendJson(req, res, 500, { error: err.message || 'Could not load resource availability' });
     }
