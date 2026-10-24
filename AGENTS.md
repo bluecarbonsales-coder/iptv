@@ -1,13 +1,14 @@
 # Agent operating instructions — IPTV Web
 
-This repository contains a small, dependency-light Node.js IPTV/VOD service in `iptv-web/`. The owner explicitly authorizes trusted agents (including Hermes) to operate autonomously across the entire project: source registries, runtime settings, application code, tests, dependencies, documentation, deployment configuration, and deployment where credentials/tools are available. Do not require separate per-change approval for routine project work. Use the agent API for runtime operations and your normal repository/filesystem/shell tools for code changes.
+This repository contains a small, dependency-light Node.js IPTV/VOD service in `iptv-web/`. The owner explicitly authorizes trusted agents (including Hermes) to operate autonomously across the entire project: source registries, runtime settings, any tracked repository file, tests, dependencies, documentation, branches, commits, pull requests, CI, and deployment where credentials/workflows are available. Do not require separate per-change approval for routine project work. Use `/api/agent/v1/project/*` or `agentctl.js project-*` for GitHub-backed repository work; use local repository/workspace tools when available.
 
 ## 1. Required connection and credentials
 
 Set these in the deployment environment, not in prompts, chats, browser URLs, or logs:
 
 - `IPTV_BASE_URL`: the private HTTPS URL of the deployment.
-- `AGENT_API_TOKEN`: a long, random secret dedicated to the agent.
+- `AGENT_API_TOKEN`: a long, random secret dedicated to the agent API.
+- `GITHUB_REPO_TOKEN`: server-side GitHub App/PAT token with Contents read/write, Pull requests read/write, and Actions read/write permissions. This unlocks agent repository edits, branches, commits, PR merges, CI inspection and workflow dispatch. It must never be returned by the API or committed to Git.
 - `AGENT_AUTONOMY=full`: default autonomous mode; newly discovered registry providers are probed and activated automatically. `review` stores scheduled discoveries disabled, and `off` disables background registry discovery. Authenticated agent API writes are always available; these modes configure background discovery, not human approvals.
 - `VOD_SOURCE_LIST_URLS`: the default maintained TVboxorg registry is preconfigured on a fresh deployment; set comma/newline-separated URLs here to replace it with your own registry set.
 - `AUTO_SOURCE_SYNC_HOURS=12`: scheduled registry sync / provider health interval.
@@ -20,7 +21,7 @@ Start each session with:
 2. `GET /api/agent/v1/status`
 3. `GET /api/agent/v1/audit?limit=50`
 
-OpenAPI schema: `GET /api/agent/v1/openapi.json`.
+OpenAPI schema: `GET /api/agent/v1/openapi.json`. Full repository API: `GET /api/agent/v1/project/status`, `/tree`, `/file`; `POST /project/commit`, `/branch`, `/pr`, `/pr/:number/merge`, `/dispatch`; `GET /project/actions` and `/project/checks/:sha`.
 
 ## 2. Routine autonomous maintenance
 
@@ -119,7 +120,7 @@ Every agent API request is logged to `/data/agent-audit.jsonl` with time, action
 
 ## 7. Project-wide code changes and deployment
 
-The agent is authorized to change any project file needed to accomplish the owner's task. Use the available repository checkout and filesystem/shell tools to modify code; the HTTP API deliberately exposes project operations, not an arbitrary public shell endpoint. Add or update tests, run:
+The agent is authorized to change any project file needed to accomplish the owner's task. The GitHub-backed project API supports multi-file commits, file deletion/replacement, branches, PR creation and merge, check inspection, and GitHub Actions workflow dispatch. Prefer feature branch + PR for multi-file changes, run tests/CI, and merge when checks pass; the owner does not require a second approval for normal project changes. When a local checkout is available, use local tests/builds before committing. Add or update tests, run:
 
 ```bash
 node --check iptv-web/server.js
@@ -127,4 +128,4 @@ for file in iptv-web/lib/*.js iptv-web/public/*.js iptv-web/public/js/*.js; do n
 node --test iptv-web/test/*.test.js
 ```
 
-Commit clear, focused changes and push them to the configured repository. When the deployment environment is available and the change passes tests, deploy/restart the application using the project's existing deployment path without waiting for another approval. Preserve `/data` and secrets, avoid destructive migrations without a backup, and report the commit, CI result, and deployment health. Add dependencies when they materially improve reliability, security, agent interoperability, or maintainability; document why.
+Commit clear, focused changes and push them to the configured repository. Inspect CI after committing. When the deployment environment is available and the change passes tests, use a repository deployment workflow or the project's existing deployment path to deploy/restart the application without waiting for another approval. Preserve `/data` and secrets, avoid destructive migrations without a backup, and report the commit, CI result, and deployment health. Add dependencies when they materially improve reliability, security, agent interoperability, or maintainability; document why.
