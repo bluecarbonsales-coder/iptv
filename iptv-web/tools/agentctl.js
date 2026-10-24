@@ -31,13 +31,14 @@ function usage() {
   agentctl.js project-status
   agentctl.js project-tree [path] [ref]
   agentctl.js project-file <path> [ref]
-  agentctl.js project-commit <changes.json>
+  agentctl.js project-commit <changes.json> (writes directly to target branch by default)
   agentctl.js project-branch <name> [base]
   agentctl.js project-pr <head> <base> <title> [body]
   agentctl.js project-merge <number> [merge|squash|rebase] [commit title]
   agentctl.js project-dispatch <workflow-file> [ref] [inputs-json]
   agentctl.js project-actions [branch] [limit]
   agentctl.js project-checks <commit-sha>
+  agentctl.js project-commit can set {\"createPullRequest\":true} to open a PR instead of writing to its target branch
 
 A project commit JSON file can contain:
   {"message":"Fix issue","baseBranch":"main","createPullRequest":true,
@@ -147,7 +148,6 @@ async function main(argv) {
     let payload;
     try { payload = JSON.parse(fs.readFileSync(filePath, 'utf8')); }
     catch (err) { throw new Error('Could not read project change JSON: ' + err.message); }
-    if (!payload.createPullRequest) payload.createPullRequest = true;
     return print(await request('/api/agent/v1/project/commit', 'POST', payload));
   }
   if (command === 'project-branch') {
