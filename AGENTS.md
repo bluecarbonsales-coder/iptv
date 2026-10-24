@@ -9,7 +9,7 @@ Set these in the deployment environment, not in prompts, chats, browser URLs, or
 - `IPTV_BASE_URL`: the private HTTPS URL of the deployment.
 - `AGENT_API_TOKEN`: a long, random secret dedicated to the agent.
 - `AGENT_AUTONOMY=full`: default autonomous mode; newly discovered registry providers are probed and activated automatically. `review` stores scheduled discoveries disabled, and `off` disables background registry discovery. Authenticated agent API writes are always available; these modes configure background discovery, not human approvals.
-- `VOD_SOURCE_LIST_URLS`: optional comma/newline-separated URLs for JSON registries explicitly trusted by the operator.
+- `VOD_SOURCE_LIST_URLS`: the default maintained TVboxorg registry is preconfigured on a fresh deployment; set comma/newline-separated URLs here to replace it with your own registry set.
 - `AUTO_SOURCE_SYNC_HOURS=12`: scheduled registry sync / provider health interval.
 
 Send `X-Agent-Token: $AGENT_API_TOKEN` on every `/api/agent/v1/*` request. `Authorization: Bearer …` also works. Never put tokens in query parameters. Keep the service behind private Cloudflare Access or equivalent access control; the service's Docker port is intended to stay bound to loopback.
@@ -91,7 +91,7 @@ The owner explicitly authorizes full autonomy inside this repository. Do not sto
 For recurring source discovery, the default TVboxorg registry is already configured on a fresh deployment; add or replace registries through `sourceListUrls` in the API or `VOD_SOURCE_LIST_URLS` in the environment. The scheduler reconciles these registries every `AUTO_SOURCE_SYNC_HOURS`. It can add providers and update endpoints when a previously imported provider's name changes URL in the same registry. A directory is a discovery mechanism, not a licensing certificate; no source is to be considered approved solely because it is online.
 
 - Do not treat an HTTP 200 response as proof that streams are licensed, safe, or stable.
-- The default mode is `full` as explicitly authorized by the owner. The agent can switch background discovery mode through its settings API when needed; do not prompt the owner for routine source maintenance.
+- The default mode is `full` as explicitly authorized by the owner. The default TVboxorg directory is auto-polled, and the agent may search the official LibreTV/MoonTV/TVBox project documentation for additional maintained registries and add them through its settings API when useful; do not prompt the owner for routine source maintenance.
 - Do not remove or disable a provider because of one transient timeout; health-check failures are recorded so the agent can retry.
 - Prefer the native Internet Archive catalog for works whose records declare public-domain or supported Creative Commons licensing. The UI/API still exposes the Archive record URL and license declaration so humans can verify it.
 - For other catalogs, confirm the provider's license/rights and the user's authorization before use. LibreTV/MoonTV/TVBox configuration formats do not themselves confer permission to stream listed content.
