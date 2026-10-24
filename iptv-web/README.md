@@ -63,6 +63,10 @@ play fine through it.
 | `GET /api/channels` | `q`, `country`, `category`, `minQuality`, `hasLogo`, `nsfw`, `ids`, `sort`, `page`, `limit` |
 | `GET /api/channel/:id` | one channel with every stream URL, quality, referrer, user-agent, labels |
 | `GET /api/playlist?u=` | import an external M3U (server-side fetch + parse) |
+| `GET /api/sources` | list persistent resources (requires `X-Source-Token`) |
+| `POST /api/sources` | validate and add a persistent resource (requires `X-Source-Token`) |
+| `PATCH /api/sources/:id` | rename, change URL, or enable/disable a resource (requires `X-Source-Token`) |
+| `DELETE /api/sources/:id` | delete a resource (requires `X-Source-Token`) |
 | `GET /api/playlist.m3u?u=` | the same playlist rewritten through `/hls` |
 | `GET /api/export.m3u` | current filters as a downloadable playlist (`&proxy=1` to relay) |
 | `POST /api/refresh` | re-download the iptv-org API and rebuild the catalogue |
@@ -71,7 +75,10 @@ play fine through it.
 | `GET /healthz` | counts, timestamp, uptime |
 
 `POST /api/refresh` is accepted from the host itself without a token; anything arriving
-through the reverse proxy must send `X-Refresh-Token` matching `REFRESH_TOKEN`.
+through the reverse proxy must send `X-Refresh-Token` matching `REFRESH_TOKEN`. Resource-management
+requests require `X-Source-Token`, matching `SOURCE_TOKEN` or (if unset) `REFRESH_TOKEN`.
+Enter that token in the Resource manager panel; it is held in the current browser tab only.
+Configure a strong random token in the deployment environment before exposing the UI publicly.
 
 ## Layout
 
