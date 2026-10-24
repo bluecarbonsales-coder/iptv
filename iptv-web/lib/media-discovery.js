@@ -5,7 +5,6 @@ const crypto = require('crypto');
 const { URL } = require('url');
 const { sendJson, readBody } = require('./util');
 const archive = require('./archive-vod');
-const { upstreamFetch, bodyToString } = require('./fetch-upstream');
 
 const MAX_SAVED = 1000;
 function matchesToken(given, expected) {
@@ -67,9 +66,9 @@ function createMediaDiscovery({ dataDir }) {
           endpoint.searchParams.set('t', 'search');
           endpoint.searchParams.set('q', q);
           endpoint.searchParams.set('limit', '30');
-          const { response } = await upstreamFetch(endpoint.href, { timeoutMs: 15000, extraHeaders: { Accept: 'application/xml, text/xml' } });
+          const response = await fetch(endpoint.href, { signal: AbortSignal.timeout(15000), redirect: 'error', headers: { Accept: 'application/xml, text/xml' } });
           if (!response.ok) throw new Error('Jackett returned HTTP ' + response.status);
-          const xml = await bodyToString(response);
+          const xml = await response.text();
           if (Buffer.byteLength(xml) > 2 * 1024 * 1024) throw new Error('Jackett response too large');
           const items = xml.match(/<item\b[\s\S]*?<\/item>/gi) || [];
           for (const item of items.slice(0, 30)) {
