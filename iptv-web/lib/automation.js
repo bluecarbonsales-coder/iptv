@@ -11,7 +11,7 @@ const { withLock, withFileLock } = require('./registry-lock');
 const settingsLib = require('./agent-settings');
 
 const MAX_REGISTRY_BYTES = 1024 * 1024;
-const MAX_NEW_PER_CYCLE = 24;
+const MAX_NEW_PER_CYCLE = 48;
 const intervalMs = (dataDir) => settingsLib.getSettings(dataDir).autoSourceSyncHours * 3600000;
 const autonomy = (dataDir) => settingsLib.getSettings(dataDir).autonomy;
 
