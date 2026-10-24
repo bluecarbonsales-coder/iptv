@@ -154,8 +154,24 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
       const vodUpdates = [];
       const vodAdditions = [];
       for (const candidate of vodCandidates.slice(0, MAX_NEW_PER_CYCLE)) {
-        if (existingVodUrls.has(candidate.api)) {
-          report.duplicates++;
+        const sameEndpoint = initialVod.find((source) => source.api === candidate.api);
+        if (sameEndpoint) {
+          if (sameEndpoint.importedFrom === listUrl) {
+            const metadataUpdated = {
+              ...sameEndpoint,
+              name: candidate.name,
+              detail: candidate.detail || null,
+              kind: candidate.kind,
+              importedFrom: listUrl,
+            };
+            const changed = metadataUpdated.name !== sameEndpoint.name ||
+              metadataUpdated.detail !== (sameEndpoint.detail || null) ||
+              metadataUpdated.kind !== sameEndpoint.kind;
+            if (changed) vodUpdates.push(metadataUpdated);
+            else report.duplicates++;
+          } else {
+            report.duplicates++;
+          }
           continue;
         }
         const prior = initialVod.find((source) =>
@@ -169,10 +185,11 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
           api: candidate.api,
           detail: candidate.detail || null,
           kind: candidate.kind,
-          enabled: autonomy(dataDir) === 'full',
+          enabled: prior ? (autonomy(dataDir) === 'full' ? true : prior.enabled !== false) : autonomy(dataDir) === 'full',
           addedAt: prior ? prior.addedAt : new Date().toISOString(),
-          lastChecked: null,
-          lastError: null,
+          lastChecked: prior ? prior.lastChecked || null : null,
+          lastError: prior ? prior.lastError || null : null,
+          lastItemCount: prior ? prior.lastItemCount ?? null : null,
           importedFrom: listUrl,
         };
         if (autonomy(dataDir) === 'full') {
@@ -228,8 +245,23 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
       const liveUpdates = [];
       const liveAdditions = [];
       for (const candidate of liveCandidates.slice(0, MAX_NEW_PER_CYCLE)) {
-        if (existingLiveUrls.has(candidate.url)) {
-          report.duplicates++;
+        const sameEndpoint = initialLive.find((source) => source.url === candidate.url);
+        if (sameEndpoint) {
+          if (sameEndpoint.importedFrom === listUrl) {
+            const metadataUpdated = {
+              ...sameEndpoint,
+              name: candidate.name,
+              epg: candidate.epg,
+              importedFrom: listUrl,
+            };
+            if (metadataUpdated.name !== sameEndpoint.name || metadataUpdated.epg !== (sameEndpoint.epg || null)) {
+              liveUpdates.push(metadataUpdated);
+            } else {
+              report.duplicates++;
+            }
+          } else {
+            report.duplicates++;
+          }
           continue;
         }
         const prior = initialLive.find((source) =>
@@ -242,7 +274,7 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
           name: candidate.name,
           url: candidate.url,
           epg: candidate.epg,
-          enabled: autonomy(dataDir) === 'full',
+          enabled: prior ? (autonomy(dataDir) === 'full' ? true : prior.enabled !== false) : autonomy(dataDir) === 'full',
           createdAt: prior ? prior.createdAt : new Date().toISOString(),
           importedFrom: listUrl,
         };
