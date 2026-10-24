@@ -146,7 +146,7 @@ function createApi(catalog, refresh, dataDir) {
   };
 
   function publicSource(s) {
-    return { id: s.id, name: s.name, url: s.url, enabled: s.enabled !== false, count: s.lastCount || 0, streams: s.lastStreamCount || 0, updated: s.lastUpdated || null, error: s.lastError || null };
+    return { id: s.id, name: s.name, url: vodLib.redactUrl(s.url), enabled: s.enabled !== false, count: s.lastCount || 0, streams: s.lastStreamCount || 0, updated: s.lastUpdated || null, error: s.lastError || null };
   }
   const listVodSources = (req, res) => {
     if (!authorizeSourceWrite(req, res)) return;
