@@ -24,7 +24,7 @@ If the deployment package directory is not a Git checkout, find the repository c
 
 ## Standard edit/test/deploy cycle
 
-Run from the repository root, adjusting paths only if the checkout layout is different:
+Run from the repository root, adjusting paths only if the checkout layout is different. The release package also includes `tools/local-agent-deploy.sh`; after a code/UI change, it runs the checks, verifies the Compose configuration and `.env`, builds the app, restarts the service, and checks `/healthz` while preserving Compose volumes:
 
 ```bash
 set -Eeuo pipefail
@@ -46,7 +46,7 @@ curl --fail --silent --show-error http://127.0.0.1:3920/healthz
 docker compose ps
 ```
 
-If the Git checkout is separate from the active Compose directory, update/sync the checked-out release into the configured deployment directory using the existing deployment process, then run the checks there. Never replace or delete the persistent `iptv-data` volume as part of an app-code deployment. Verify the service health after deployment and inspect logs on failure.
+If the Git checkout is separate from the active Compose directory, use the existing deployment process to sync the checked-out release into the configured deployment directory, then run `bash tools/local-agent-deploy.sh` from that directory. Never replace or delete the persistent `iptv-data` volume as part of an app-code deployment. Verify the service health after deployment and inspect logs on failure.
 
 ## UI work
 
