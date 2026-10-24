@@ -212,21 +212,41 @@ function parseSourceList(payload) {
   return [...found.values()];
 }
 
+function redactUrl(raw) {
+  try {
+    const url = new URL(raw);
+    for (const key of [...url.searchParams.keys()]) {
+      if (/(token|secret|password|passwd|api[_-]?key|access[_-]?key|access[_-]?token|auth|signature|credential|session|jwt)/i.test(key)) {
+        url.searchParams.set(key, '[REDACTED]');
+      }
+    }
+    if (url.username || url.password) {
+      url.username = '';
+      url.password = '';
+    }
+    return url.toString();
+  } catch {
+    return '';
+  }
+}
 function publicSource(source) {
   return {
     id: source.id,
     name: source.name,
-    api: source.api,
-    detail: source.detail || null,
+    api: redactUrl(source.api),
+    apiHost: (() => { try { return new URL(source.api).host; } catch { return null; } })(),
+    detail: source.detail ? redactUrl(source.detail) : null,
     kind: source.kind,
     enabled: source.enabled !== false,
     addedAt: source.addedAt || null,
     lastChecked: source.lastChecked || null,
     lastError: source.lastError || null,
+    lastItemCount: source.lastItemCount ?? null,
+    importedFrom: source.importedFrom ? (() => { try { const u = new URL(source.importedFrom); return u.origin + u.pathname + (u.search ? '?[query-redacted]' : ''); } catch { return 'uploaded config'; } })() : null,
   };
 }
 module.exports = {
   MAX_VOD_SOURCES, KINDS, registryPath, loadSourcesSync, saveSources,
   newId, isHttpUrl, normalizeApiUrl, apiQuery, fetchJson, listFrom, classify,
-  parseEpisodes, normalizeItem, probeSource, searchSource, getDetail, parseSourceList, publicSource,
+  parseEpisodes, normalizeItem, probeSource, searchSource, getDetail, parseSourceList, redactUrl, publicSource,
 };
