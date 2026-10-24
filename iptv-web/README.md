@@ -173,7 +173,7 @@ deploy/              scripts used to stand the site up on the server
 
 ## Hermes / agent CLI
 
-The dependency-free `tools/agentctl.js` CLI wraps the authenticated agent API and returns JSON for automation. Set `IPTV_BASE_URL` and `AGENT_API_TOKEN` in your Hermes service environment; do not store the token in the repository or a prompt. For a **local agent on the deployment server**, see [`AGENTS.md`](AGENTS.md): it grants the local agent full project/file/UI editing authority and documents the deployment path. A local checkout and shell access do not require a `GITHUB_REPO_TOKEN`; that server-side token is only for remote GitHub operations via the HTTP API. For a **local agent on the deployment server**, see [`AGENTS.md`](AGENTS.md): give the agent's OS account write access to the real checkout and the privileges needed for tests, Docker rebuilds and deployment. Local editing of the repository and UI does not require `GITHUB_REPO_TOKEN`; that server-side token is only for remote GitHub operations through the HTTP API.
+The dependency-free `tools/agentctl.js` CLI wraps the authenticated agent API and returns JSON for automation. Set `IPTV_BASE_URL` and `AGENT_API_TOKEN` in your Hermes service environment; do not store the token in the repository or a prompt. For a **local agent on the deployment server**, see [`AGENTS.md`](AGENTS.md): give its OS account write access to the real project checkout plus the privileges needed to run tests, rebuild Docker, and deploy. Local filesystem editing—including all UI files—does not require `GITHUB_REPO_TOKEN`; that secret is only needed for remote GitHub operations through the HTTP API.
 
 ```bash
 node iptv-web/tools/agentctl.js capabilities
