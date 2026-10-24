@@ -21,19 +21,23 @@ function createApi(catalog, refresh, dataDir) {
   const vodSearchCache = new Map();
 
   function authorizeSourceWrite(req, res) {
-    const expected = process.env.SOURCE_TOKEN || process.env.REFRESH_TOKEN;
-    const given = req.headers['x-source-token'];
-    if (!expected) {
-      sendJson(req, res, 503, { error: 'source management is disabled until SOURCE_TOKEN or REFRESH_TOKEN is configured' });
+    const sourceExpected = process.env.SOURCE_TOKEN || process.env.REFRESH_TOKEN || '';
+    const agentExpected = process.env.AGENT_API_TOKEN || '';
+    const givenSource = req.headers['x-source-token'];
+    const givenAgent = req.headers['x-agent-token'];
+    const tokenMatches = (given, expected) => {
+      if (typeof given !== 'string' || !expected) return false;
+      const a = Buffer.from(given);
+      const b = Buffer.from(expected);
+      return a.length === b.length && require('crypto').timingSafeEqual(a, b);
+    };
+    if (tokenMatches(givenSource, sourceExpected) || tokenMatches(givenAgent, agentExpected)) return true;
+    if (!sourceExpected && !agentExpected) {
+      sendJson(req, res, 503, { error: 'source management is disabled until SOURCE_TOKEN, REFRESH_TOKEN, or AGENT_API_TOKEN is configured' });
       return false;
     }
-    const givenBuffer = typeof given === 'string' ? Buffer.from(given) : Buffer.alloc(0);
-    const expectedBuffer = Buffer.from(expected);
-    if (givenBuffer.length !== expectedBuffer.length || !require('crypto').timingSafeEqual(givenBuffer, expectedBuffer)) {
-      sendJson(req, res, 403, { error: 'source management token required' });
-      return false;
-    }
-    return true;
+    sendJson(req, res, 403, { error: 'source management token required' });
+    return false;
   }
 
   const sourceList = (req, res) => {
@@ -532,7 +536,7 @@ function createApi(catalog, refresh, dataDir) {
     });
   };
 
-  return { meta, channels, channel, refreshNow, playlist, playlistProxied, exportM3u, health, sourceList, addSource, updateSource, deleteSource, listVodSources, addVodSource, importVodSourceList, updateVodSource, deleteVodSource, vodSearch, vodDetail };
+  return { meta, channels, channel, refreshNow, playlist, playlistProxied, exportM3u, health, sourceList, addSource, updateSource, deleteSource, listVodSources, addVodSource, importVodSourceList, updateVodSource, deleteVodSource, vodSearch, vodDetail, clearVodCache: () => vodSearchCache.clear() };
 }
 
 module.exports = { createApi };
