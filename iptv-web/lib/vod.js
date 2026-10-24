@@ -4,6 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const DEFAULT_SOURCES = require('./default-vod-sources');
 const { upstreamFetch, bodyToString } = require('./fetch-upstream');
 
 const MAX_VOD_SOURCES = Math.max(1, Math.min(512, parseInt(process.env.MAX_VOD_SOURCES || '128', 10) || 128));
@@ -19,6 +20,27 @@ function loadSourcesSync(dataDir) {
     if (Array.isArray(raw.sources)) return raw;
   } catch {}
   return { sources: [] };
+}
+function ensureDefaultSources(dataDir) {
+  const target = registryPath(dataDir);
+  if (fs.existsSync(target)) return false;
+  const now = new Date().toISOString();
+  const sources = DEFAULT_SOURCES.slice(0, MAX_VOD_SOURCES).map((source) => ({
+    id: newId(),
+    name: source.name,
+    api: normalizeApiUrl(source.api),
+    detail: null,
+    kind: source.kind || 'all',
+    enabled: source.enabled === true,
+    addedAt: now,
+    lastChecked: null,
+    lastError: null,
+    lastItemCount: null,
+    listAction: 'videolist',
+    importedFrom: 'operator-provided initial list',
+  }));
+  saveSources(dataDir, sources);
+  return true;
 }
 function saveSources(dataDir, sources) {
   fs.mkdirSync(dataDir, { recursive: true });
@@ -283,7 +305,7 @@ function publicSource(source) {
   };
 }
 module.exports = {
-  MAX_VOD_SOURCES, KINDS, registryPath, loadSourcesSync, saveSources,
+  MAX_VOD_SOURCES, KINDS, registryPath, loadSourcesSync, saveSources, ensureDefaultSources,
   newId, isHttpUrl, normalizeApiUrl, apiQuery, fetchJson, listFrom, classify,
   parseEpisodes, normalizeItem, probeSource, preferredListAction, searchSource, getDetail, parseSourceList, redactUrl, publicSource,
 };
