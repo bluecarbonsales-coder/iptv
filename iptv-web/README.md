@@ -124,7 +124,7 @@ Configure a strong random token in the deployment environment before exposing th
 
 ## Agent operation and automation
 
-See the repository-root [`AGENTS.md`](../AGENTS.md) for exact Hermes workflows and API examples. The agent API requires a long random `AGENT_API_TOKEN` sent as `X-Agent-Token` or a Bearer token. It is disabled when the token is unset. Authenticated agents can manage source lists and operational settings without human approval; for full code edits, Hermes should use its normal repository/workspace tools. Keep the service behind Cloudflare Access/private ingress; do not expose the loopback application port directly.
+See the repository-root [`AGENTS.md`](../AGENTS.md) for exact Hermes workflows and API examples. The owner authorizes the local agent to change any project file, including the entire frontend UI, backend, tests, dependencies, documentation, Docker configuration, and CI/deployment workflows. Do not impose a code-path allowlist or approval gate. Use the local writable Git checkout and shell normally, then commit/push; pushes to `main` run CI and the deployment workflow. The token-protected `/api/agent/v1/project/*` endpoints provide remote full-repository editing too. Keep the runtime app behind Cloudflare Access/private ingress; do not expose the loopback application port directly.
 
 Configure `iptv-web/.env` from [`.env.example`](.env.example). Important settings:
 
@@ -143,6 +143,22 @@ or import a hosted JSON configuration URL / upload a downloaded JSON file. The i
 LibreTV SourceList JSON (`sources`), MoonTV `config.json` (`api_site`), and compatible TVBox-style `sites` arrays. Importing adds provider
 endpoints only; endpoints are not independently verified by a source list, and the importer does not
 verify content licensing or streaming rights. Add only catalogs you are authorized to use.
+
+### Local agent workspace (Hermes and other server agents)
+
+The deployment release directory is not a Git checkout. After this version has been deployed, bootstrap a normal writable private-repository checkout on the same host:
+
+```bash
+export IPTV_DEPLOY_DIR=/path/to/the/current/deployment-directory
+export IPTV_ENV_FILE="$IPTV_DEPLOY_DIR/.env"
+export IPTV_WORKSPACE_DIR="$HOME/src/iptv"
+bash "$IPTV_DEPLOY_DIR/tools/bootstrap-agent-workspace.sh"
+cd "$IPTV_WORKSPACE_DIR"
+```
+
+The existing deployment `.env` must contain `GITHUB_REPO_TOKEN` with repository Contents, Workflows, Pull requests, and Actions read/write permissions. The helper configures Git authentication without putting the token in the remote URL or storing it in `.git-credentials`. The local agent can then read/write every file—including `iptv-web/public/index.html`, `app.js`, `app.css`, server code, tests, and `.github/workflows/*`—run shell commands, install/update dependencies, commit, push, and deploy.
+
+Run tests and use `IPTV_ENV_FILE="$IPTV_DEPLOY_DIR/.env" bash iptv-web/tools/deploy-local.sh` for a local deployment. It identifies the existing Compose project to preserve the existing named `/data` volume, builds before replacing the running container, and checks health. Prefer a tested push to `main` when possible; the CI/deploy workflow rolls it out automatically. Full details and remote API examples are in [`AGENTS.md`](../AGENTS.md).
 
 ## Layout
 
