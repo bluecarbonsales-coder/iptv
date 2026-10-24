@@ -726,12 +726,16 @@
       applyFilters();
     };
 
-    $$('.tab').forEach((b) =>
+    $('.tab').forEach((b) =>
       b.addEventListener('click', () => {
         state.playlistId = null;
         setView(b.dataset.view, true);
       })
     );
+    $('#mobileView').addEventListener('change', (e) => {
+      state.playlistId = null;
+      setView(e.target.value, true);
+    });
 
     $('#country').addEventListener('change', (e) => {
       state.country = e.target.value;
