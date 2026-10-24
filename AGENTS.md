@@ -1,6 +1,6 @@
 # Agent operating instructions — IPTV Web
 
-This repository contains a small, dependency-light Node.js IPTV/VOD service in `iptv-web/`. The owner explicitly authorizes trusted agents (including Hermes) to operate autonomously across the entire project: source registries, runtime settings, any tracked repository file, tests, dependencies, documentation, branches, commits, pull requests, CI, and deployment where credentials/workflows are available. Do not require separate per-change approval for routine project work. Use `/api/agent/v1/project/*` or `agentctl.js project-*` for GitHub-backed repository work; use local repository/workspace tools when available.
+This repository contains a small, dependency-light Node.js IPTV/VOD service in `iptv-web/`. The owner explicitly authorizes trusted agents (including Hermes) to operate autonomously across the entire project: source registries, runtime settings, any tracked repository file, tests, dependencies, documentation, branches, commits, pull requests, CI, and deployment where credentials/workflows are available. Do not require separate per-change approval for routine project work. Use `/api/agent/v1/project/*` or `agentctl.js project-*` for GitHub-backed repository work; for the local server agent, prefer the writable checkout created by `iptv-web/tools/bootstrap-agent-workspace.sh` and use `iptv-web/tools/local-agent-deploy.sh` to deploy all backend/UI changes. The packaged instructions are in `iptv-web/AGENTS.md`.
 
 ## 1. Required connection and credentials
 
