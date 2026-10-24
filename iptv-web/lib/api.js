@@ -24,7 +24,9 @@ function createApi(catalog, refresh, dataDir) {
       sendJson(req, res, 503, { error: 'source management is disabled until SOURCE_TOKEN or REFRESH_TOKEN is configured' });
       return false;
     }
-    if (typeof given !== 'string' || given.length !== expected.length || !require('crypto').timingSafeEqual(Buffer.from(given), Buffer.from(expected))) {
+    const givenBuffer = typeof given === 'string' ? Buffer.from(given) : Buffer.alloc(0);
+    const expectedBuffer = Buffer.from(expected);
+    if (givenBuffer.length !== expectedBuffer.length || !require('crypto').timingSafeEqual(givenBuffer, expectedBuffer)) {
       sendJson(req, res, 403, { error: 'source management token required' });
       return false;
     }
@@ -32,6 +34,7 @@ function createApi(catalog, refresh, dataDir) {
   }
 
   const sourceList = (req, res) => {
+    if (!authorizeSourceWrite(req, res)) return;
     const { sources } = sourceLib.loadSourcesSync(sourceDataDir);
     sendJson(req, res, 200, { sources: sources.map(publicSource) });
   };
