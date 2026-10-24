@@ -50,6 +50,10 @@ play fine through it.
   favourite + recents, copy stream URL, relay on/off.
 - **Any M3U playlist** — import by URL (server-side fetch, no CORS) or local file (parsed
   in the browser); imports are kept in `localStorage`.
+- **Movies, series, anime and VOD** — separate sections with multi-provider search, poster cards,
+  details and episode selection for Apple CMS / MacCMS-compatible VOD APIs.
+- **Persistent VOD providers** — add, enable/disable and remove named providers. Provider settings
+  live in the Docker data volume; provider APIs are probed before being saved.
 - **M3U export** — `/api/export.m3u` mirrors the current filters, and can emit either the
   original stream URLs or relay URLs (`&proxy=1`) for use in VLC/Kodi.
 - **Bilingual UI** — English / 简体中文.
@@ -63,6 +67,12 @@ play fine through it.
 | `GET /api/channels` | `q`, `country`, `category`, `minQuality`, `hasLogo`, `nsfw`, `ids`, `sort`, `page`, `limit` |
 | `GET /api/channel/:id` | one channel with every stream URL, quality, referrer, user-agent, labels |
 | `GET /api/playlist?u=` | import an external M3U (server-side fetch + parse) |
+| `GET /api/vod?type=&q=` | search configured VOD APIs for `all`, `movies`, `series`, or `anime` |
+| `GET /api/vod/:sourceId/:vodId` | resolve details and episodes for a VOD title |
+| `GET /api/vod/sources` | list VOD providers (requires `X-Source-Token`) |
+| `POST /api/vod/sources` | validate and add Apple CMS / MacCMS provider (requires `X-Source-Token`) |
+| `PATCH /api/vod/sources/:id` | rename, re-categorize, or enable/disable a VOD provider (requires `X-Source-Token`) |
+| `DELETE /api/vod/sources/:id` | remove VOD provider (requires `X-Source-Token`) |
 | `GET /api/sources` | list persistent resources (requires `X-Source-Token`) |
 | `POST /api/sources` | validate and add a persistent resource (requires `X-Source-Token`) |
 | `PATCH /api/sources/:id` | rename, change URL, or enable/disable a resource (requires `X-Source-Token`) |
@@ -80,6 +90,12 @@ requests require `X-Source-Token`, matching `SOURCE_TOKEN` or (if unset) `REFRES
 Enter that token in the Resource manager panel; it is held in the current browser tab only.
 Configure a strong random token in the deployment environment before exposing the UI publicly.
 
+VOD provider configuration is stored in `data/vod-sources.json` on the persistent volume. The adapter
+supports the common Apple CMS / MacCMS JSON API (`ac=videolist`, `wd`, `pg`, and `ids` queries) used by
+LibreTV/MoonTV-style deployments. Select a provider category when adding it so movies, series, and
+anime are routed to the right section. No third-party movie endpoints or source lists are bundled;
+add only services you are authorized to use and verify the licensing/streaming rights of their content.
+
 ## Layout
 
 ```
@@ -91,6 +107,8 @@ lib/hls.js           manifest rewriting + segment relay
 lib/img.js           logo relay + disk LRU cache
 lib/catalog.js       in-memory catalogue, filtering, ranked search
 lib/refresh.js       download iptv-org API -> data/catalog.json (+ meta.json, .gz)
+lib/sources.js        persistent M3U source registry and catalogue merger
+lib/vod.js            Apple CMS / MacCMS VOD provider adapter
 lib/m3u.js           M3U parser (server); public/js/m3u.js is the browser twin
 lib/static.js        static serving with etag + gzip
 public/              index.html, app.css, app.js, js/i18n.js, vendor/hls.min.js
