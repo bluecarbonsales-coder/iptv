@@ -82,6 +82,7 @@ app.get('/api/meta', api.meta);
 app.get('/api/sources', api.sourceList);
 app.get('/api/vod/sources', api.listVodSources);
 app.post('/api/vod/sources', api.addVodSource);
+app.post('/api/vod/import', api.importVodSourceList);
 app.patch('/api/vod/sources/:id', api.updateVodSource);
 app.delete('/api/vod/sources/:id', api.deleteVodSource);
 app.get('/api/vod', api.vodSearch);
