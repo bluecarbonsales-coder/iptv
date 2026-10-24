@@ -124,6 +124,13 @@ async function mergeInto(catalogData, dataDir, log = () => {}) {
   const { sources } = loadSourcesSync(dataDir);
   const statuses = [];
   const extra = [];
+  const previousBySource = new Map();
+  for (const channel of catalogData.channels || []) {
+    if (!channel.src) continue;
+    if (!previousBySource.has(channel.src)) previousBySource.set(channel.src, []);
+    previousBySource.get(channel.src).push(channel);
+  }
+  const failedSourceIds = new Set();
   for (const s of sources) {
     if (!s.enabled) {
       statuses.push({ id: s.id });
@@ -140,6 +147,7 @@ async function mergeInto(catalogData, dataDir, log = () => {}) {
       s.lastError = null;
       log(`source ok: ${s.name} (${channels.length} channels, ${Date.now() - t0}ms)`);
     } catch (err) {
+      failedSourceIds.add(s.id);
       s.lastError = String(err.message || err);
       s.lastUpdated = new Date().toISOString();
       log(`source failed: ${s.name}: ${s.lastError}`);
@@ -149,7 +157,10 @@ async function mergeInto(catalogData, dataDir, log = () => {}) {
   mergeStatuses(dataDir, statuses);
 
   const kept = (catalogData.channels || []).filter((c) => !c.src);
-  const channels = kept.concat(extra);
+  // Keep the last-known-good channels when a source is temporarily unreachable.
+  // Disabled sources are intentionally excluded, while failed enabled sources remain usable.
+  const stale = [...failedSourceIds].flatMap((id) => previousBySource.get(id) || []);
+  const channels = kept.concat(stale, extra);
   channels.sort((a, b) => a.name.localeCompare(b.name));
 
   const cCount = new Map();
