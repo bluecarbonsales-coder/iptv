@@ -55,22 +55,7 @@ async function readConfig(url) {
   catch { throw new Error('Registry is not valid JSON'); }
 }
 function parseLiveRegistry(config) {
-  const items = Array.isArray(config && config.liveSources) ? config.liveSources : [];
-  const candidates = new Map();
-  for (const item of items) {
-    if (!item || typeof item.url !== 'string') continue;
-    let parsed;
-    try { parsed = new URL(item.url.trim()); } catch { continue; }
-    if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) continue;
-    parsed.hash = '';
-    const url = parsed.toString();
-    if (!candidates.has(url)) candidates.set(url, {
-      name: String(item.name || parsed.hostname).trim().slice(0, 80) || parsed.hostname,
-      url,
-      epg: typeof item.epg === 'string' && /^https?:\/\//i.test(item.epg) ? item.epg : null,
-    });
-  }
-  return [...candidates.values()];
+  return live.parseRegistrySources(config);
 }
 
 async function mapLimit(items, limit, fn) {
