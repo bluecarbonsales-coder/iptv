@@ -110,7 +110,7 @@ function normalizePlaylistItems(items) {
     let url = String(item.url).trim();
     let name = String(item.name || '').trim();
     // Accept common plain-text live lists like "Channel Name,https://stream.example/live.m3u8".
-    const comma = /^(.*?),\\s*(https?:\\/\\/\\S+)$/i.exec(url);
+    const comma = /^(.*?),\s*(https?:\/\/\S+)$/i.exec(url);
     if (comma) {
       if (!name || name === url || name === url.split('/').pop()) name = comma[1].trim();
       url = comma[2].trim();
