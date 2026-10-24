@@ -9,7 +9,7 @@ const sourceLib = require('./sources');
 const vodLib = require('./vod');
 const archiveLib = require('./archive-vod');
 const commonsLib = require('./commons-vod');
-const { withLock } = require('./registry-lock');
+const { withLock, withFileLock } = require('./registry-lock');
 
 // Absolute origin as the browser sees it (proxy sets X-Forwarded-Proto).
 function baseUrl(req) {
@@ -38,6 +38,7 @@ function createApi(catalog, refresh, dataDir) {
   const vodSearchCache = new Map();
   const liveLockKey = 'live-sources:' + sourceDataDir;
   const vodLockKey = 'vod-sources:' + sourceDataDir;
+  const withLiveLock = (fn) => withFileLock(sourceLib.sourcesPath(sourceDataDir) + '.lock', () => withLock(liveLockKey, fn));
 
   function authorizeSourceWrite(req, res) {
     const sourceExpected = process.env.SOURCE_TOKEN || process.env.REFRESH_TOKEN || '';
@@ -81,7 +82,7 @@ function createApi(catalog, refresh, dataDir) {
       candidate.lastUpdated = new Date().toISOString();
       candidate.lastError = null;
 
-      await withLock(liveLockKey, () => {
+      await withLiveLock(() => {
         const sources = sourceLib.loadSourcesSync(sourceDataDir).sources;
         if (sources.length >= sourceLib.MAX_SOURCES) throw Object.assign(new Error('maximum ' + sourceLib.MAX_SOURCES + ' sources reached'), { statusCode: 409 });
         if (sources.some((source) => source.url === url)) throw Object.assign(new Error('this source URL already exists'), { statusCode: 409 });
