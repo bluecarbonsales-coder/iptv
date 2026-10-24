@@ -24,6 +24,14 @@ class Router {
     return this.add('POST', p, h);
   }
 
+  patch(p, h) {
+    return this.add('PATCH', p, h);
+  }
+
+  delete(p, h) {
+    return this.add('DELETE', p, h);
+  }
+
   use(handler) {
     this.routes.push({ method: '*', parts: null, handler, prefix: true });
     return this;
