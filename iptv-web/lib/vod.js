@@ -47,8 +47,9 @@ function ensureDefaultSources(dataDir) {
     listAction: 'videolist',
     importedFrom: 'operator-provided initial list',
   }));
-  saveSources(dataDir, registry.sources.concat(seeded).slice(0, MAX_VOD_SOURCES));
-  return seeded.length > 0;
+  const additions = seeded.slice(0, Math.max(0, MAX_VOD_SOURCES - registry.sources.length));
+  saveSources(dataDir, registry.sources.concat(additions));
+  return additions.length > 0;
 }
 function saveSources(dataDir, sources) {
   fs.mkdirSync(dataDir, { recursive: true });
