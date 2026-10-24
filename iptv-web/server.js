@@ -81,14 +81,14 @@ const automation = createAutomation({
   onProvidersChanged: () => api && api.clearVodCache(),
 });
 api = createApi(catalog, refreshNow, DATA_DIR, automation);
+const navigationConfig = createNavigationConfig(DATA_DIR);
+const visitorContext = createVisitorContext(DATA_DIR);
 const agent = createAgentApi({ dataDir: DATA_DIR, catalog, refresh: refreshNow, api, automation, navigationConfig, visitorContext });
 const portal = createPortalApi({ dataDir: DATA_DIR });
 const resourceAvailability = createResourceAvailability({ getServices: portal.getServices });
 const radio = createRadioApi();
 const mail = createMailApi({ dataDir: DATA_DIR });
 const metadata = createMetadataApi();
-const navigationConfig = createNavigationConfig(DATA_DIR);
-const visitorContext = createVisitorContext(DATA_DIR);
 const staticHandler = serveStatic(PUBLIC_DIR);
 
 // POST /api/refresh drags 18 MB from iptv-org: allow it freely from the host itself,
