@@ -10,6 +10,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { parseM3U, isHlsManifest } = require('./m3u');
 const { upstreamFetch, bodyToString } = require('./fetch-upstream');
+const { withFileLock } = require('./registry-lock');
 
 const MAX_SOURCES = parseInt(process.env.MAX_SOURCES || '64', 10);
 
@@ -35,13 +36,15 @@ function saveSources(dataDir, sources) {
 
 // Re-read + merge status fields only, so a source added while a background refresh is
 // running is never clobbered by the child process writing an older list back.
-function mergeStatuses(dataDir, statuses) {
-  const { sources } = loadSourcesSync(dataDir);
-  for (const s of sources) {
-    const st = (statuses || []).find((x) => x.id === s.id);
-    if (st) Object.assign(s, st);
-  }
-  saveSources(dataDir, sources);
+async function mergeStatuses(dataDir, statuses) {
+  return withFileLock(sourcesPath(dataDir) + '.lock', () => {
+    const { sources } = loadSourcesSync(dataDir);
+    for (const s of sources) {
+      const st = (statuses || []).find((x) => x.id === s.id);
+      if (st) Object.assign(s, st);
+    }
+    saveSources(dataDir, sources);
+  });
 }
 
 function loadSourcesSync(dataDir) {
@@ -183,7 +186,7 @@ async function mergeInto(catalogData, dataDir, log = () => {}) {
     }
     statuses.push({ id: s.id, lastCount: s.lastCount, lastStreamCount: s.lastStreamCount, lastUpdated: s.lastUpdated, lastError: s.lastError });
   }
-  mergeStatuses(dataDir, statuses);
+  await mergeStatuses(dataDir, statuses);
 
   const kept = (catalogData.channels || []).filter((c) => !c.src);
   // Keep the last-known-good channels when a source is temporarily unreachable.
