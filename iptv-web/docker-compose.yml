@@ -24,6 +24,8 @@ services:
       AUTO_SOURCE_SYNC_HOURS: "${AUTO_SOURCE_SYNC_HOURS:-12}"
       # Maintained TVboxorg registry is the default; set your own comma/newline-separated JSON registries to override.
       VOD_SOURCE_LIST_URLS: "${VOD_SOURCE_LIST_URLS:-https://raw.githubusercontent.com/TVboxorg/TVbox/main/dist/official.json}"
+      MAX_VOD_SOURCES: "${MAX_VOD_SOURCES:-128}"
+      MAX_SOURCES: "${MAX_SOURCES:-64}"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3920/healthz"]
       interval: 60s
