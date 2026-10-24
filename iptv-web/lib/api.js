@@ -146,20 +146,31 @@ function createApi(catalog, refresh, dataDir) {
   const importVodSourceList = async (req, res) => {
     if (!authorizeSourceWrite(req, res)) return;
     try {
-      const body = JSON.parse(await readBody(req, 16384));
-      const listUrl = vodLib.normalizeApiUrl(body.url);
-      const { response } = await upstreamFetch(listUrl, {
-        timeoutMs: 15000,
-        extraHeaders: { Accept: 'application/json, text/plain;q=0.9, */*;q=0.8' },
-      });
-      if (!response.ok) return sendJson(req, res, 502, { error: 'Source list returned HTTP ' + response.status });
-      const length = Number(response.headers.get('content-length') || 0);
-      if (length > 1024 * 1024) return sendJson(req, res, 413, { error: 'Source list must be at most 1 MB' });
-      const raw = await bodyToString(response);
-      if (Buffer.byteLength(raw, 'utf8') > 1024 * 1024) return sendJson(req, res, 413, { error: 'Source list must be at most 1 MB' });
+      const body = JSON.parse(await readBody(req, 1024 * 1024));
       let config;
-      try { config = JSON.parse(raw.replace(/^\uFEFF/, '')); }
-      catch { return sendJson(req, res, 400, { error: 'Source list URL must return JSON' }); }
+      let importedFrom = null;
+
+      if (body.url) {
+        const listUrl = vodLib.normalizeApiUrl(body.url);
+        const { response } = await upstreamFetch(listUrl, {
+          timeoutMs: 15000,
+          extraHeaders: { Accept: 'application/json, text/plain;q=0.9, */*;q=0.8' },
+        });
+        if (!response.ok) return sendJson(req, res, 502, { error: 'Source list returned HTTP ' + response.status });
+        const length = Number(response.headers.get('content-length') || 0);
+        if (length > 1024 * 1024) return sendJson(req, res, 413, { error: 'Source list must be at most 1 MB' });
+        const raw = await bodyToString(response);
+        if (Buffer.byteLength(raw, 'utf8') > 1024 * 1024) return sendJson(req, res, 413, { error: 'Source list must be at most 1 MB' });
+        try { config = JSON.parse(raw.replace(/^\\uFEFF/, '')); }
+        catch { return sendJson(req, res, 400, { error: 'Source list URL must return JSON' }); }
+        importedFrom = listUrl;
+      } else if (body.config && typeof body.config === 'object') {
+        config = body.config;
+        importedFrom = String(body.sourceName || 'uploaded JSON').slice(0, 120);
+      } else {
+        return sendJson(req, res, 400, { error: 'Provide a source-list URL or upload a JSON configuration.' });
+      }
+
       const candidates = vodLib.parseSourceList(config);
       const registry = vodLib.loadSourcesSync(sourceDataDir);
       const existing = new Set(registry.sources.map((source) => source.api));
@@ -180,7 +191,7 @@ function createApi(catalog, refresh, dataDir) {
           addedAt: new Date().toISOString(),
           lastChecked: null,
           lastError: null,
-          importedFrom: listUrl,
+          importedFrom,
         };
         added.push(source);
         existing.add(item.api);
