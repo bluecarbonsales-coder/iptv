@@ -1,0 +1,108 @@
+# Agent operating instructions — IPTV Web
+
+This repository contains a small, dependency-light Node.js IPTV/VOD service in `iptv-web/`. These instructions are intended for trusted operators and agents such as Hermes. Use the HTTP API for routine source maintenance; do not edit the deployment or application code to accomplish a normal source change.
+
+## 1. Required connection and credentials
+
+Set these in the deployment environment, not in prompts, chats, browser URLs, or logs:
+
+- `IPTV_BASE_URL`: the private HTTPS URL of the deployment.
+- `AGENT_API_TOKEN`: a long, random secret dedicated to the agent.
+- `AGENT_AUTONOMY=full`: enables authenticated agent writes. `review` blocks agent writes and keeps scheduled imports disabled for review; `off` skips scheduled registry discovery.
+- `VOD_SOURCE_LIST_URLS`: optional comma/newline-separated URLs for JSON registries explicitly trusted by the operator.
+- `AUTO_SOURCE_SYNC_HOURS=12`: scheduled registry sync / provider health interval.
+
+Send `X-Agent-Token: $AGENT_API_TOKEN` on every `/api/agent/v1/*` request. `Authorization: Bearer …` also works. Never put tokens in query parameters. Keep the service behind private Cloudflare Access or equivalent access control; the service's Docker port is intended to stay bound to loopback.
+
+Start each session with:
+
+1. `GET /api/agent/v1/capabilities`
+2. `GET /api/agent/v1/status`
+3. `GET /api/agent/v1/audit?limit=50`
+
+OpenAPI schema: `GET /api/agent/v1/openapi.json`.
+
+## 2. Routine autonomous maintenance
+
+Run a maintenance cycle with:
+
+```http
+POST /api/agent/v1/tasks/run
+X-Agent-Token: <secret>
+Content-Type: application/json
+
+{"task":"maintain_sources"}
+```
+
+Supported tasks:
+
+- `maintain_sources`: synchronize explicitly configured provider registries and health-check enabled VOD providers.
+- `sync_source_lists`: fetch and reconcile configured registry JSON files.
+- `check_vod_providers`: probe enabled Apple CMS/MacCMS API endpoints and update `lastChecked`, `lastError`, and `lastItemCount`.
+- `refresh_live_catalog`: refresh the upstream iptv-org live-channel catalog.
+
+The service also runs a maintenance cycle shortly after startup and then at `AUTO_SOURCE_SYNC_HOURS`. Registry synchronization runs only for URLs in `VOD_SOURCE_LIST_URLS`; the service does not search random Internet URLs or auto-trust arbitrary GitHub lists. In `full` mode, newly discovered endpoints must pass a provider-compatibility probe before automatic activation. In `review` mode, discovered candidates are stored disabled.
+
+## 3. Manage live and VOD sources
+
+### Add a VOD API
+
+```http
+POST /api/agent/v1/vod/sources
+X-Agent-Token: <secret>
+Content-Type: application/json
+
+{"name":"Authorized catalog","api":"https://provider.example/api.php/provide/vod","kind":"all"}
+```
+
+Accepted `kind`: `all`, `movies`, `series`, or `anime`. The server validates the URL and probes the response as an Apple CMS/MacCMS-compatible JSON VOD API before saving it.
+
+### Import a provider directory
+
+```http
+POST /api/agent/v1/vod/import
+X-Agent-Token: <secret>
+Content-Type: application/json
+
+{"url":"https://trusted.example/source-list.json"}
+```
+
+You may also send an uploaded JSON object as `{"config":{...},"sourceName":"local-file.json"}`. Supported formats are LibreTV SourceList `sources[]`, MoonTV-style `api_site{}`, and compatible TVBox-style `sites[]`. Imports add provider definitions—not the project itself as a streaming service. Use only directories you have reviewed and are authorized to use.
+
+### Search and inspect
+
+- `GET /api/agent/v1/vod/search?type=movies&q=...`
+- `GET /api/agent/v1/vod/search?type=anime&q=...`
+- `GET /api/agent/v1/vod/sources`
+- `GET /api/agent/v1/live/sources`
+- `GET /api/agent/v1/vod/:sourceId/:vodId` (source IDs are returned by search results)
+- `GET /api/agent/v1/archive/search?type=movies&q=...`
+
+Source mutations use `POST`, `PATCH`, and `DELETE` under `/api/agent/v1/live/sources` and `/api/agent/v1/vod/sources`. Use the IDs returned by the API; avoid duplicate providers. Validate input and inspect the response body, not only the HTTP status.
+
+## 4. Automatic source discovery policy
+
+For recurring automatic discovery, set `VOD_SOURCE_LIST_URLS` to a small set of provider registries the operator trusts. The scheduler will reconcile those registries every `AUTO_SOURCE_SYNC_HOURS`. It can add providers and update endpoints when a previously imported provider's name changes URL in the same trusted registry.
+
+- Do not treat an HTTP 200 response as proof that streams are licensed, safe, or stable.
+- Do not silently enable new registries unless `AGENT_AUTONOMY=full` is explicitly configured by the operator.
+- Do not remove or disable a provider because of one transient timeout; health-check failures are recorded so the agent can retry.
+- Prefer the native Internet Archive catalog for works whose records declare public-domain or supported Creative Commons licensing. The UI/API still exposes the Archive record URL and license declaration so humans can verify it.
+- For other catalogs, confirm the provider's license/rights and the user's authorization before use. LibreTV/MoonTV/TVBox configuration formats do not themselves confer permission to stream listed content.
+- Never bypass DRM, subscription/paywall access controls, or provider authentication requirements.
+
+## 5. Reviewability and audit
+
+Every agent API request is logged to `/data/agent-audit.jsonl` with time, action, result, and duration. The API returns recent entries at `GET /api/agent/v1/audit`. It intentionally avoids writing provider URLs or tokens to the log. Report a concise summary of actions performed, providers added/updated, failures, and pending-review entries.
+
+## 6. When a code change is actually needed
+
+Use a separate feature branch, add/update tests, run:
+
+```bash
+node --check iptv-web/server.js
+for file in iptv-web/lib/*.js iptv-web/public/*.js iptv-web/public/js/*.js; do node --check "$file"; done
+node --test iptv-web/test/*.test.js
+```
+
+Open a pull request against `main`; do not change production or merge a code change without the operator's authorization. Do not add dependencies unless a clear reliability/security benefit justifies them.
