@@ -40,6 +40,7 @@
     favorites: LS.get('iptvweb.fav', []),
     recent: LS.get('iptvweb.recent', []),
     playlists: LS.get('iptvweb.playlists', []),
+    vodItems: LS.get('iptvweb.vod.items', []),
     loading: false,
   };
 
@@ -138,6 +139,12 @@
     return null;
   }
 
+  function getSavedVodForView() {
+    const ids = state.view === 'recent' ? state.recent : Array.from(favSet);
+    const byId = new Map((state.vodItems || []).map((item) => [item.id, item]));
+    return ids.map((id) => byId.get(id)).filter((item) => item && (!state.q || (item.name + ' ' + (item.overview || '')).toLowerCase().includes(state.q.toLowerCase())));
+  }
+
   function buildQuery(page) {
     const p = new URLSearchParams();
     if (state.q) p.set('q', state.q);
@@ -174,11 +181,13 @@
       const res = await fetch('/api/channels?' + p.toString());
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
-      state.total = data.total;
+      const extraVod = reset && (state.view === 'favorites' || state.view === 'recent') ? getSavedVodForView() : [];
+      const pageItems = (data.items || []).concat(extraVod);
+      state.total = data.total + extraVod.length;
       state.pages = data.pages;
-      if (reset) state.items = data.items;
+      if (reset) state.items = pageItems;
       else state.items = state.items.concat(data.items);
-      renderCards(reset ? data.items : data.items, !reset);
+      renderCards(pageItems, !reset);
       renderResultBar();
       loadMoreBtn.hidden = state.view === 'playlists' || state.page >= data.pages || !data.total;
     } catch (err) {
@@ -206,6 +215,10 @@
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
       const items = data.items || [];
+      const stored = new Map((state.vodItems || []).map((item) => [item.id, item]));
+      for (const item of items) stored.set(item.id, item);
+      state.vodItems = Array.from(stored.values()).slice(-500);
+      LS.set('iptvweb.vod.items', state.vodItems);
       state.total = data.total || 0;
       state.pages = data.pages || 1;
       state.page = 1;
