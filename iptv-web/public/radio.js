@@ -5,7 +5,7 @@
     query: '', countrycode: '', language: '', tag: '', order: 'clickcount',
     offset: 0, limit: 48, stations: [], favorites: loadJson('radio.favorites', []),
     favoriteStations: loadJson('radio.favoriteStations', []),
-    recent: loadJson('radio.recent', []), onlyFavorites: false, activeUuid: '', isLoading: false,
+    recent: loadJson('radio.recent', []), onlyFavorites: false, activeUuid: '', activeProxyUrl: '', proxyFallbackUsed: false, isLoading: false,
   };
   const grid = $('#stationGrid');
   const audio = $('#radioAudio');
@@ -233,6 +233,8 @@
     audio.removeAttribute('src');
     audio.load();
     state.activeUuid = '';
+    state.activeProxyUrl = '';
+    state.proxyFallbackUsed = false;
     $('#nowPlaying').hidden = true;
     document.title = 'Public Radio · Service Portal';
     render();
@@ -240,6 +242,8 @@
   async function playStation(station) {
     const myTicket = ++activeTicket;
     state.activeUuid = station.stationuuid;
+    state.activeProxyUrl = '';
+    state.proxyFallbackUsed = false;
     render();
     setNowPlaying(station);
     $('#nowSub').textContent = 'Resolving station stream…';
@@ -251,6 +255,7 @@
       const resolved = await request('/api/radio/resolve/' + encodeURIComponent(station.stationuuid));
       if (myTicket !== activeTicket) return;
       const isHls = station.hls || /\.m3u8(?:$|[?#])/i.test(resolved.url);
+      state.activeProxyUrl = isHls ? '' : (resolved.proxyUrl || '');
       if (isHls && window.Hls && window.Hls.isSupported()) {
         const instance = new window.Hls({ enableWorker: true, maxBufferLength: 30, maxMaxBufferLength: 60 });
         hlsPlayer = instance;
@@ -281,8 +286,10 @@
         });
       } else {
         const canNativeHls = isHls && audio.canPlayType('application/vnd.apple.mpegurl');
-        if (resolved.url.startsWith('http:') && resolved.proxyUrl && !isHls) audio.src = resolved.proxyUrl;
-        else audio.src = isHls ? (canNativeHls ? '/hls?u=' + encodeURIComponent(resolved.url) : resolved.url) : resolved.url;
+        if (resolved.url.startsWith('http:') && resolved.proxyUrl && !isHls) {
+          state.proxyFallbackUsed = true;
+          audio.src = resolved.proxyUrl;
+        } else audio.src = isHls ? (canNativeHls ? '/hls?u=' + encodeURIComponent(resolved.url) : resolved.url) : resolved.url;
         audio.load();
         await audio.play();
       }
@@ -343,10 +350,23 @@
     audio.addEventListener('play', render);
     audio.addEventListener('pause', render);
     audio.addEventListener('error', () => {
-      if (state.activeUuid) {
-        $('#nowSub').textContent = 'Playback failed — try another station';
-        setStatus('The station stream could not be played. Stream formats and availability vary.', true);
+      if (!state.activeUuid) return;
+      // Prefer direct HTTPS streams to save VPS bandwidth, then fall back once if the
+      // broadcaster blocks the browser or redirects to HTTP.
+      if (state.activeProxyUrl && !state.proxyFallbackUsed) {
+        state.proxyFallbackUsed = true;
+        setStatus('Direct playback failed; trying the server relay…');
+        $('#nowSub').textContent = 'Switching to compatible playback…';
+        audio.src = state.activeProxyUrl;
+        audio.load();
+        audio.play().catch(() => {
+          $('#nowSub').textContent = 'Stream unavailable — choose another station';
+          setStatus('Direct playback and server relay both failed. Try another station.', true);
+        });
+        return;
       }
+      $('#nowSub').textContent = 'Playback failed — try another station';
+      setStatus('The station stream could not be played. Stream formats and availability vary.', true);
     });
     document.addEventListener('keydown', (event) => {
       const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement && document.activeElement.tagName);
