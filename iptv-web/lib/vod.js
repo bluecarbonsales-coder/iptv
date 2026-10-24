@@ -292,6 +292,7 @@ function publicSource(source) {
     id: source.id,
     name: source.name,
     api: redactUrl(source.api),
+    api: redactUrl(source.api),
     apiHost: (() => { try { return new URL(source.api).host; } catch { return null; } })(),
     detail: source.detail ? redactUrl(source.detail) : null,
     kind: source.kind,
