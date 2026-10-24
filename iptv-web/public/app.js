@@ -521,6 +521,15 @@
     if (!relay) showOverlay(t('connecting') + ' (direct — CORS may block this)', true);
     else showOverlay(t('connecting'), true);
 
+    const directFile = /\.(mp4|m4v|webm|ogv|ogg|mp3|aac)(?:$|[?#])/i.test(src.url);
+    if (directFile) {
+      video.src = target;
+      video.onloadeddata = hideOverlay;
+      video.onerror = () => onStreamError('direct media playback error');
+      video.play().catch(() => {});
+      return;
+    }
+
     const nativeHls = video.canPlayType('application/vnd.apple.mpegurl') && !window.Hls;
     if (nativeHls) {
       video.src = target;
