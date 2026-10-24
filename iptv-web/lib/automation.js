@@ -101,18 +101,19 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
   function status() {
     const registry = vod.loadSourcesSync(dataDir);
     return {
-      enabled: process.env.AGENT_AUTOMATION_ENABLED !== '0',
-      autonomy: autonomy(),
-      intervalHours: HOURS('AUTO_SOURCE_SYNC_HOURS', 12, 1),
-      liveRefreshHours: HOURS('REFRESH_HOURS', 12, 1),
+      enabled: settingsLib.getSettings(dataDir).automationEnabled,
+      autonomy: autonomy(dataDir),
+      intervalHours: settingsLib.getSettings(dataDir).autoSourceSyncHours,
+      liveRefreshHours: settingsLib.getSettings(dataDir).refreshHours,
+      registryUrls: registryUrls(dataDir),
       liveCatalogAgeHours: catalog && catalog.meta && catalog.meta.updated ? Math.max(0, Math.round((Date.now() - Date.parse(catalog.meta.updated)) / 360000) / 10) : null,
-      configuredRegistryCount: registryUrls().length,
+      configuredRegistryCount: registryUrls(dataDir).length,
       providerCount: registry.sources.length,
       enabledProviderCount: registry.sources.filter((source) => source.enabled !== false).length,
       lastRun,
       lastProviderCheck,
       running: !!inFlight,
-      nextRun: lastRun ? new Date(Date.parse(lastRun.finishedAt) + intervalMs()).toISOString() : null,
+      nextRun: lastRun ? new Date(Date.parse(lastRun.finishedAt) + intervalMs(dataDir)).toISOString() : null,
     };
   }
 
@@ -181,7 +182,7 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
           lastError: null,
           importedFrom: listUrl,
         };
-        if (autonomy() === 'full') {
+        if (autonomy(dataDir) === 'full') {
           try {
             const probe = await vod.probeSource(record);
             record.lastChecked = new Date().toISOString();
@@ -248,11 +249,11 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
           name: candidate.name,
           url: candidate.url,
           epg: candidate.epg,
-          enabled: autonomy() === 'full',
+          enabled: autonomy(dataDir) === 'full',
           createdAt: prior ? prior.createdAt : new Date().toISOString(),
           importedFrom: listUrl,
         };
-        if (autonomy() === 'full') {
+        if (autonomy(dataDir) === 'full') {
           try {
             const parsedItems = await live.fetchSource(record);
             record.lastCount = live.buildChannels(record, parsedItems).length;
@@ -374,6 +375,11 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
       try {
         run.discovery = await syncSourceLists(actor);
         run.health = await checkProviders(actor);
+        if (run.discovery && run.discovery.liveChanged) {
+          const refreshed = await refresh();
+          run.liveResourceRefresh = { refreshed: true, reason: 'provider_registry_changed', result: refreshed };
+          audit(dataDir, { actor, action: 'live_source.catalog_refresh', status: 'ok', jobId: run.id, summary: 'Refreshed live catalogue after registry changed' });
+        }
         run.liveCatalog = await refreshLiveIfDue(actor);
         run.status = 'completed';
       } catch (err) {
