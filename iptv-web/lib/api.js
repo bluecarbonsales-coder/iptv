@@ -170,6 +170,7 @@ function createApi(catalog, refresh, dataDir) {
       const probe = await vodLib.probeSource(source);
       source.lastChecked = new Date().toISOString();
       source.lastItemCount = probe.count;
+      source.listAction = probe.action;
       await withLock(vodLockKey, () => {
         const current = vodLib.loadSourcesSync(sourceDataDir).sources;
         if (current.length >= vodLib.MAX_VOD_SOURCES) throw Object.assign(new Error('VOD provider limit reached'), { statusCode: 409 });
@@ -238,6 +239,7 @@ function createApi(catalog, refresh, dataDir) {
         const probe = await vodLib.probeSource(source);
         source.lastChecked = new Date().toISOString();
         source.lastItemCount = probe.count;
+        source.listAction = probe.action;
         return source;
       });
       const vodAccepted = [];
@@ -357,6 +359,7 @@ function createApi(catalog, refresh, dataDir) {
           patch.api = apiUrl;
           patch.lastChecked = new Date().toISOString();
           patch.lastItemCount = probe.count;
+          patch.listAction = probe.action;
           patch.lastError = null;
         }
       }
