@@ -8,6 +8,7 @@ const { readBody, sendJson } = require('./util');
 const MAX_SERVICES = 200;
 const DEFAULT_SERVICES = [
   { id: 'watch-tv', name: 'Watch TV', url: '/watch.html', description: 'Live channels, movies, series and your playlists.', category: 'Media', icon: '▶', featured: true, order: 0 },
+  { id: 'public-radio', name: 'Public Radio', url: '/radio.html', description: 'Explore live public radio stations by country, language and genre.', category: 'Media', icon: '♫', featured: true, order: 5 },
   { id: 'nafisa-site', name: 'Nafisa International', url: 'https://nafisainternational.com', description: 'Company website and global trade services.', category: 'Work', icon: 'N', featured: true, order: 10 },
   { id: 'mail', name: 'Email', url: 'https://email.nafisainternational.com', description: 'Open the self-hosted mail service.', category: 'Work', icon: '✉', featured: true, order: 20 },
   { id: 'home-dashboard', name: 'Home dashboard', url: 'https://home.nafisainternational.com', description: 'Shortcuts and status for self-hosted services.', category: 'Self-hosted', icon: '⌂', featured: false, order: 30 },
@@ -92,6 +93,16 @@ function createPortalApi(options = {}) {
       throw new Error('portal service data could not be read: ' + err.message);
     }
     if (!parsed || !Array.isArray(parsed.services)) throw new Error('portal service data has an invalid format');
+    // Add new built-in shortcuts to existing deployments while preserving user edits and deletions of every other link.
+    let changed = false;
+    for (const item of DEFAULT_SERVICES.filter((service) => service.id === 'public-radio')) {
+      if (!parsed.services.some((service) => service && service.id === item.id)) {
+        const now = new Date().toISOString();
+        parsed.services.push({ ...item, createdAt: now, updatedAt: now });
+        changed = true;
+      }
+    }
+    if (changed) writeStore(parsed.services);
     return parsed.services;
   }
 
@@ -110,6 +121,8 @@ function createPortalApi(options = {}) {
       matchesToken(givenSource, process.env.AGENT_API_TOKEN || '') ||
       matchesToken(givenAgent, process.env.AGENT_API_TOKEN || '')
     ) return true;
+    const sourceExpected = process.env.SOURCE_TOKEN || process.env.REFRESH_TOKEN || '';
+    const agentExpected = process.env.AGENT_API_TOKEN || '';
     if (!sourceExpected && !agentExpected) {
       sendJson(req, res, 503, { error: 'service-link management is disabled until SOURCE_TOKEN, REFRESH_TOKEN, or AGENT_API_TOKEN is configured' });
     } else {
