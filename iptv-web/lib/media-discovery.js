@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const { URL } = require('url');
 const { sendJson, readBody } = require('./util');
 const archive = require('./archive-vod');
+const { upstreamFetch, bodyToString } = require('./fetch-upstream');
 
 const MAX_SAVED = 1000;
 function matchesToken(given, expected) {
@@ -48,13 +49,31 @@ function createMediaDiscovery({ dataDir }) {
   async function search(req, res, params, query) {
     const q = String(query.q || '').trim().slice(0, 100);
     if (!q) return sendJson(req, res, 400, { error: 'q is required' });
-    const sources = String(query.sources || 'archive,jackett').split(',').filter((s) => ['archive', 'jackett'].includes(s));
+    const sources = String(query.sources || 'archive,jackett').split(',').filter((s) => ['archive', 'jackett', 'saved'].includes(s));
     const results = [], errors = [];
     if (sources.includes('archive')) {
       try {
         const found = await archive.search(q, 'all', 15);
         for (const item of found) results.push({ id: item.key, title: item.name, source: item.sourceName, kind: 'public-domain', url: item.pageUrl, license: item.remarks, playable: true, streamUrl: null, description: item.overview, year: item.year });
       } catch (e) { errors.push({ source: 'Internet Archive', error: e.message }); }
+    }
+    if (sources.includes('saved')) {
+      for (const feed of readSaved(dataDir).filter((item) => item.kind === 'feed').slice(0, 10)) {
+        try {
+          const { response } = await upstreamFetch(feed.url, { timeoutMs: 10000, maxRedirects: 3, extraHeaders: { Accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml' } });
+          if (!response.ok) throw new Error('HTTP ' + response.status);
+          const xml = await bodyToString(response);
+          if (Buffer.byteLength(xml) > 1024 * 1024) throw new Error('Feed too large');
+          const entries = xml.match(/<(item|entry)\\b[\\s\\S]*?<\\/(item|entry)>/gi) || [];
+          for (const entry of entries.slice(0, 20)) {
+            const titleMatch = entry.match(/<title(?:\\s[^>]*)?>([\\s\\S]*?)<\\/title>/i);
+            const linkMatch = entry.match(/<link\\b[^>]*href=["']([^"']+)["'][^>]*\\/?\s*>/i) || entry.match(/<link(?:\\s[^>]*)?>([\\s\\S]*?)<\\/link>/i) || entry.match(/<guid(?:\\s[^>]*)?>([\\s\\S]*?)<\\/guid>/i);
+            const title = titleMatch ? titleMatch[1].replace(/<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>/g, '$1').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').trim() : '';
+            const url = validateUrl(linkMatch && (linkMatch[1] || linkMatch[0]).trim());
+            if (title && url && /^https?:/i.test(url)) results.push({ id: 'feed:' + crypto.createHash('sha1').update(feed.id + url).digest('hex').slice(0, 16), title, source: feed.title, kind: 'feed-link', url, playable: /\\.(mp4|webm|m3u8)(?:$|\\?)/i.test(url), description: 'From your saved feed. Check the original page for availability and rights.' });
+          }
+        } catch (e) { errors.push({ source: feed.title, error: e.message }); }
+      }
     }
     if (sources.includes('jackett')) {
       const base = String(process.env.JACKETT_URL || '').trim().replace(/\/+$/, '');
@@ -86,7 +105,7 @@ function createMediaDiscovery({ dataDir }) {
     }
     const seen = new Set();
     const unique = results.filter((item) => { const key = item.url || item.title; if (seen.has(key)) return false; seen.add(key); return true; });
-    sendJson(req, res, 200, { query: q, results: unique, errors, sources: { archive: sources.includes('archive'), jackett: sources.includes('jackett'), jackettConfigured: !!(process.env.JACKETT_URL && process.env.JACKETT_API_KEY) } });
+    sendJson(req, res, 200, { query: q, results: unique, errors, sources: { archive: sources.includes('archive'), jackett: sources.includes('jackett'), saved: sources.includes('saved'), jackettConfigured: !!(process.env.JACKETT_URL && process.env.JACKETT_API_KEY) } });
   }
   function list(req, res) {
     if (!authorize(req, res)) return;
