@@ -480,11 +480,11 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
   }
 
   async function updateSettings(patch, actor = 'agent') {
-    const updated = settingsLib.updateSettings(dataDir, patch);
+    const next = await withLock('agent-settings:' + dataDir, () => settingsLib.updateSettings(dataDir, patch));
     stop();
-    if (updated.automationEnabled) start();
-    audit(dataDir, { actor, action: 'settings.update', status: 'ok', summary: 'Updated agent runtime settings; automation ' + (updated.automationEnabled ? 'enabled' : 'disabled') + '; autonomy ' + updated.autonomy });
-    return updated;
+    if (next.automationEnabled) start();
+    audit(dataDir, { actor, action: 'settings.update', status: 'ok', summary: 'Updated agent runtime settings; automation ' + (next.automationEnabled ? 'enabled' : 'disabled') + '; autonomy ' + next.autonomy });
+    return next;
   }
 
   return { status, syncSourceLists, checkProviders, refreshLiveIfDue, runCycle, task, start, stop, getSettings: () => settingsLib.getSettings(dataDir), updateSettings, audit: (entry) => audit(dataDir, entry), readAudit: (limit) => readAudit(dataDir, limit) };
