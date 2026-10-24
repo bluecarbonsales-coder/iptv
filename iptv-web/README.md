@@ -58,9 +58,7 @@ play fine through it.
   SourceList format (`sources`), MoonTV `config.json` format (`api_site`), or a TVBox-style `sites` array
   containing compatible Apple CMS APIs. Imported providers are probed before they are saved; the probe
   does not determine whether the content is licensed for redistribution.
-- **Public-domain / CC movie search** — a built-in Internet Archive adapter searches item metadata and
-  serves a playable MP4/WebM/Ogg file only when the Archive record declares public-domain or supported
-  Creative Commons licensing. Each result links back to its Archive rights/metadata page.
+- **Open-license video catalogs** — built-in Internet Archive and Wikimedia Commons adapters search public-domain / CC metadata and return compatible video files when available. Each result links to its original item/license page; non-commercial CC licenses are excluded from automatic results.
 - **Agent-first management** — documented OpenAPI endpoints for Hermes and other agents, token auth,
   health/maintenance tasks, automatic trusted-registry synchronization, provider probes, and an audit log.
 - **M3U export** — `/api/export.m3u` mirrors the current filters, and can emit either the
@@ -76,7 +74,7 @@ play fine through it.
 | `GET /api/channels` | `q`, `country`, `category`, `minQuality`, `hasLogo`, `nsfw`, `ids`, `sort`, `page`, `limit` |
 | `GET /api/channel/:id` | one channel with every stream URL, quality, referrer, user-agent, labels |
 | `GET /api/playlist?u=` | import an external M3U (server-side fetch + parse) |
-| `GET /api/vod?type=&q=` | search configured VOD APIs and the built-in Internet Archive adapter for `all`, `movies`, `series`, or `anime` |
+| `GET /api/vod?type=&q=` | search configured VOD APIs and the built-in Internet Archive adapter for `all`, `movies`, `series`, or `anime` (includes Internet Archive and Wikimedia Commons results) |
 | `GET /api/vod/:sourceId/:vodId` | resolve details and episodes for a VOD title |
 | `GET /api/vod/sources` | list VOD providers (requires `X-Source-Token`) |
 | `POST /api/vod/sources` | validate and add Apple CMS / MacCMS provider (requires `X-Source-Token`) |
@@ -94,8 +92,10 @@ play fine through it.
 | `GET /img?u=` | channel-logo relay with a disk cache |
 | `GET /api/agent/v1/openapi.json` | OpenAPI schema for agent control |
 | `GET /api/agent/v1/capabilities` | capabilities, autonomy policy, source limits |
+| `GET/PATCH /api/agent/v1/settings` | inspect/update runtime schedule and trusted registry URLs without rebuilding |
 | `GET /api/agent/v1/status` | live catalog, source/provider health, automation status |
 | `GET /api/agent/v1/audit?limit=50` | recent automation/agent audit events |
+| `GET /api/agent/v1/commons/search?q=&type=` | search open-license video files on Wikimedia Commons |
 | `POST /api/agent/v1/tasks/run` | run `maintain_sources`, `sync_source_lists`, `check_vod_providers`, or `refresh_live_catalog` |
 | `GET/POST /api/agent/v1/live/sources` | list/add live M3U resources |
 | `PATCH/DELETE /api/agent/v1/live/sources/:id` | update or remove live resources |
@@ -114,7 +114,7 @@ Configure a strong random token in the deployment environment before exposing th
 
 ## Agent operation and automation
 
-See the repository-root [`AGENTS.md`](../AGENTS.md) for exact Hermes workflows and API examples. The agent API requires a long random `AGENT_API_TOKEN` sent as `X-Agent-Token` or a Bearer token. It is disabled when the token is unset. Keep the service behind Cloudflare Access/private ingress; do not expose the loopback application port directly.
+See the repository-root [`AGENTS.md`](../AGENTS.md) for exact Hermes workflows and API examples. The agent API requires a long random `AGENT_API_TOKEN` sent as `X-Agent-Token` or a Bearer token. It is disabled when the token is unset. Authenticated agents can manage source lists and operational settings without human approval; for full code edits, Hermes should use its normal repository/workspace tools. Keep the service behind Cloudflare Access/private ingress; do not expose the loopback application port directly.
 
 Configure `iptv-web/.env` from [`.env.example`](.env.example). Important settings:
 
@@ -125,7 +125,7 @@ Configure `iptv-web/.env` from [`.env.example`](.env.example). Important setting
 
 Automatic discovery is intentionally limited to the registry URLs you configure; the service doesn't trust arbitrary internet lists on its own. Provider/API probes establish compatibility and availability only, not content rights. Review the source directory and licensing of any catalog you use. The native Internet Archive search filters by declared public-domain/compatible CC metadata, but this is not a legal guarantee.
 
-VOD provider configuration is stored in `data/vod-sources.json` on the persistent volume. The adapter
+VOD provider configuration is stored in `data/vod-sources.json` on the persistent volume, and agent settings are stored in `data/agent-settings.json`. The adapter
 supports the common Apple CMS / MacCMS JSON API (`ac=videolist`, `wd`, `pg`, and `ids` queries) used by
 LibreTV/MoonTV-style deployments. Select a provider category when adding it so movies, series, and
 anime are routed to the right section. In the VOD resource manager, you can either add a single API
