@@ -7,6 +7,7 @@ const { parseM3U, isHlsManifest } = require('./m3u');
 const { readBody } = require('./util');
 const sourceLib = require('./sources');
 const vodLib = require('./vod');
+const archiveLib = require('./archive-vod');
 
 // Absolute origin as the browser sees it (proxy sets X-Forwarded-Proto).
 function baseUrl(req) {
@@ -272,7 +273,6 @@ function createApi(catalog, refresh, dataDir) {
     if (cached && Date.now() - cached.time < 45000) return sendJson(req, res, 200, cached.payload);
     const registry = vodLib.loadSourcesSync(sourceDataDir);
     const sources = registry.sources.filter((s) => s.enabled !== false && (kind === 'all' || s.kind === kind || s.kind === 'all'));
-    if (!sources.length) return sendJson(req, res, 200, { type: kind, total: 0, pages: 1, items: [], providers: [], hint: 'Add an authorized Apple CMS / MacCMS VOD API in VOD resources.' });
     const results = await Promise.allSettled(sources.map((source) => vodLib.searchSource(source, term, 1)));
     const items = [];
     const errors = [];
@@ -303,6 +303,37 @@ function createApi(catalog, refresh, dataDir) {
         errors.push({ source: source.name, error: String(result.reason && result.reason.message || 'provider failed').slice(0, 180) });
       }
     });
+    let archiveOk = false;
+    let archiveError = null;
+    if (kind !== 'series') {
+      try {
+        const archiveItems = await archiveLib.search(term, kind, 30);
+        archiveOk = true;
+        for (const item of archiveItems) {
+          items.push({
+            id: 'vod-archive-' + item.id,
+            vod: true,
+            vodId: item.id,
+            sourceId: 'archive',
+            sourceName: item.sourceName,
+            name: item.name,
+            logo: item.logo,
+            country: null,
+            cats: [item.category || (item.kind === 'anime' ? 'Open-license animation' : 'Public-domain / CC films')],
+            year: item.year,
+            remarks: item.remarks,
+            overview: item.overview,
+            streams: 1,
+            labels: [],
+            kind: item.kind,
+            licenseUrl: item.licenseUrl || null,
+            pageUrl: item.pageUrl || null,
+          });
+        }
+      } catch (err) {
+        archiveError = String(err.message || 'Internet Archive search failed').slice(0, 180);
+      }
+    }
     const seen = new Set();
     const unique = items.filter((item) => {
       const key = (item.name + '|' + (item.year || '')).toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]+/g, '');
@@ -310,6 +341,9 @@ function createApi(catalog, refresh, dataDir) {
       seen.add(key);
       return true;
     });
+    const providerSummary = sources.map((s, i) => ({ name: s.name, ok: results[i].status === 'fulfilled' }));
+    if (kind !== 'series') providerSummary.push({ name: 'Internet Archive (public domain / CC)', ok: archiveOk });
+    if (archiveError) errors.push({ source: 'Internet Archive (public domain / CC)', error: archiveError });
     const payload = {
       type: kind,
       total: unique.length,
@@ -317,7 +351,7 @@ function createApi(catalog, refresh, dataDir) {
       limit: Math.min(240, unique.length),
       pages: 1,
       items: unique.slice(0, 240),
-      providers: sources.map((s, i) => ({ name: s.name, ok: results[i].status === 'fulfilled' })),
+      providers: providerSummary,
       errors,
     };
     if (sources.length && errors.length === 0) {
@@ -328,6 +362,27 @@ function createApi(catalog, refresh, dataDir) {
   };
 
   const vodDetail = async (req, res, params) => {
+    if (params.sourceId === 'archive') {
+      try {
+        const item = await archiveLib.getDetail(params.vodId);
+        return sendJson(req, res, 200, {
+          id: item.id,
+          sourceId: 'archive',
+          sourceName: item.sourceName,
+          name: item.name,
+          logo: item.logo,
+          overview: item.overview,
+          year: item.year,
+          category: item.category,
+          remarks: item.remarks,
+          licenseUrl: item.licenseUrl || null,
+          pageUrl: item.pageUrl || null,
+          episodes: item.episodes,
+        });
+      } catch (err) {
+        return sendJson(req, res, err.statusCode || 502, { error: err.message || 'could not load Internet Archive item' });
+      }
+    }
     const registry = vodLib.loadSourcesSync(sourceDataDir);
     const source = registry.sources.find((s) => s.id === params.sourceId && s.enabled !== false);
     if (!source) return sendJson(req, res, 404, { error: 'VOD provider not found or disabled' });
