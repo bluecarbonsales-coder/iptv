@@ -53,6 +53,7 @@ $('#closePlayer').onclick=()=>{$('#playerModal').classList.remove('show');stopPl
 $('#fullscreen').onclick=()=>{const v=$('#video');if(v.requestFullscreen)v.requestFullscreen();else if(v.webkitEnterFullscreen)v.webkitEnterFullscreen()};
 $('#video').addEventListener('ended',()=>{if($('#autoNext').checked&&state.episodeIndex+1<state.episodes.length)playEpisode(state.episodeIndex+1)});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){setDrawer(false);$('#detailModal').classList.remove('show');if($('#playerModal').classList.contains('show')){$('#playerModal').classList.remove('show');stopPlayback()}}});
+window.addEventListener('theatre:navigate',event=>{const section=String(event.detail||'all');if(['all','movies','series','anime','documentary','favorites'].includes(section)){state.kind=section;setDrawer(false);load();}});
 load();
 })();
-</script></body></html>
+</script><script src="/navigation-config.js" defer></script><script src="/visitor-discovery.js" defer></script></body></html>
