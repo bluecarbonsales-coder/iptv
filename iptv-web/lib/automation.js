@@ -180,7 +180,6 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
           report.skippedLimit++;
           continue;
         }
-        vodProcessed++;
         const prior = initialVod.find((source) =>
           source.importedFrom === listUrl &&
           normalizeName(source.name) === normalizeName(candidate.name) &&
@@ -214,6 +213,7 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
           record.enabled = false;
           record.lastError = 'Imported in review mode; enable after checking compatibility and rights';
         }
+        vodProcessed++;
         existingVodUrls.add(candidate.api);
         if (prior) {
           handledVod.add(prior.id);
@@ -276,7 +276,6 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
           report.skippedLimit++;
           continue;
         }
-        liveProcessed++;
         const prior = initialLive.find((source) =>
           source.importedFrom === listUrl &&
           normalizeName(source.name) === normalizeName(candidate.name) &&
@@ -308,6 +307,7 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
           record.enabled = false;
           record.lastError = 'Imported in review mode; enable after checking compatibility and rights';
         }
+        liveProcessed++;
         existingLiveUrls.add(candidate.url);
         if (prior) {
           handledLive.add(prior.id);
