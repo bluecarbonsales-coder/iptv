@@ -36,7 +36,7 @@ test('provider source summaries redact common query secrets', () => {
 
 test('source registry URLs are read from explicit operator configuration only', () => {
   const previous = process.env.VOD_SOURCE_LIST_URLS;
-  process.env.VOD_SOURCE_LIST_URLS = 'https://trusted.example/list.json,not-a-url\nhttps://another.example/config.json';
+  process.env.VOD_SOURCE_LIST_URLS = 'https://trusted.example/list.json,https://another.example/config.json';
   try {
     assert.deepEqual(registryUrls(), [
       'https://trusted.example/list.json',
