@@ -13,7 +13,17 @@ git rev-parse --show-toplevel 2>/dev/null || true
 docker inspect iptv-web --format 'compose_dir={{ index .Config.Labels "com.docker.compose.project.working_dir" }} compose_files={{ index .Config.Labels "com.docker.compose.project.config_files" }}' 2>/dev/null || true
 ```
 
-If the deployment package directory is not a Git checkout, find the repository checkout and use that as the edit/test workspace. The release workflow packages `iptv-web/` into the deployment directory; therefore all changes under `iptv-web/`—including `public/index.html`, `public/app.css`, `public/app.js`, and `public/js/*`—are part of the Docker image when it is rebuilt. Do not modify only generated/minified assets when the maintained source file is available.
+If the deployment package directory is not a Git checkout, you can still edit its backend and UI files directly, but bootstrapping a full repository checkout is the preferred path for any work involving the wider repository, Git history, or `.github/workflows/*`. The deployed package includes the bootstrap helper. On the server, set the actual deployment path and run:
+
+```bash
+export IPTV_DEPLOY_DIR=/path/to/the/current/deployment-directory
+export IPTV_ENV_FILE="$IPTV_DEPLOY_DIR/.env"
+export IPTV_WORKSPACE_DIR="$HOME/src/iptv"
+bash "$IPTV_DEPLOY_DIR/tools/bootstrap-agent-workspace.sh"
+cd "$IPTV_WORKSPACE_DIR"
+```
+
+The deployment `.env` must contain a working `GITHUB_REPO_TOKEN` if the private repository needs cloning/pushing. Direct local file editing in the deployed package does not need this token, but Git push/CI/workflow management does. The release workflow packages `iptv-web/` into the deployment directory; therefore changes under `iptv-web/`—including `public/index.html`, `public/app.css`, `public/app.js`, and `public/js/*`—are part of the Docker image when rebuilt. Do not modify only generated/minified assets when the maintained source file is available.
 
 ## Permission model
 
