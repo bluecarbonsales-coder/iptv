@@ -29,6 +29,10 @@
         <button class="tab active" data-view="all" data-i18n="tabAll">All</button>
         <button class="tab" data-view="favorites" data-i18n="tabFavorites">Favourites</button>
         <button class="tab" data-view="recent" data-i18n="tabRecent">Recent</button>
+        <button class="tab" data-view="movies" data-i18n="tabMovies">Movies</button>
+        <button class="tab" data-view="series" data-i18n="tabSeries">Series</button>
+        <button class="tab" data-view="anime" data-i18n="tabAnime">Anime</button>
+        <button class="tab" data-view="vod" data-i18n="tabVod">VOD</button>
         <button class="tab" data-view="playlists" data-i18n="tabPlaylists">Playlists</button>
       </nav>
 
@@ -45,7 +49,7 @@
 
     <div class="layout">
       <aside class="sidebar" id="sidebar">
-        <div class="side-block">
+        <div class="side-block" id="channelFilters">
           <div class="side-head"><span data-i18n="filters">Filters</span><button class="link-btn" id="resetFilters" data-i18n="reset">Reset</button></div>
 
           <label class="field">
@@ -95,6 +99,34 @@
           <ul class="pl-list" id="plList"></ul>
         </div>
 
+
+        <div class="side-block" id="resourceManager">
+          <div class="side-head"><span>Resource manager</span><button class="link-btn" id="sourceReload" type="button">Refresh</button></div>
+          <p class="hint">Add persistent M3U/M3U8 sources. They are merged into the catalogue on refresh.</p>
+          <label class="field"><span>Management token</span><input id="sourceToken" class="mini" type="password" autocomplete="current-password" placeholder="SOURCE_TOKEN or REFRESH_TOKEN" /></label>
+          <label class="field"><span>Resource name</span><input id="sourceName" class="mini" type="text" maxlength="80" placeholder="My playlist" /></label>
+          <label class="field"><span>Playlist URL</span><input id="sourceUrl" class="mini" type="url" placeholder="https://example.com/playlist.m3u" /></label>
+          <button class="btn" id="sourceAdd" type="button">Add resource</button>
+          <p class="hint" id="sourceStatus" role="status" aria-live="polite"></p>
+          <ul class="pl-list" id="sourceList"></ul>
+        </div>
+
+        <div class="side-block" id="vodManager" hidden>
+          <div class="side-head"><span>Movies, series &amp; anime resources</span><button class="link-btn" id="vodReload" type="button">Refresh</button></div>
+          <p class="hint">A maintained TVboxorg provider directory is synced automatically in the background. Add an authorized Apple CMS / MacCMS API directly, or import a LibreTV, MoonTV, or compatible TVBox config. API probes check compatibility—not copyright or redistribution rights.</p>
+          <label class="field"><span>Management token</span><input id="vodToken" class="mini" type="password" autocomplete="current-password" placeholder="SOURCE_TOKEN or REFRESH_TOKEN" /></label>
+          <label class="field"><span>Import provider-list / config JSON URL</span><input id="vodListUrl" class="mini" type="url" placeholder="https://example.org/source-list.json or config.json" /></label>
+          <button class="btn ghost" id="vodImport" type="button">Import provider list URL</button>
+          <label class="field"><span>Or upload a downloaded JSON config</span><input id="vodListFile" class="mini" type="file" accept=".json,application/json" /></label>
+          <p class="hint">Supports LibreTV SourceList JSON (sources), MoonTV config.json (api_site), and TVBox-style sites arrays containing Apple CMS/MacCMS APIs. Imported providers are not independently verified.</p>
+          <label class="field"><span>Provider name</span><input id="vodName" class="mini" type="text" maxlength="80" placeholder="My authorized catalog" /></label>
+          <label class="field"><span>Content section</span><select id="vodKind" class="mini"><option value="all">All VOD</option><option value="movies">Movies</option><option value="series">Series / TV</option><option value="anime">Anime</option></select></label>
+          <label class="field"><span>Apple CMS / MacCMS API URL</span><input id="vodApi" class="mini" type="url" placeholder="https://example.org/api.php/provide/vod" /></label>
+          <button class="btn" id="vodAdd" type="button">Add VOD resource</button>
+          <p class="hint" id="vodStatus" role="status" aria-live="polite"></p>
+          <ul class="pl-list" id="vodList"></ul>
+        </div>
+
         <div class="side-block">
           <div class="side-head"><span data-i18n="playback">Playback</span></div>
           <label class="check"><input type="checkbox" id="optProxy" checked /> <span data-i18n="useProxy">Relay through this server (fixes CORS &amp; blocked streams)</span></label>
@@ -105,6 +137,18 @@
       </aside>
 
       <main class="main" id="main">
+        <div class="mobile-section-nav">
+          <label class="field"><span class="sr-only">Section</span><select id="mobileView" aria-label="Browse section">
+            <option value="all">Live channels</option>
+            <option value="movies">Movies</option>
+            <option value="series">Series / TV</option>
+            <option value="anime">Anime</option>
+            <option value="vod">All VOD</option>
+            <option value="favorites">Favourites</option>
+            <option value="recent">Recent</option>
+            <option value="playlists">Playlists</option>
+          </select></label>
+        </div>
         <div class="resultbar">
           <div id="resultCount" class="muted">…</div>
           <div class="active-filters" id="activeFilters"></div>

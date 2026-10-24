@@ -11,9 +11,25 @@ services:
       - iptv-data:/data
     environment:
       TZ: Asia/Tokyo
-      REFRESH_HOURS: "12"
+      REFRESH_HOURS: "${REFRESH_HOURS:-12}"
       # Required for POST /api/refresh coming from outside the host.
       REFRESH_TOKEN: "${REFRESH_TOKEN:-}"
+      # Separate token for the persistent resource manager (falls back to REFRESH_TOKEN if unset).
+      SOURCE_TOKEN: "${SOURCE_TOKEN:-}"
+      # Agent endpoints remain disabled until a strong AGENT_API_TOKEN is set.
+      AGENT_API_TOKEN: "${AGENT_API_TOKEN:-}"
+      # GitHub App/PAT with repository contents, pull-request, and Actions permissions for autonomous code changes.
+      GITHUB_REPO_TOKEN: "${GITHUB_REPO_TOKEN:-}"
+      GITHUB_REPOSITORY: "${GITHUB_REPOSITORY:-bluecarbonsales-coder/iptv}"
+      GITHUB_DEFAULT_BRANCH: "${GITHUB_DEFAULT_BRANCH:-main}"
+      # Agent writes remain enabled for authenticated project agents; this sets only scheduled import behavior.
+      AGENT_AUTONOMY: "${AGENT_AUTONOMY:-full}"
+      AGENT_AUTOMATION_ENABLED: "${AGENT_AUTOMATION_ENABLED:-1}"
+      AUTO_SOURCE_SYNC_HOURS: "${AUTO_SOURCE_SYNC_HOURS:-12}"
+      # Maintained TVboxorg registry is the default; set your own comma/newline-separated JSON registries to override.
+      VOD_SOURCE_LIST_URLS: "${VOD_SOURCE_LIST_URLS:-https://raw.githubusercontent.com/TVboxorg/TVbox/main/dist/official.json}"
+      MAX_VOD_SOURCES: "${MAX_VOD_SOURCES:-128}"
+      MAX_SOURCES: "${MAX_SOURCES:-64}"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3920/healthz"]
       interval: 60s

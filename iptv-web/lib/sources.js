@@ -10,6 +10,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { parseM3U, isHlsManifest } = require('./m3u');
 const { upstreamFetch, bodyToString } = require('./fetch-upstream');
+const { withFileLock } = require('./registry-lock');
 
 const MAX_SOURCES = parseInt(process.env.MAX_SOURCES || '64', 10);
 
@@ -35,13 +36,15 @@ function saveSources(dataDir, sources) {
 
 // Re-read + merge status fields only, so a source added while a background refresh is
 // running is never clobbered by the child process writing an older list back.
-function mergeStatuses(dataDir, statuses) {
-  const { sources } = loadSourcesSync(dataDir);
-  for (const s of sources) {
-    const st = (statuses || []).find((x) => x.id === s.id);
-    if (st) Object.assign(s, st);
-  }
-  saveSources(dataDir, sources);
+async function mergeStatuses(dataDir, statuses) {
+  return withFileLock(sourcesPath(dataDir) + '.lock', () => {
+    const { sources } = loadSourcesSync(dataDir);
+    for (const s of sources) {
+      const st = (statuses || []).find((x) => x.id === s.id);
+      if (st) Object.assign(s, st);
+    }
+    saveSources(dataDir, sources);
+  });
 }
 
 function loadSourcesSync(dataDir) {
@@ -51,6 +54,39 @@ function loadSourcesSync(dataDir) {
     if (Array.isArray(raw.sources)) return raw;
   } catch {}
   return { sources: [] };
+}
+
+function parseRegistrySources(config) {
+  const items = [
+    ...(config && Array.isArray(config.liveSources) ? config.liveSources : []),
+    // TVBox directories use lives[] for M3U/plain-text broadcast lists.
+    ...(config && Array.isArray(config.lives) ? config.lives : []),
+  ];
+  const result = new Map();
+  for (const item of items) {
+    if (!item || typeof item.url !== 'string') continue;
+    let url;
+    try { url = new URL(item.url.trim()); } catch { continue; }
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) continue;
+    url.hash = '';
+    const normalized = url.toString();
+    let epg = null;
+    if (typeof item.epg === 'string') {
+      try {
+        const epgUrl = new URL(item.epg.trim());
+        if (['http:', 'https:'].includes(epgUrl.protocol) && !epgUrl.username && !epgUrl.password) {
+          epgUrl.hash = '';
+          epg = epgUrl.toString();
+        }
+      } catch {}
+    }
+    if (!result.has(normalized)) result.set(normalized, {
+      name: String(item.name || url.hostname).trim().slice(0, 80) || url.hostname,
+      url: normalized,
+      epg,
+    });
+  }
+  return [...result.values()];
 }
 
 function newId() {
@@ -66,13 +102,39 @@ function isHttpUrl(u) {
   }
 }
 
-async function fetchSource(src) {
-  const { response } = await upstreamFetch(src.url, { timeoutMs: 30000, extraHeaders: { Accept: '*/*' } });
+function normalizePlaylistItems(items) {
+  const out = [];
+  const seen = new Set();
+  for (const item of items || []) {
+    if (!item || !item.url) continue;
+    let url = String(item.url).trim();
+    let name = String(item.name || '').trim();
+    // Accept common plain-text live lists like "Channel Name,https://stream.example/live.m3u8".
+    const comma = /^(.*?),\s*(https?:\/\/\S+)$/i.exec(url);
+    if (comma) {
+      if (!name || name === url || name === url.split('/').pop()) name = comma[1].trim();
+      url = comma[2].trim();
+    }
+    let parsed;
+    try { parsed = new URL(url); } catch { continue; }
+    if (!['http:', 'https:'].includes(parsed.protocol)) continue;
+    if (seen.has(url)) continue;
+    seen.add(url);
+    out.push({ ...item, name: name || url.split('/').pop() || url, url });
+  }
+  return out;
+}
+
+async function fetchSource(src, opts = {}) {
+  const { response } = await upstreamFetch(src.url, {
+    timeoutMs: opts.timeoutMs || 30000,
+    extraHeaders: { Accept: '*/*' },
+  });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const text = await bodyToString(response);
   if (isHlsManifest(text)) throw new Error('URL is a single HLS stream, not a playlist');
-  const items = parseM3U(text);
-  if (!items.length) throw new Error('no channels found in playlist');
+  const items = normalizePlaylistItems(parseM3U(text));
+  if (!items.length) throw new Error('no valid HTTP(S) channels found in playlist');
   return items;
 }
 
@@ -124,6 +186,13 @@ async function mergeInto(catalogData, dataDir, log = () => {}) {
   const { sources } = loadSourcesSync(dataDir);
   const statuses = [];
   const extra = [];
+  const previousBySource = new Map();
+  for (const channel of catalogData.channels || []) {
+    if (!channel.src) continue;
+    if (!previousBySource.has(channel.src)) previousBySource.set(channel.src, []);
+    previousBySource.get(channel.src).push(channel);
+  }
+  const failedSourceIds = new Set();
   for (const s of sources) {
     if (!s.enabled) {
       statuses.push({ id: s.id });
@@ -140,16 +209,20 @@ async function mergeInto(catalogData, dataDir, log = () => {}) {
       s.lastError = null;
       log(`source ok: ${s.name} (${channels.length} channels, ${Date.now() - t0}ms)`);
     } catch (err) {
+      failedSourceIds.add(s.id);
       s.lastError = String(err.message || err);
       s.lastUpdated = new Date().toISOString();
       log(`source failed: ${s.name}: ${s.lastError}`);
     }
     statuses.push({ id: s.id, lastCount: s.lastCount, lastStreamCount: s.lastStreamCount, lastUpdated: s.lastUpdated, lastError: s.lastError });
   }
-  mergeStatuses(dataDir, statuses);
+  await mergeStatuses(dataDir, statuses);
 
   const kept = (catalogData.channels || []).filter((c) => !c.src);
-  const channels = kept.concat(extra);
+  // Keep the last-known-good channels when a source is temporarily unreachable.
+  // Disabled sources are intentionally excluded, while failed enabled sources remain usable.
+  const stale = [...failedSourceIds].flatMap((id) => previousBySource.get(id) || []);
+  const channels = kept.concat(stale, extra);
   channels.sort((a, b) => a.name.localeCompare(b.name));
 
   const cCount = new Map();
@@ -199,6 +272,8 @@ module.exports = {
   saveSources,
   mergeStatuses,
   newId,
+  parseRegistrySources,
+  normalizePlaylistItems,
   isHttpUrl,
   fetchSource,
   buildChannels,

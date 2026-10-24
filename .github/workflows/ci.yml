@@ -1,0 +1,26 @@
+name: CI
+on:
+  push:
+    branches: [main, 'feat/**', 'fix/**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax-check JavaScript
+        run: |
+          node --check iptv-web/server.js
+          for file in iptv-web/lib/*.js iptv-web/public/*.js iptv-web/public/js/*.js iptv-web/tools/*.js; do node --check "$file"; done
+      - name: Syntax-check shell scripts
+        run: |
+          for file in iptv-web/tools/*.sh iptv-web/deploy/*.sh; do bash -n "$file"; done
+      - name: Run tests
+        run: node --test iptv-web/test/*.test.js
+      - name: Build application image
+        run: docker build -t iptv-web:ci ./iptv-web

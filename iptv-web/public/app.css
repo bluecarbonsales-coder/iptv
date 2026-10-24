@@ -261,3 +261,48 @@ select option { background: var(--bg-2); }
   .search { max-width: none; }
   .brand span { display: none; }
 }
+
+/* Persistent resource manager */
+#resourceManager .field { margin: 10px 0; }
+#resourceManager .field input { width: 100%; min-width: 0; }
+#resourceManager .pl-list li { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+#resourceManager .pl-info { min-width: 0; flex: 1 1 100%; }
+#resourceManager .pl-info strong, #resourceManager .pl-info small { display: block; overflow-wrap: anywhere; }
+#resourceManager .pl-info small { color: var(--muted); margin-top: 3px; }
+#resourceManager .link-btn { font-size: 12px; }
+#sourceStatus { overflow-wrap: anywhere; }
+
+/* ---------- VOD catalogue ---------- */
+.tabs { flex: 0 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab { padding-left: 9px; padding-right: 9px; font-size: 12.5px; }
+.vod-card { flex-direction: column; align-items: stretch; min-height: 0; padding: 10px; }
+.vod-card .thumb.vod-thumb { width: 100%; height: auto; flex: 0 0 auto; aspect-ratio: 2 / 3; border-radius: 9px; }
+.vod-card .thumb.vod-thumb img { object-fit: cover; }
+.vod-card .meta { min-width: 0; width: 100%; }
+.vod-card .nm { padding-right: 24px; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; min-height: 2.8em; }
+.vod-card .sub { align-items: flex-start; flex-direction: column; gap: 3px; }
+.vod-overview { margin-top: 6px; color: var(--muted); font-size: 12px; line-height: 1.4; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+#vodManager .field input, #vodManager .field select { width: 100%; min-width: 0; }
+#vodManager .pl-list li { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+#vodManager .pl-info { min-width: 0; flex: 1 1 100%; }
+#vodManager .pl-info strong, #vodManager .pl-info small { display: block; overflow-wrap: anywhere; }
+#vodManager .pl-info small { color: var(--muted); margin-top: 3px; }
+#vodStatus { overflow-wrap: anywhere; }
+@media (max-width: 1100px) {
+  .tabs { max-width: 34vw; }
+}
+@media (max-width: 900px) {
+  .tabs { max-width: none; }
+}
+
+.mobile-section-nav { display: none; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+@media (max-width: 900px) {
+  .mobile-section-nav { display: block; margin-bottom: 10px; }
+  .mobile-section-nav .field { margin: 0; }
+  #mobileView { width: 100%; }
+}
+
+.vod-record { display: inline-block; margin-top: 8px; font-size: 11.5px; color: var(--accent-2); position: relative; z-index: 2; }
+.vod-record:hover { text-decoration: underline; }

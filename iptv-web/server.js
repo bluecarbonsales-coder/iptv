@@ -25,6 +25,8 @@ const { send, sendJson, isPrivateIp } = require('./lib/util');
 const hls = require('./lib/hls');
 const img = require('./lib/img');
 const refreshLib = require('./lib/refresh');
+const { createAutomation } = require('./lib/automation');
+const { createAgentApi } = require('./lib/agent');
 
 const PORT = parseInt(process.env.PORT, 10) || 3920;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -61,7 +63,16 @@ async function refreshNow() {
 }
 
 const app = new Router();
-const api = createApi(catalog, refreshNow);
+let api;
+const automation = createAutomation({
+  dataDir: DATA_DIR,
+  catalog,
+  refresh: refreshNow,
+  log,
+  onProvidersChanged: () => api && api.clearVodCache(),
+});
+api = createApi(catalog, refreshNow, DATA_DIR, automation);
+const agent = createAgentApi({ dataDir: DATA_DIR, catalog, refresh: refreshNow, api, automation });
 const staticHandler = serveStatic(PUBLIC_DIR);
 
 // POST /api/refresh drags 18 MB from iptv-org: allow it freely from the host itself,
@@ -70,15 +81,61 @@ function refreshGuard(req, res, params, query) {
   const viaProxy = !!req.headers['x-forwarded-for'] || !!req.headers['x-real-ip'];
   const remote = (req.socket.remoteAddress || '').replace(/^::ffff:/, '');
   const local = remote === '127.0.0.1' || remote === '::1' || isPrivateIp(remote);
-  const token = process.env.REFRESH_TOKEN;
+  const token = process.env.REFRESH_TOKEN || '';
   if (!viaProxy && local) return api.refreshNow(req, res, params, query);
-  const given = req.headers['x-refresh-token'] || query.token;
-  if (token && given === token) return api.refreshNow(req, res, params, query);
+  const given = req.headers['x-refresh-token'];
+  const tokenMatches = typeof given === 'string' && token &&
+    Buffer.from(given).length === Buffer.from(token).length &&
+    require('crypto').timingSafeEqual(Buffer.from(given), Buffer.from(token));
+  if (tokenMatches) return api.refreshNow(req, res, params, query);
   return sendJson(req, res, 403, { error: 'refresh is restricted', hint: 'send X-Refresh-Token' });
 }
 
+// Agent-native API: header-authenticated, machine-readable, audited, and autonomy-gated.
+app.get('/api/agent/v1/openapi.json', agent.openApi);
+app.get('/api/agent/v1/project/status', agent.projectStatus);
+app.get('/api/agent/v1/project/tree', agent.projectTree);
+app.get('/api/agent/v1/project/file', agent.projectFile);
+app.post('/api/agent/v1/project/commit', agent.projectCommit);
+app.post('/api/agent/v1/project/branch', agent.projectBranch);
+app.post('/api/agent/v1/project/pr', agent.projectPullRequest);
+app.post('/api/agent/v1/project/pr/:number/merge', agent.projectMerge);
+app.post('/api/agent/v1/project/dispatch', agent.projectDispatch);
+app.get('/api/agent/v1/project/actions', agent.projectActions);
+app.get('/api/agent/v1/project/checks/:sha', agent.projectChecks);
+app.get('/api/agent/v1/capabilities', agent.capabilities);
+app.get('/api/agent/v1/status', agent.status);
+app.get('/api/agent/v1/settings', agent.settingsView);
+app.patch('/api/agent/v1/settings', agent.settingsUpdate);
+app.get('/api/agent/v1/audit', agent.auditLog);
+app.post('/api/agent/v1/tasks/run', agent.runTask);
+app.get('/api/agent/v1/live/sources', agent.liveList);
+app.post('/api/agent/v1/live/sources', agent.liveAdd);
+app.patch('/api/agent/v1/live/sources/:id', agent.liveUpdate);
+app.delete('/api/agent/v1/live/sources/:id', agent.liveDelete);
+app.get('/api/agent/v1/vod/sources', agent.vodList);
+app.post('/api/agent/v1/vod/sources', agent.vodAdd);
+app.post('/api/agent/v1/vod/import', agent.vodImport);
+app.patch('/api/agent/v1/vod/sources/:id', agent.vodUpdate);
+app.delete('/api/agent/v1/vod/sources/:id', agent.vodDelete);
+app.get('/api/agent/v1/vod/search', agent.vodSearch);
+app.get('/api/agent/v1/vod/:sourceId/:vodId', agent.vodDetail);
+app.get('/api/agent/v1/archive/search', agent.archiveSearch);
+app.get('/api/agent/v1/commons/search', agent.commonsSearch);
+
 app.get('/healthz', api.health);
 app.get('/api/meta', api.meta);
+app.get('/api/sources', api.sourceList);
+app.get('/api/vod/sources', api.listVodSources);
+app.post('/api/vod/sources', api.addVodSource);
+app.post('/api/vod/import', api.importVodSourceList);
+app.patch('/api/vod/sources/:id', api.updateVodSource);
+app.delete('/api/vod/sources/:id', api.deleteVodSource);
+app.get('/api/vod', api.vodSearch);
+app.get('/api/vod/:sourceId/:vodId', api.vodDetail);
+app.post('/api/sources', api.addSource);
+app.patch('/api/sources/:id', api.updateSource);
+app.delete('/api/sources/:id', api.deleteSource);
 app.get('/api/channels', api.channels);
 app.get('/api/channel/:id', api.channel);
 app.get('/api/playlist.m3u', api.playlistProxied);
@@ -121,6 +178,8 @@ server.on('clientError', (err, socket) => {
 
 server.listen(PORT, HOST, () => {
   log(`IPTV Web listening on http://${HOST}:${PORT}  (data: ${DATA_DIR})`);
+  automation.start();
+  if (!process.env.AGENT_API_TOKEN) log('agent API disabled: configure AGENT_API_TOKEN to enable Hermes/agent control endpoints');
   const age = catalog.meta.updated ? (Date.now() - Date.parse(catalog.meta.updated)) / 3.6e6 : Infinity;
   if (!catalog.ready || (REFRESH_HOURS > 0 && age > REFRESH_HOURS)) {
     log(`catalogue missing or ${age === Infinity ? 'absent' : `${age.toFixed(1)}h`} old → refreshing in background`);
@@ -131,6 +190,7 @@ server.listen(PORT, HOST, () => {
 for (const sig of ['SIGINT', 'SIGTERM']) {
   process.on(sig, () => {
     log(`received ${sig}, shutting down`);
+    automation.stop();
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(0), 3000);
   });

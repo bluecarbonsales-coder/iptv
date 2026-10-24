@@ -40,6 +40,7 @@
     favorites: LS.get('iptvweb.fav', []),
     recent: LS.get('iptvweb.recent', []),
     playlists: LS.get('iptvweb.playlists', []),
+    vodItems: LS.get('iptvweb.vod.items', []),
     loading: false,
   };
 
@@ -138,6 +139,12 @@
     return null;
   }
 
+  function getSavedVodForView() {
+    const ids = state.view === 'recent' ? state.recent : Array.from(favSet);
+    const byId = new Map((state.vodItems || []).map((item) => [item.id, item]));
+    return ids.map((id) => byId.get(id)).filter((item) => item && (!state.q || (item.name + ' ' + (item.overview || '')).toLowerCase().includes(state.q.toLowerCase())));
+  }
+
   function buildQuery(page) {
     const p = new URLSearchParams();
     if (state.q) p.set('q', state.q);
@@ -154,8 +161,13 @@
     return p;
   }
 
+  function isVodView(view) {
+    return ['movies', 'series', 'anime', 'vod'].includes(view);
+  }
+
   async function load(reset) {
     if (state.view === 'playlists') return renderPlaylistsView();
+    if (isVodView(state.view)) return loadVod(reset);
     if (state.loading) return;
     state.loading = true;
     if (reset) {
@@ -169,17 +181,67 @@
       const res = await fetch('/api/channels?' + p.toString());
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
-      state.total = data.total;
+      const extraVod = reset && (state.view === 'favorites' || state.view === 'recent') ? getSavedVodForView() : [];
+      const pageItems = (data.items || []).concat(extraVod);
+      state.total = data.total + extraVod.length;
       state.pages = data.pages;
-      if (reset) state.items = data.items;
+      if (reset) state.items = pageItems;
       else state.items = state.items.concat(data.items);
-      renderCards(reset ? data.items : data.items, !reset);
+      renderCards(pageItems, !reset);
       renderResultBar();
       loadMoreBtn.hidden = state.view === 'playlists' || state.page >= data.pages || !data.total;
     } catch (err) {
       $('#resultCount').textContent = '';
       emptyBox.hidden = false;
       emptyBox.textContent = 'Could not load channels: ' + err.message;
+    } finally {
+      state.loading = false;
+    }
+  }
+
+  async function loadVod(reset) {
+    if (state.loading) return;
+    state.loading = true;
+    if (reset) {
+      state.page = 1;
+      grid.innerHTML = '';
+      emptyBox.hidden = true;
+    }
+    $('#resultCount').textContent = 'Searching VOD resources…';
+    try {
+      const params = new URLSearchParams({ type: state.view === 'vod' ? 'all' : state.view });
+      if (state.q) params.set('q', state.q);
+      const res = await fetch('/api/vod?' + params.toString());
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+      const items = data.items || [];
+      const stored = new Map((state.vodItems || []).map((item) => [item.id, item]));
+      for (const item of items) stored.set(item.id, item);
+      state.vodItems = Array.from(stored.values()).slice(-500);
+      LS.set('iptvweb.vod.items', state.vodItems);
+      state.total = data.total || 0;
+      state.pages = data.pages || 1;
+      state.page = 1;
+      state.items = items;
+      renderCards(items, false);
+      $('#resultCount').innerHTML = `<b>${state.total.toLocaleString()}</b> ${state.view === 'anime' ? 'anime titles' : state.view === 'series' ? 'series' : state.view === 'movies' ? 'movies' : 'VOD titles'}`;
+      const good = (data.providers || []).filter((provider) => provider.ok).length;
+      const failures = (data.errors || []).length;
+      const badges = [];
+      if (state.q) badges.push(`<span class="af">Search: <b>${esc(state.q)}</b></span>`);
+      if (good) badges.push(`<span class="af">${good} provider${good === 1 ? '' : 's'} responded</span>`);
+      if (failures) badges.push(`<span class="af">${failures} provider${failures === 1 ? '' : 's'} unavailable</span>`);
+      $('#activeFilters').innerHTML = badges.join('');
+      loadMoreBtn.hidden = true;
+      if (!items.length) {
+        emptyBox.hidden = false;
+        emptyBox.textContent = data.hint || (failures ? 'No titles returned. Check the provider API URLs and availability in VOD resources.' : 'No titles found. Add an authorized VOD API or try another search.');
+      }
+      syncHash();
+    } catch (err) {
+      $('#resultCount').textContent = '';
+      emptyBox.hidden = false;
+      emptyBox.textContent = 'Could not load VOD resources: ' + err.message;
     } finally {
       state.loading = false;
     }
@@ -199,6 +261,22 @@
   }
 
   function cardHTML(it) {
+    if (it.vod) {
+      const fav = favSet.has(it.id);
+      const poster = imgUrl(it.logo);
+      const subtitle = [it.year, it.remarks, it.sourceName].filter(Boolean).join(' · ');
+      const recordLink = it.pageUrl ? `<a class="vod-record" href="${esc(it.pageUrl)}" data-vod-page target="_blank" rel="noopener noreferrer">View source / license ↗</a>` : '';
+      return `<article class="card vod-card" data-id="${esc(it.id)}" tabindex="0" title="${esc(it.overview || it.name)}">
+        <div class="thumb vod-thumb">${poster ? `<img loading="lazy" src="${esc(poster)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'ini',textContent:'${esc(initials(it.name))}'}))">` : `<div class="ini">${esc(initials(it.name))}</div>`}</div>
+        <div class="meta">
+          <div class="nm" title="${esc(it.name)}">${esc(it.name)}</div>
+          <div class="sub">${subtitle ? `<span>${esc(subtitle)}</span>` : ''}<span class="badge">${esc(it.kind || 'VOD')}</span></div>
+          ${it.overview ? `<div class="vod-overview">${esc(it.overview)}</div>` : ''}
+          ${recordLink}
+        </div>
+        <button class="fav${fav ? ' on' : ''}" data-fav="${esc(it.id)}" title="${t('tabFavorites')}">${fav ? '★' : '☆'}</button>
+      </article>`;
+    }
     const fav = favSet.has(it.id);
     const logo = imgUrl(it.logo);
     const badges = [];
@@ -304,8 +382,15 @@
 
   function setView(v, reload) {
     state.view = v;
-    $$('.tab').forEach((b) => b.classList.toggle('active', b.dataset.view === v));
+    $('.tab').forEach((b) => b.classList.toggle('active', b.dataset.view === v));
     if (v !== 'playlists' || !state.playlistId) state.playlistId = null;
+    const vodView = isVodView(v);
+    $('#channelFilters').hidden = vodView;
+    $('#playlistSide').hidden = vodView;
+    $('#resourceManager').hidden = vodView;
+    $('#vodManager').hidden = !vodView;
+    $('#btnExport').hidden = vodView;
+    $('#q').placeholder = vodView ? 'Search movies, series and anime…' : 'Search 10,000+ channels…  (press /)';
     if (reload !== false) load(true);
   }
 
@@ -319,6 +404,18 @@
   };
 
   async function buildSources(item) {
+    if (item.vod) {
+      const res = await fetch('/api/vod/' + encodeURIComponent(item.sourceId) + '/' + encodeURIComponent(item.vodId));
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'VOD details failed to load');
+      return (data.episodes || []).map((episode, i) => ({
+        url: episode.url,
+        title: episode.title || ('Episode ' + (i + 1)),
+        quality: null,
+        labels: [],
+        index: i,
+      }));
+    }
     if (item.playlist) {
       return [
         {
@@ -351,7 +448,7 @@
     player.autoTried = 0;
     $('#player').hidden = false;
     $('#pName').textContent = item.name;
-    $('#pSub').textContent = [item.country ? countryLabel(item.country) : null, (item.cats || []).join(', ')].filter(Boolean).join(' · ');
+    $('#pSub').textContent = [item.year || null, item.remarks || null, item.sourceName || null, item.country ? countryLabel(item.country) : null, (item.cats || []).join(', ')].filter(Boolean).join(' · ');
     $('#pLogo').hidden = !item.logo;
     if (item.logo) $('#pLogo').src = imgUrl(item.logo);
     $('#pFav').textContent = favSet.has(item.id) ? '★' : '☆';
@@ -360,18 +457,20 @@
     setStatus('');
     showOverlay(t('connecting'), true);
 
+    let sourceError = '';
     try {
       player.sources = await buildSources(item);
     } catch (err) {
       player.sources = [];
+      sourceError = err.message || 'source lookup failed';
     }
     if (!player.sources.length) {
-      showOverlay(t('noSources'), false, true);
+      showOverlay(sourceError || t('noSources'), false, true);
       return;
     }
     const sel = $('#pSource');
     sel.innerHTML = player.sources
-      .map((s, i) => `<option value="${i}">${i + 1}. ${esc(s.quality || 'auto')}${s.labels && s.labels.length ? ' · ' + esc(s.labels.join('/')) : ''} — ${esc(s.url.slice(0, 58))}</option>`)
+       .map((s, i) => `<option value="${i}">${i + 1}. ${esc(s.title || s.quality || 'auto')}${s.labels && s.labels.length ? ' · ' + esc(s.labels.join('/')) : ''} — ${esc((s.url || '').slice(0, 58))}</option>`)
       .join('');
     sel.value = '0';
     $('#pOpen').href = player.sources[0].url;
@@ -436,6 +535,15 @@
     }
     if (!relay) showOverlay(t('connecting') + ' (direct — CORS may block this)', true);
     else showOverlay(t('connecting'), true);
+
+    const directFile = /\.(mp4|m4v|webm|mov|ogv|ogg|mp3|aac)(?:$|[?#])/i.test(src.url);
+    if (directFile) {
+      video.src = target;
+      video.onloadeddata = hideOverlay;
+      video.onerror = () => onStreamError('direct media playback error');
+      video.play().catch(() => {});
+      return;
+    }
 
     const nativeHls = video.canPlayType('application/vnd.apple.mpegurl') && !window.Hls;
     if (nativeHls) {
@@ -592,6 +700,7 @@
 
   /* ------------------------------------------------------------------ wiring */
   function onGridClick(e) {
+    if (e.target.closest('[data-vod-page]')) return;
     const favBtn = e.target.closest('[data-fav]');
     if (favBtn) {
       e.stopPropagation();
@@ -624,7 +733,7 @@
       deb = setTimeout(() => {
         state.q = $('#q').value.trim();
         applyFilters();
-      }, 280);
+      }, isVodView(state.view) ? 500 : 280);
     });
     $('#clearSearch').onclick = () => {
       $('#q').value = '';
@@ -633,12 +742,16 @@
       applyFilters();
     };
 
-    $$('.tab').forEach((b) =>
+    $('.tab').forEach((b) =>
       b.addEventListener('click', () => {
         state.playlistId = null;
         setView(b.dataset.view, true);
       })
     );
+    $('#mobileView').addEventListener('change', (e) => {
+      state.playlistId = null;
+      setView(e.target.value, true);
+    });
 
     $('#country').addEventListener('change', (e) => {
       state.country = e.target.value;
@@ -766,6 +879,192 @@
       state.playlistId = id;
       setView('playlists', true);
     });
+
+    // Persistent server-side resources. The management token stays in this tab only.
+    const sourceToken = $('#sourceToken');
+    const vodToken = $('#vodToken');
+    sourceToken.value = '';
+    vodToken.value = '';
+    sourceToken.addEventListener('input', () => { vodToken.value = sourceToken.value; });
+    vodToken.addEventListener('input', () => { sourceToken.value = vodToken.value; });
+    function sourceHeaders() {
+      const token = (vodToken.value || sourceToken.value).trim();
+      if (!token) throw new Error('Enter the management token first.');
+      return { 'Content-Type': 'application/json', 'X-Source-Token': token };
+    }
+    async function sourceRequest(url, options) {
+      const res = await fetch(url, options || {});
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+      return data;
+    }
+    async function loadServerSources() {
+      const list = $('#sourceList');
+      $('#sourceStatus').textContent = 'Loading resources…';
+      try {
+        const data = await sourceRequest('/api/sources', { headers: sourceHeaders() });
+        list.innerHTML = (data.sources || []).map((s) => {
+          const status = s.error ? 'Error: ' + s.error : (s.count + ' channels · ' + s.streams + ' streams');
+          return '<li data-source="' + esc(s.id) + '"><div class="pl-info"><strong>' + esc(s.name) + '</strong><small>' + esc(status) + '</small></div><button type="button" class="link-btn" data-source-toggle="' + esc(s.id) + '" data-enabled="' + (!s.enabled) + '">' + (s.enabled ? 'Disable' : 'Enable') + '</button><button type="button" class="link-btn del" data-source-delete="' + esc(s.id) + '" aria-label="Delete ' + esc(s.name) + '">Delete</button></li>';
+        }).join('');
+        if (!data.sources.length) list.innerHTML = '<li><small>No persistent resources yet.</small></li>';
+        $('#sourceStatus').textContent = data.sources.length + ' resource(s) configured.';
+      } catch (err) {
+        $('#sourceStatus').textContent = err.message;
+      }
+    }
+    $('#sourceReload').onclick = loadServerSources;
+    $('#sourceAdd').onclick = async () => {
+      try {
+        const headers = sourceHeaders();
+        const name = $('#sourceName').value.trim();
+        const url = $('#sourceUrl').value.trim();
+        if (!name || !url) throw new Error('Enter both a resource name and playlist URL.');
+        $('#sourceAdd').disabled = true;
+        $('#sourceStatus').textContent = 'Validating playlist and refreshing catalogue…';
+        await sourceRequest('/api/sources', { method: 'POST', headers, body: JSON.stringify({ name, url }) });
+        $('#sourceName').value = '';
+        $('#sourceUrl').value = '';
+        toast('Resource added and catalogue refreshed.');
+        await loadServerSources();
+        await loadMeta();
+        await load(true);
+      } catch (err) {
+        $('#sourceStatus').textContent = err.message;
+      } finally {
+        $('#sourceAdd').disabled = false;
+      }
+    };
+    $('#sourceList').addEventListener('click', async (e) => {
+      const toggle = e.target.closest('[data-source-toggle]');
+      const remove = e.target.closest('[data-source-delete]');
+      if (!toggle && !remove) return;
+      try {
+        const headers = sourceHeaders();
+        if (remove) {
+          if (!confirm('Delete this persistent resource? Its channels will be removed from the catalogue on refresh.')) return;
+          await sourceRequest('/api/sources/' + encodeURIComponent(remove.dataset.sourceDelete), { method: 'DELETE', headers });
+        } else {
+          await sourceRequest('/api/sources/' + encodeURIComponent(toggle.dataset.sourceToggle), { method: 'PATCH', headers, body: JSON.stringify({ enabled: toggle.dataset.enabled === 'true' }) });
+        }
+        $('#sourceStatus').textContent = 'Refreshing catalogue…';
+        await loadServerSources();
+        await loadMeta();
+        await load(true);
+      } catch (err) {
+        $('#sourceStatus').textContent = err.message;
+      }
+    });
+    loadServerSources();
+
+    async function loadVodSources() {
+      const list = $('#vodList');
+      try {
+        const data = await sourceRequest('/api/vod/sources', { headers: sourceHeaders() });
+        list.innerHTML = (data.sources || []).map((s) => {
+          const kind = s.kind === 'all' ? 'All VOD' : s.kind === 'movies' ? 'Movies' : s.kind === 'series' ? 'Series' : 'Anime';
+          const checkStatus = s.lastError ? ' · Error: ' + s.lastError : (!s.lastChecked ? ' · Not checked yet' : ' · API checked');
+          return '<li data-vod-source="' + esc(s.id) + '"><div class="pl-info"><strong>' + esc(s.name) + '</strong><small>' + esc(kind + checkStatus) + '</small></div><button type="button" class="link-btn" data-vod-toggle="' + esc(s.id) + '" data-enabled="' + (!s.enabled) + '">' + (s.enabled ? 'Disable' : 'Enable') + '</button><button type="button" class="link-btn del" data-vod-delete="' + esc(s.id) + '" aria-label="Delete ' + esc(s.name) + '">Delete</button></li>';
+        }).join('');
+        if (!(data.sources || []).length) list.innerHTML = '<li><small>No VOD APIs configured yet.</small></li>';
+        $('#vodStatus').textContent = data.sources.length + ' VOD provider(s) configured.';
+      } catch (err) {
+        $('#vodStatus').textContent = err.message;
+      }
+    }
+    $('#vodReload').onclick = loadVodSources;
+    $('#vodImport').onclick = async () => {
+      try {
+        const headers = sourceHeaders();
+        const url = $('#vodListUrl').value.trim();
+        if (!url) throw new Error('Enter a public JSON URL for the provider list/config.');
+        $('#vodImport').disabled = true;
+        $('#vodStatus').textContent = 'Importing provider definitions…';
+        const data = await sourceRequest('/api/vod/import', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ url }),
+        });
+        $('#vodListUrl').value = '';
+        await loadVodSources();
+        await loadServerSources();
+        const details = [];
+        details.push((data.imported || 0) + ' provider(s) imported');
+        if (data.duplicates) details.push(data.duplicates + ' already configured');
+        if (data.skippedLimit) details.push(data.skippedLimit + ' skipped (provider limit reached)');
+        $('#vodStatus').textContent = details.join(' · ') + '. Imported endpoints passed compatibility checks; verify content rights separately.';
+        if (isVodView(state.view)) await load(true);
+      } catch (err) {
+        $('#vodStatus').textContent = err.message;
+      } finally {
+        $('#vodImport').disabled = false;
+      }
+    };
+    $('#vodListFile').addEventListener('change', async (event) => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      try {
+        if (file.size > 1024 * 1024) throw new Error('JSON config must be 1 MB or smaller.');
+        $('#vodStatus').textContent = 'Reading provider config…';
+        const config = JSON.parse(await file.text());
+        const data = await sourceRequest('/api/vod/import', {
+          method: 'POST',
+          headers: sourceHeaders(),
+          body: JSON.stringify({ config, sourceName: file.name }),
+        });
+        await loadVodSources();
+        await loadServerSources();
+        const details = [(data.imported || 0) + ' resource(s) imported'];
+        if (data.duplicates) details.push(data.duplicates + ' already configured');
+        if (data.skippedLimit) details.push(data.skippedLimit + ' skipped (provider limit reached)');
+        $('#vodStatus').textContent = details.join(' · ') + '. Imported providers have not been individually verified.';
+        if (isVodView(state.view)) await load(true);
+      } catch (err) {
+        $('#vodStatus').textContent = err.message;
+      } finally {
+        event.target.value = '';
+      }
+    });
+    $('#vodAdd').onclick = async () => {
+      try {
+        const headers = sourceHeaders();
+        const name = $('#vodName').value.trim();
+        const api = $('#vodApi').value.trim();
+        const kind = $('#vodKind').value;
+        if (!name || !api) throw new Error('Enter a provider name and API URL.');
+        $('#vodAdd').disabled = true;
+        $('#vodStatus').textContent = 'Checking provider compatibility…';
+        await sourceRequest('/api/vod/sources', { method: 'POST', headers, body: JSON.stringify({ name, api, kind }) });
+        $('#vodName').value = '';
+        $('#vodApi').value = '';
+        await loadVodSources();
+        $('#vodStatus').textContent = 'Provider added. Searching the selected section…';
+        if (isVodView(state.view)) await load(true);
+      } catch (err) {
+        $('#vodStatus').textContent = err.message;
+      } finally {
+        $('#vodAdd').disabled = false;
+      }
+    };
+    $('#vodList').addEventListener('click', async (e) => {
+      const toggle = e.target.closest('[data-vod-toggle]');
+      const remove = e.target.closest('[data-vod-delete]');
+      if (!toggle && !remove) return;
+      try {
+        const headers = sourceHeaders();
+        if (remove) {
+          if (!confirm('Remove this VOD provider?')) return;
+          await sourceRequest('/api/vod/sources/' + encodeURIComponent(remove.dataset.vodDelete), { method: 'DELETE', headers });
+        } else {
+          await sourceRequest('/api/vod/sources/' + encodeURIComponent(toggle.dataset.vodToggle), { method: 'PATCH', headers, body: JSON.stringify({ enabled: toggle.dataset.enabled === 'true' }) });
+        }
+        await loadVodSources();
+        if (isVodView(state.view)) await load(true);
+      } catch (err) {
+        $('#vodStatus').textContent = err.message;
+      }
+    });
+    loadVodSources();
 
     // player wiring
     $('#pClose').onclick = closePlayer;
