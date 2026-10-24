@@ -95,6 +95,18 @@
           <ul class="pl-list" id="plList"></ul>
         </div>
 
+
+        <div class="side-block" id="resourceManager">
+          <div class="side-head"><span>Resource manager</span><button class="link-btn" id="sourceReload" type="button">Refresh</button></div>
+          <p class="hint">Add persistent M3U/M3U8 sources. They are merged into the catalogue on refresh.</p>
+          <label class="field"><span>Management token</span><input id="sourceToken" class="mini" type="password" autocomplete="current-password" placeholder="SOURCE_TOKEN or REFRESH_TOKEN" /></label>
+          <label class="field"><span>Resource name</span><input id="sourceName" class="mini" type="text" maxlength="80" placeholder="My playlist" /></label>
+          <label class="field"><span>Playlist URL</span><input id="sourceUrl" class="mini" type="url" placeholder="https://example.com/playlist.m3u" /></label>
+          <button class="btn" id="sourceAdd" type="button">Add resource</button>
+          <p class="hint" id="sourceStatus" role="status" aria-live="polite"></p>
+          <ul class="pl-list" id="sourceList"></ul>
+        </div>
+
         <div class="side-block">
           <div class="side-head"><span data-i18n="playback">Playback</span></div>
           <label class="check"><input type="checkbox" id="optProxy" checked /> <span data-i18n="useProxy">Relay through this server (fixes CORS &amp; blocked streams)</span></label>
