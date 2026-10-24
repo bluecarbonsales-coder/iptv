@@ -36,9 +36,9 @@ A provider directory is a JSON list of endpoints. It does not itself host the co
 - MoonTV project: https://github.com/Stardm0/MoonTV — supports a `config.json`-style `api_site{}` structure where endpoints are compatible.
 - TVBox-style directories — supports `sites[]` records whose `api` points to compatible Apple CMS/MacCMS APIs.
 
-You can upload a downloaded JSON config in the VOD manager, send a JSON object to the agent API, or set `VOD_SOURCE_LIST_URLS` to a small list of registry URLs you reviewed. The scheduler polls only those explicitly configured URLs. In `AGENT_AUTONOMY=full` mode it probes new endpoints before enabling them and can update the endpoint of a provider originally imported from that same registry. This probe checks API compatibility—not copyright ownership or reliability of every stream.
+On a fresh deployment, the scheduler starts with the maintained [TVboxorg/TVbox `dist/official.json` directory](https://raw.githubusercontent.com/TVboxorg/TVbox/main/dist/official.json), whose maintainers describe it as an availability-probed aggregation of third-party URLs. The adapter filters out non-HTTP API identifiers and independently probes compatible Apple CMS/MacCMS endpoints before enabling them. Operators and agents can also upload a downloaded JSON config, send one via the agent API, or add/replace registry URLs via `VOD_SOURCE_LIST_URLS` / `PATCH /api/agent/v1/settings`. In `AGENT_AUTONOMY=full` mode, it adds newly discovered sources and updates endpoints/metadata for providers already imported from the same registry. This probe checks API compatibility—not copyright ownership or reliability of every stream.
 
-Do not put random source lists into `VOD_SOURCE_LIST_URLS`. Provider endpoint lists can change owners, domains, content, and rights without notice.
+Provider endpoint lists can change owners, domains, content, and rights without notice. A successful API probe confirms only that an endpoint currently responds in a compatible format; it is not a license grant. The default TVboxorg index itself cautions that it aggregates third-party endpoint URLs rather than hosting video.
 
 ## Other sources worth considering
 
