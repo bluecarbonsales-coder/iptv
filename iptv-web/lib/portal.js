@@ -134,20 +134,16 @@ function createPortalApi(options = {}) {
   }
 
   function authorize(req, res) {
-    const givenSource = req.headers['x-source-token'];
-    const givenAgent = req.headers['x-agent-token'];
-    if (
-      matchesToken(givenSource, process.env.SOURCE_TOKEN || '') ||
-      matchesToken(givenSource, process.env.REFRESH_TOKEN || '') ||
-      matchesToken(givenSource, process.env.AGENT_API_TOKEN || '') ||
-      matchesToken(givenAgent, process.env.AGENT_API_TOKEN || '')
-    ) return true;
-    const sourceExpected = process.env.SOURCE_TOKEN || process.env.REFRESH_TOKEN || '';
-    const agentExpected = process.env.AGENT_API_TOKEN || '';
-    if (!sourceExpected && !agentExpected) {
-      sendJson(req, res, 503, { error: 'service-link management is disabled until SOURCE_TOKEN, REFRESH_TOKEN, or AGENT_API_TOKEN is configured' });
+    const expected = process.env.AGENT_API_TOKEN || '';
+    const given = req.headers['x-agent-token'];
+    const matches = typeof given === 'string' && expected &&
+      Buffer.from(given).length === Buffer.from(expected).length &&
+      crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expected));
+    if (matches) return true;
+    if (!expected) {
+      sendJson(req, res, 503, { error: 'portal configuration writes are disabled until AGENT_API_TOKEN is configured' });
     } else {
-      sendJson(req, res, 403, { error: 'service-link management token required' });
+      sendJson(req, res, 403, { error: 'portal configuration writes are restricted to the authenticated Hermes agent API' });
     }
     return false;
   }
