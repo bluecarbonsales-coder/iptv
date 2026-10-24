@@ -6,6 +6,7 @@ const VALID_AUTONOMY = new Set(['full', 'review', 'off']);
 const MAX_REGISTRIES = 32;
 const MIN_HOURS = 1;
 const MAX_HOURS = 720;
+const DEFAULT_SOURCE_LIST_URLS = ['https://raw.githubusercontent.com/TVboxorg/TVbox/main/dist/official.json'];
 
 function uniqueRegistryUrls(value) {
   const list = Array.isArray(value)
@@ -44,8 +45,10 @@ function environmentHours(name, fallback) {
   catch { return fallback; }
 }
 function environmentRegistryUrls() {
-  try { return uniqueRegistryUrls(process.env.VOD_SOURCE_LIST_URLS || ''); }
-  catch { return []; }
+  const configured = process.env.VOD_SOURCE_LIST_URLS;
+  const value = configured && configured.trim() ? configured : DEFAULT_SOURCE_LIST_URLS;
+  try { return uniqueRegistryUrls(value); }
+  catch { return DEFAULT_SOURCE_LIST_URLS.slice(); }
 }
 function defaults() {
   const autonomy = String(process.env.AGENT_AUTONOMY || 'full').toLowerCase();
@@ -96,4 +99,4 @@ function updateSettings(dataDir, patch) {
   fs.renameSync(temp, target);
   return next;
 }
-module.exports = { VALID_AUTONOMY, MAX_REGISTRIES, settingsPath, defaults, getSettings, updateSettings, uniqueRegistryUrls, validatePatch };
+module.exports = { VALID_AUTONOMY, MAX_REGISTRIES, DEFAULT_SOURCE_LIST_URLS, settingsPath, defaults, getSettings, updateSettings, uniqueRegistryUrls, validatePatch };
