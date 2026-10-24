@@ -136,7 +136,7 @@ async function probeSource(source) {
   // Probe with a normal list request; providers may return an empty list on a new catalog.
   const payload = await fetchJson(apiQuery(source, { ac: 'videolist', pg: 1 }));
   providerStatus(payload);
-  if (!Array.isArray(payload) && !(payload && payload.data)) {
+  if (!Array.isArray(payload) && !(payload && (Array.isArray(payload.list) || payload.data))) {
     throw Object.assign(new Error('Response is not a supported Apple CMS / MacCMS catalog'), { statusCode: 400 });
   }
   return { count: listFrom(payload).length };
