@@ -9,6 +9,8 @@ const MAX_SERVICES = 200;
 const DEFAULT_SERVICES = [
   { id: 'watch-tv', name: 'Watch TV', url: '/watch.html', description: 'Live channels, movies, series and your playlists.', category: 'Media', icon: '▶', featured: true, order: 0 },
   { id: 'public-radio', name: 'Public Radio', url: '/radio.html', description: 'Explore live public radio stations by country, language and genre.', category: 'Media', icon: '♫', featured: true, order: 5 },
+  { id: 'seedhub', name: 'SeedHub', url: 'https://www.seedhub.cc/', description: 'External movie and TV catalog. Website availability does not guarantee media playback or content rights.', category: 'Media resources', icon: 'S', featured: false, order: 95 },
+  { id: 'streambert', name: 'Streambert', url: 'https://github.com/truelockmc/streambert', description: 'Official Streambert desktop-app repository and releases; this is not a VOD API endpoint.', category: 'Media resources', icon: 'B', featured: false, order: 96 },
   { id: 'nafisa-site', name: 'Nafisa International', url: 'https://nafisainternational.com', description: 'Company website and global trade services.', category: 'Work', icon: 'N', featured: true, order: 10 },
   { id: 'mail', name: 'Email', url: 'https://email.nafisainternational.com', description: 'Open the self-hosted mail service.', category: 'Work', icon: '✉', featured: true, order: 20 },
   { id: 'home-dashboard', name: 'Home dashboard', url: 'https://home.nafisainternational.com', description: 'Shortcuts and status for self-hosted services.', category: 'Self-hosted', icon: '⌂', featured: false, order: 30 },
@@ -78,7 +80,7 @@ function createPortalApi(options = {}) {
   function writeStore(services) {
     fs.mkdirSync(dataDir, { recursive: true });
     const tempPath = storePath + '.' + process.pid + '.' + crypto.randomBytes(5).toString('hex') + '.tmp';
-    fs.writeFileSync(tempPath, JSON.stringify({ version: 1, services }, null, 2) + '\n', { mode: 0o600 });
+    fs.writeFileSync(tempPath, JSON.stringify({ version: 2, services }, null, 2) + '\n', { mode: 0o600 });
     fs.renameSync(tempPath, storePath);
   }
 
@@ -93,16 +95,18 @@ function createPortalApi(options = {}) {
       throw new Error('portal service data could not be read: ' + err.message);
     }
     if (!parsed || !Array.isArray(parsed.services)) throw new Error('portal service data has an invalid format');
-    // Add new built-in shortcuts to existing deployments while preserving user edits and deletions of every other link.
-    let changed = false;
-    for (const item of DEFAULT_SERVICES.filter((service) => service.id === 'public-radio')) {
-      if (!parsed.services.some((service) => service && service.id === item.id)) {
-        const now = new Date().toISOString();
-        parsed.services.push({ ...item, createdAt: now, updatedAt: now });
-        changed = true;
+    // One-time migration for existing data volumes: add newer built-in shortcuts once,
+    // but do not resurrect a shortcut after the owner removes it from the portal.
+    const version = Number(parsed.version) || 1;
+    if (version < 2) {
+      for (const item of DEFAULT_SERVICES.filter((service) => ['public-radio', 'seedhub', 'streambert'].includes(service.id))) {
+        if (!parsed.services.some((service) => service && service.id === item.id)) {
+          const now = new Date().toISOString();
+          parsed.services.push({ ...item, createdAt: now, updatedAt: now });
+        }
       }
+      writeStore(parsed.services);
     }
-    if (changed) writeStore(parsed.services);
     return parsed.services;
   }
 
@@ -201,7 +205,7 @@ function createPortalApi(options = {}) {
     }
   }
 
-  return { list, add, update, remove };
+  return { list, add, update, remove, getServices: loadServices };
 }
 
 module.exports = { createPortalApi, isSafeServiceUrl, validateService, matchesToken, DEFAULT_SERVICES, MAX_SERVICES };
