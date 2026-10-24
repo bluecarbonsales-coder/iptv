@@ -183,7 +183,6 @@ function createApi(catalog, refresh, dataDir) {
       const body = JSON.parse(await readBody(req, 1024 * 1024));
       let config;
       let importedFrom = null;
-
       if (body.url) {
         const listUrl = vodLib.normalizeApiUrl(body.url);
         const { response } = await upstreamFetch(listUrl, {
@@ -205,77 +204,125 @@ function createApi(catalog, refresh, dataDir) {
         return sendJson(req, res, 400, { error: 'Provide a source-list URL or upload a JSON configuration.' });
       }
 
-      const candidates = vodLib.parseSourceList(config);
-      const registry = vodLib.loadSourcesSync(sourceDataDir);
-      const existing = new Set(registry.sources.map((source) => source.api));
-      const duplicates = candidates.filter((candidate) => existing.has(candidate.api)).length;
-      const available = Math.max(0, vodLib.MAX_VOD_SOURCES - registry.sources.length);
-      if (available === 0) {
-        return sendJson(req, res, 409, { error: 'VOD provider limit reached', imported: 0, duplicates, skippedLimit: candidates.length - duplicates });
+      let candidates = [];
+      try { candidates = vodLib.parseSourceList(config); }
+      catch (err) {
+        if (!Array.isArray(config && config.liveSources)) throw err;
+      }
+      const liveCandidates = sourceLib.parseRegistrySources(config);
+      if (!candidates.length && !liveCandidates.length) {
+        return sendJson(req, res, 400, { error: 'No compatible VOD or live source entries were found in this configuration.' });
       }
 
-      // Probe a bounded number concurrently before saving. A config directory may list hundreds
-      // of endpoints; do not blindly activate all of them or make unbounded outbound requests.
-      const untried = candidates.filter((candidate) => !existing.has(candidate.api));
-      const probeLimit = Math.min(100, Math.max(available, available * 3));
-      const toProbe = untried.slice(0, probeLimit);
-      const probed = await mapLimit(toProbe, 3, async (item) => {
+      // VOD APIs are tested before they are persisted or made available to search.
+      const initialVod = vodLib.loadSourcesSync(sourceDataDir).sources;
+      const initialVodUrls = new Set(initialVod.map((source) => source.api));
+      const vodDuplicates = candidates.filter((candidate) => initialVodUrls.has(candidate.api)).length;
+      const vodAvailable = Math.max(0, vodLib.MAX_VOD_SOURCES - initialVod.length);
+      const vodUntried = candidates.filter((candidate) => !initialVodUrls.has(candidate.api));
+      const vodProbeLimit = Math.min(100, Math.max(0, vodAvailable * 3));
+      const vodToProbe = vodUntried.slice(0, vodProbeLimit);
+      const vodProbed = await mapLimit(vodToProbe, 3, async (item) => {
         const source = {
-          id: vodLib.newId(),
-          name: item.name,
-          api: item.api,
-          detail: item.detail || null,
-          kind: item.kind,
-          enabled: true,
-          addedAt: new Date().toISOString(),
-          lastChecked: null,
-          lastError: null,
-          importedFrom,
+          id: vodLib.newId(), name: item.name, api: item.api, detail: item.detail || null,
+          kind: item.kind, enabled: true, addedAt: new Date().toISOString(),
+          lastChecked: null, lastError: null, importedFrom,
         };
         const probe = await vodLib.probeSource(source);
         source.lastChecked = new Date().toISOString();
         source.lastItemCount = probe.count;
         return source;
       });
-
-      const added = [];
-      const rejected = [];
-      let overLimit = Math.max(0, untried.length - toProbe.length);
-      for (let i = 0; i < probed.length; i++) {
-        const entry = probed[i];
+      const vodAccepted = [];
+      const vodRejected = [];
+      for (let i = 0; i < vodProbed.length; i++) {
+        const entry = vodProbed[i];
         if (entry.status === 'rejected') {
-          rejected.push({ name: toProbe[i].name, error: String(entry.reason && entry.reason.message || 'provider probe failed').slice(0, 180) });
-          continue;
+          vodRejected.push({ name: vodToProbe[i].name, error: String(entry.reason && entry.reason.message || 'provider probe failed').slice(0, 180) });
+        } else {
+          vodAccepted.push(entry.value);
         }
-        if (added.length >= available) {
-          overLimit++;
-          continue;
-        }
-        added.push(entry.value);
       }
-
-      if (!added.length) {
-        return sendJson(req, res, 200, {
-          imported: 0,
-          duplicates,
-          rejected,
-          skippedLimit: overLimit,
-          message: rejected.length ? 'No new providers passed the compatibility check.' : 'All compatible providers are already configured or no slots are available.',
+      const vodSkippedLimit = Math.max(0, vodUntried.length - vodToProbe.length);
+      let vodAdded = [];
+      if (vodAccepted.length) {
+        await withLock(vodLockKey, () => {
+          const current = vodLib.loadSourcesSync(sourceDataDir).sources;
+          const urls = new Set(current.map((source) => source.api));
+          const capacity = Math.max(0, vodLib.MAX_VOD_SOURCES - current.length);
+          vodAdded = vodAccepted.filter((source) => !urls.has(source.api)).slice(0, capacity);
+          if (vodAdded.length) vodLib.saveSources(sourceDataDir, current.concat(vodAdded));
         });
       }
-      registry.sources.push(...added);
-      vodLib.saveSources(sourceDataDir, registry.sources);
-      vodSearchCache.clear();
-      sendJson(req, res, 201, {
-        imported: added.length,
-        duplicates,
-        rejected,
-        skippedLimit: overLimit,
-        sources: added.map(vodLib.publicSource),
-        note: 'Added providers passed an API compatibility probe. The probe does not verify copyright, licensing, or the reliability of every stream.',
+
+      // LibreTV SourceList v2 may include liveSources alongside VOD APIs. Parse, probe,
+      // and save both resource classes so importing one file manages the complete project.
+      const initialLive = sourceLib.loadSourcesSync(sourceDataDir).sources;
+      const initialLiveUrls = new Set(initialLive.map((source) => source.url));
+      const liveDuplicates = liveCandidates.filter((candidate) => initialLiveUrls.has(candidate.url)).length;
+      const liveAvailable = Math.max(0, sourceLib.MAX_SOURCES - initialLive.length);
+      const liveUntried = liveCandidates.filter((candidate) => !initialLiveUrls.has(candidate.url));
+      const liveProbeLimit = Math.min(100, Math.max(0, liveAvailable * 3));
+      const liveToProbe = liveUntried.slice(0, liveProbeLimit);
+      const liveProbed = await mapLimit(liveToProbe, 3, async (item) => {
+        const source = {
+          id: sourceLib.newId(), name: item.name, url: item.url, epg: item.epg,
+          enabled: true, createdAt: new Date().toISOString(), importedFrom,
+        };
+        const parsedItems = await sourceLib.fetchSource(source);
+        source.lastCount = sourceLib.buildChannels(source, parsedItems).length;
+        source.lastStreamCount = parsedItems.length;
+        source.lastUpdated = new Date().toISOString();
+        source.lastError = null;
+        return source;
+      });
+      const liveAccepted = [];
+      const liveRejected = [];
+      for (let i = 0; i < liveProbed.length; i++) {
+        const entry = liveProbed[i];
+        if (entry.status === 'rejected') {
+          liveRejected.push({ name: liveToProbe[i].name, error: String(entry.reason && entry.reason.message || 'playlist validation failed').slice(0, 180) });
+        } else {
+          liveAccepted.push(entry.value);
+        }
+      }
+      const liveSkippedLimit = Math.max(0, liveUntried.length - liveToProbe.length);
+      let liveAdded = [];
+      if (liveAccepted.length) {
+        await withLock(liveLockKey, () => {
+          const current = sourceLib.loadSourcesSync(sourceDataDir).sources;
+          const urls = new Set(current.map((source) => source.url));
+          const capacity = Math.max(0, sourceLib.MAX_SOURCES - current.length);
+          liveAdded = liveAccepted.filter((source) => !urls.has(source.url)).slice(0, capacity);
+          if (liveAdded.length) sourceLib.saveSources(sourceDataDir, current.concat(liveAdded));
+        });
+      }
+
+      if (vodAdded.length) vodSearchCache.clear();
+      let liveRefresh = null;
+      if (liveAdded.length) {
+        try { liveRefresh = await refresh(); }
+        catch (err) { liveRefresh = { error: String(err.message || err) }; }
+      }
+      const imported = vodAdded.length + liveAdded.length;
+      sendJson(req, res, imported ? 201 : 200, {
+        ok: true,
+        imported,
+        vodImported: vodAdded.length,
+        liveImported: liveAdded.length,
+        vodDuplicates,
+        liveDuplicates,
+        vodRejected,
+        liveRejected,
+        vodSkippedLimit,
+        liveSkippedLimit,
+        vodSources: vodAdded.map(vodLib.publicSource),
+        liveSources: liveAdded.map(publicSource),
+        liveRefresh,
+        note: 'Imported providers passed API/playlist compatibility checks. These checks do not establish copyright ownership or distribution rights.',
       });
     } catch (err) {
-      sendJson(req, res, err.statusCode || 400, { error: err.message || 'could not import VOD provider list' });
+      sendJson(req, res, err.statusCode || 400, { error: err.message || 'could not import source list' });
     }
   };
 
