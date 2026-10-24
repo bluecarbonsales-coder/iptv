@@ -1,9 +1,6 @@
 # IPTV Web
 
-A self-hosted web player for the [iptv-org](https://github.com/iptv-org/iptv) catalogue:
-browse ~10,000 live channels, filter by country/category/quality, search, favourite, and
-watch them in the browser — plus load **any** M3U playlist (URL or local file) and watch
-that too.
+A self-hosted media and service portal: browse live TV/VOD, listen to worldwide radio, and launch your favorite self-hosted apps or external websites.
 
 Live deployment: **https://iptv.nafisainternational.com**
 
@@ -36,6 +33,23 @@ The portal uses plain HTML, CSS, browser JavaScript, and the existing Node stand
                                                                 ▼
                                                      third-party IPTV origins
 ```
+
+## Public radio
+
+The standalone **`/radio.html`** page browses the community-maintained [Radio Browser](https://www.radio-browser.info/) station directory. It supports station-name search, country/language/genre filters, popular and alphabetical sorting, paging, local favorites, a persistent audio control bar, and desktop/mobile media-session controls where supported. This is an open radio directory—not a curated list limited to government-funded/public-service broadcasters—and individual station availability, location restrictions, and listening rights depend on each broadcaster.
+
+The app discovers Radio Browser API mirrors through the documented `_api._tcp.radio-browser.info` DNS SRV record, falls back to the documented DNS A/PTR discovery path, retries other mirrors, and caches search results briefly and country/language/genre dictionaries longer to reduce API load. No API key or extra npm package is required. The server sends a descriptive User-Agent and calls Radio Browser's station click-counter endpoint when resolving playback.
+
+Playback prefers HTTPS streams directly in the browser, avoiding unnecessary VPS bandwidth. HLS streams use the existing same-origin HLS relay so manifests and segments can be rewritten safely. HTTP-only audio streams use a random, short-lived ticket created from a valid station UUID; they cannot be used as arbitrary-URL proxy requests. Direct HTTPS playback automatically falls back to this bounded relay if the browser cannot play a broadcaster's stream. The relay follows redirects through the project's SSRF guard, caps active relay streams, and accepts only audio-like content types. Availability may still vary by station, network, codec, or region.
+
+Radio endpoints:
+
+| Route | Purpose |
+|---|---|
+| `GET /api/radio/stations?q=&countrycode=&language=&tag=&order=&limit=&offset=` | Search community stations with bounded paging and filters |
+| `GET /api/radio/options?type=countries\|languages\|tags` | Country, language, and genre filter lists |
+| `GET /api/radio/resolve/:uuid` | Count the station click and resolve its current stream URL |
+| `GET /api/radio/stream/:ticket` | Stream through a short-lived ticket when proxy playback is needed |
 
 ## Why the relay exists
 
@@ -84,6 +98,7 @@ play fine through it.
   original stream URLs or relay URLs (`&proxy=1`) for use in VLC/Kodi.
 - **Bilingual UI** — English / 简体中文.
 - **Service portal homepage** — configurable service directory at `/`, with `/watch.html` preserving the IPTV player; persistent links, category filters, search, and token-protected link management.
+- **World radio** — `/radio.html`, searchable Radio Browser directory, station filters, persistent favorites, HLS playback, and limited fallback relay for incompatible HTTP/HTTPS streams.
 - **No dependencies** — plain Node stdlib, no npm install, no build step.
 
 ## API
@@ -136,6 +151,10 @@ play fine through it.
 | `GET /api/agent/v1/vod/search?type=&q=` | machine-oriented VOD + licensed-archive search |
 | `GET /api/agent/v1/archive/search?type=&q=` | search the built-in Internet Archive adapter |
 | `GET /healthz` | counts, timestamp, uptime |
+| `GET /api/radio/stations` | search public radio directory with name, country, language, genre, codec, sorting, and paging filters |
+| `GET /api/radio/options?type=` | load country, language, or genre lists |
+| `GET /api/radio/resolve/:uuid` | resolve station playback through Radio Browser's click-counter endpoint |
+| `GET /api/radio/stream/:ticket` | bounded audio relay using a short-lived ticket minted from a valid station UUID |
 | `GET /api/portal/services` | searchable-homepage service directory; reads are public |
 | `POST /api/portal/services` | add a homepage service shortcut (requires existing management token) |
 | `PATCH /api/portal/services/:id` | update a shortcut (requires existing management token) |
@@ -207,7 +226,8 @@ lib/agent.js          Hermes/agent API, OpenAPI schema, token auth and agent set
 tools/agentctl.js     dependency-free CLI for Hermes and other agents
 lib/m3u.js           M3U parser (server); public/js/m3u.js is the browser twin
 lib/static.js        static serving with etag + gzip
-public/              index.html (service portal), watch.html (IPTV player), portal.css/js, app.css/js, js/i18n.js, vendor/hls.min.js
+public/              index.html (portal), watch.html (IPTV), radio.html/css/js (radio), portal.css/js, app.css/js, js/i18n.js, vendor/hls.min.js
+lib/radio.js          Radio Browser mirror discovery, cached search, secure URL resolution, bounded audio relay
 tools/probe.js       stream-health sampler: node tools/probe.js 40 all
 deploy/              scripts used to stand the site up on the server
 ```
@@ -243,6 +263,7 @@ node lib/refresh.js --src=data-src   # or without --src to download from iptv-or
 PORT=3920 node server.js
 # http://127.0.0.1:3920       (service portal)
 # http://127.0.0.1:3920/watch.html (IPTV player)
+# http://127.0.0.1:3920/radio.html (public radio)
 ```
 
 Docker (what the server runs):

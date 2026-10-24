@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#080b12">
+  <meta name="description" content="Discover public radio stations worldwide by country, language, music genre and name.">
+  <title>Public Radio · Service Portal</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%2364e5d1'/%3E%3Cpath d='M13 7v18l11-9z' fill='%23080b12'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/radio.css">
+</head>
+<body>
+  <header class="radio-top">
+    <div class="radio-wrap nav-inner">
+      <a class="radio-brand" href="/" aria-label="Back to service portal"><span class="brand-orb">♫</span><span>Open <b>Radio</b></span></a>
+      <nav class="radio-nav" aria-label="Main navigation">
+        <a href="/">Home</a>
+        <a class="active" href="/radio.html" aria-current="page">Radio</a>
+        <a href="/watch.html">Live TV &amp; VOD</a>
+      </nav>
+      <div class="radio-live-status"><span class="pulse"></span> Global station directory</div>
+    </div>
+  </header>
+
+  <main class="radio-wrap page">
+    <section class="radio-hero">
+      <div class="hero-kicker">LISTEN BEYOND BORDERS</div>
+      <h1>The world,<br><span>tuned in.</span></h1>
+      <p>Discover public radio streams from around the world. Explore news, music, culture, talk and local stations by country or language.</p>
+      <div class="hero-stats"><span><b id="resultsCount">—</b> stations shown</span><span class="dot-sep"></span><span>Powered by <a href="https://www.radio-browser.info/" target="_blank" rel="noopener noreferrer">Radio Browser ↗</a></span></div>
+    </section>
+
+    <section class="radio-discover" aria-label="Search and filter radio stations">
+      <div class="radio-search-row">
+        <label class="radio-search">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" stroke="currentColor" stroke-width="1.7"/><path d="m16 16 4.2 4.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          <input id="radioQuery" type="search" autocomplete="off" placeholder="Search stations, cities, languages…" aria-label="Search radio stations">
+          <kbd>/</kbd>
+        </label>
+        <button class="r-btn" id="searchButton" type="button">Search stations <span aria-hidden="true">↗</span></button>
+      </div>
+      <div class="radio-filters">
+        <label class="r-field">Country
+          <select id="countryFilter"><option value="">Everywhere</option></select>
+        </label>
+        <label class="r-field">Language
+          <select id="languageFilter"><option value="">Any language</option></select>
+        </label>
+        <label class="r-field">Genre / topic
+          <select id="tagFilter"><option value="">All genres</option></select>
+        </label>
+        <label class="r-field">Sort
+          <select id="sortFilter">
+            <option value="clickcount">Popular</option>
+            <option value="name">Name A–Z</option>
+            <option value="votes">Most votes</option>
+            <option value="bitrate">Audio bitrate</option>
+          </select>
+        </label>
+      </div>
+      <div class="quick-genres" id="quickGenres" aria-label="Popular genres">
+        <span>Explore</span>
+        <button type="button" data-tag="jazz">Jazz</button>
+        <button type="button" data-tag="classical">Classical</button>
+        <button type="button" data-tag="news">News</button>
+        <button type="button" data-tag="rock">Rock</button>
+        <button type="button" data-tag="pop">Pop</button>
+        <button type="button" data-tag="talk">Talk</button>
+        <button type="button" data-tag="electronic">Electronic</button>
+        <button type="button" data-tag="world">World</button>
+      </div>
+    </section>
+
+    <section class="station-section" aria-labelledby="stationHeading">
+      <div class="station-section-head">
+        <div><div class="eyebrow">YOUR NEXT LISTEN</div><h2 id="stationHeading">Explore stations</h2><p id="resultDescription">Discover stations people are listening to around the world.</p></div>
+        <div class="station-head-actions">
+          <button class="r-btn subtle" id="showFavorites" type="button" aria-pressed="false">♡ Favorites <span id="favoriteCount">0</span></button>
+          <button class="r-btn subtle" id="reloadStations" type="button">↻ Refresh</button>
+        </div>
+      </div>
+      <div class="station-grid" id="stationGrid" aria-live="polite">
+        <div class="station-empty"><div class="empty-glyph">♫</div><strong>Finding the airwaves…</strong><span>Connecting to the public radio directory.</span></div>
+      </div>
+      <div class="load-more-wrap"><button class="r-btn subtle" id="loadMore" type="button" hidden>Load more stations ↓</button></div>
+      <p id="radioStatus" class="radio-status" role="status" aria-live="polite"></p>
+    </section>
+  </main>
+
+  <section class="now-playing" id="nowPlaying" aria-label="Now playing" hidden>
+    <div class="now-station-icon" id="nowIcon" aria-hidden="true">♫</div>
+    <div class="now-meta"><div class="now-label"><span class="pulse"></span> NOW TUNED IN</div><strong id="nowName">Radio station</strong><span id="nowSub">Loading stream…</span></div>
+    <audio id="radioAudio" controls preload="none"></audio>
+    <button class="now-stop" type="button" id="stopRadio" aria-label="Stop radio">×</button>
+  </section>
+
+  <footer class="radio-footer">
+    <div class="radio-wrap footer-inner">
+      <span>Station metadata supplied by the community-maintained Radio Browser directory.</span>
+      <span><a href="https://www.radio-browser.info/" target="_blank" rel="noopener noreferrer">Radio Browser</a> · <a href="/">Service Portal</a> · <a href="/watch.html">IPTV Web</a></span>
+    </div>
+  </footer>
+  <script src="/vendor/hls.min.js"></script>
+  <script src="/radio.js" defer></script>
+</body>
+</html>
