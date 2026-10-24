@@ -98,6 +98,8 @@ h1 span { background: linear-gradient(100deg, #a8baff 3%, #7ce9d9 82%); backgrou
   background: radial-gradient(circle, rgba(124,156,255,.16), transparent 70%); pointer-events: none;
 }
 .service-card:hover { transform: translateY(-3px); border-color: rgba(124,156,255,.5); background: linear-gradient(155deg, rgba(30,43,68,.95), rgba(14,20,32,.86)); }
+.service-card.featured { border-color: rgba(100,229,209,.27); }
+.service-card.featured .service-icon { background: linear-gradient(145deg, rgba(124,156,255,.28), rgba(100,229,209,.19)); }
 .card-top { display: flex; align-items: start; justify-content: space-between; gap: 8px; }
 .service-icon {
   flex: 0 0 48px; width: 48px; height: 48px; display: grid; place-items: center; border-radius: 15px;
