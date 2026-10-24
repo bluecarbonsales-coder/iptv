@@ -98,26 +98,33 @@ function createApi(catalog, refresh, dataDir) {
     if (!authorizeSourceWrite(req, res)) return;
     try {
       const body = JSON.parse(await readBody(req, 16384));
-      const { sources } = sourceLib.loadSourcesSync(sourceDataDir);
-      const src = sources.find((s) => s.id === params.id);
-      if (!src) return sendJson(req, res, 404, { error: 'source not found' });
+      const patch = {};
       if (body.name !== undefined) {
         const name = String(body.name).trim().slice(0, 80);
         if (!name) return sendJson(req, res, 400, { error: 'source name cannot be empty' });
-        src.name = name;
+        patch.name = name;
       }
       if (body.url !== undefined) {
         const url = String(body.url).trim();
         if (!sourceLib.isHttpUrl(url)) return sendJson(req, res, 400, { error: 'URL must use http or https' });
-        if (sources.some((s) => s.id !== src.id && s.url === url)) return sendJson(req, res, 409, { error: 'this source URL already exists' });
-        const candidate = { ...src, url };
-        await sourceLib.fetchSource(candidate);
-        src.url = url;
+        await sourceLib.fetchSource({ id: params.id, name: patch.name || 'Validation', url });
+        patch.url = url;
       }
-      if (body.enabled !== undefined) src.enabled = body.enabled === true;
-      sourceLib.saveSources(sourceDataDir, sources);
+      if (body.enabled !== undefined) patch.enabled = body.enabled === true;
+
+      const updated = await withLock(liveLockKey, () => {
+        const sources = sourceLib.loadSourcesSync(sourceDataDir).sources;
+        const src = sources.find((source) => source.id === params.id);
+        if (!src) throw Object.assign(new Error('source not found'), { statusCode: 404 });
+        if (patch.url && sources.some((source) => source.id !== src.id && source.url === patch.url)) {
+          throw Object.assign(new Error('this source URL already exists'), { statusCode: 409 });
+        }
+        Object.assign(src, patch);
+        sourceLib.saveSources(sourceDataDir, sources);
+        return { ...src };
+      });
       const stats = await refresh();
-      sendJson(req, res, 200, { source: publicSource(src), stats });
+      sendJson(req, res, 200, { source: publicSource(updated), stats });
     } catch (err) {
       sendJson(req, res, err.statusCode || 400, { error: err.message || 'could not update source' });
     }
