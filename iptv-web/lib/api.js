@@ -16,6 +16,21 @@ function baseUrl(req) {
   return `${proto}://${host}`;
 }
 
+async function mapLimit(items, limit, fn) {
+  const result = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (true) {
+      const index = next++;
+      if (index >= items.length) return;
+      try { result[index] = { status: 'fulfilled', value: await fn(items[index], index) }; }
+      catch (reason) { result[index] = { status: 'rejected', reason }; }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return result;
+}
+
 function createApi(catalog, refresh, dataDir) {
   const sourceDataDir = dataDir || require('path').join(__dirname, '..', 'data');
   const vodSearchCache = new Map();
@@ -171,7 +186,7 @@ function createApi(catalog, refresh, dataDir) {
         importedFrom = listUrl;
       } else if (body.config && typeof body.config === 'object') {
         config = body.config;
-        importedFrom = String(body.sourceName || 'uploaded JSON').slice(0, 120);
+        importedFrom = String(body.sourceName || 'uploaded config').slice(0, 120);
       } else {
         return sendJson(req, res, 400, { error: 'Provide a source-list URL or upload a JSON configuration.' });
       }
@@ -179,13 +194,18 @@ function createApi(catalog, refresh, dataDir) {
       const candidates = vodLib.parseSourceList(config);
       const registry = vodLib.loadSourcesSync(sourceDataDir);
       const existing = new Set(registry.sources.map((source) => source.api));
+      const duplicates = candidates.filter((candidate) => existing.has(candidate.api)).length;
       const available = Math.max(0, vodLib.MAX_VOD_SOURCES - registry.sources.length);
-      const added = [];
-      let duplicates = 0;
-      let overLimit = 0;
-      for (const item of candidates) {
-        if (existing.has(item.api)) { duplicates++; continue; }
-        if (added.length >= available) { overLimit++; continue; }
+      if (available === 0) {
+        return sendJson(req, res, 409, { error: 'VOD provider limit reached', imported: 0, duplicates, skippedLimit: candidates.length - duplicates });
+      }
+
+      // Probe a bounded number concurrently before saving. A config directory may list hundreds
+      // of endpoints; do not blindly activate all of them or make unbounded outbound requests.
+      const untried = candidates.filter((candidate) => !existing.has(candidate.api));
+      const probeLimit = Math.min(100, Math.max(available, available * 3));
+      const toProbe = untried.slice(0, probeLimit);
+      const probed = await mapLimit(toProbe, 3, async (item) => {
         const source = {
           id: vodLib.newId(),
           name: item.name,
@@ -198,16 +218,35 @@ function createApi(catalog, refresh, dataDir) {
           lastError: null,
           importedFrom,
         };
-        added.push(source);
-        existing.add(item.api);
+        const probe = await vodLib.probeSource(source);
+        source.lastChecked = new Date().toISOString();
+        source.lastItemCount = probe.count;
+        return source;
+      });
+
+      const added = [];
+      const rejected = [];
+      let overLimit = Math.max(0, untried.length - toProbe.length);
+      for (let i = 0; i < probed.length; i++) {
+        const entry = probed[i];
+        if (entry.status === 'rejected') {
+          rejected.push({ name: toProbe[i].name, error: String(entry.reason && entry.reason.message || 'provider probe failed').slice(0, 180) });
+          continue;
+        }
+        if (added.length >= available) {
+          overLimit++;
+          continue;
+        }
+        added.push(entry.value);
       }
+
       if (!added.length) {
         return sendJson(req, res, 200, {
-          added: [],
           imported: 0,
           duplicates,
+          rejected,
           skippedLimit: overLimit,
-          message: candidates.length && duplicates === candidates.length ? 'All compatible providers are already configured.' : 'No slots available. Remove an existing provider and retry.',
+          message: rejected.length ? 'No new providers passed the compatibility check.' : 'All compatible providers are already configured or no slots are available.',
         });
       }
       registry.sources.push(...added);
@@ -216,9 +255,10 @@ function createApi(catalog, refresh, dataDir) {
       sendJson(req, res, 201, {
         imported: added.length,
         duplicates,
+        rejected,
         skippedLimit: overLimit,
         sources: added.map(vodLib.publicSource),
-        note: 'Providers were imported from configuration only, not independently verified. Review enabled resources and use only catalogs you are authorized to access.',
+        note: 'Added providers passed an API compatibility probe. The probe does not verify copyright, licensing, or the reliability of every stream.',
       });
     } catch (err) {
       sendJson(req, res, err.statusCode || 400, { error: err.message || 'could not import VOD provider list' });
