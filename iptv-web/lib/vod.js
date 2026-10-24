@@ -6,7 +6,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { upstreamFetch, bodyToString } = require('./fetch-upstream');
 
-const MAX_VOD_SOURCES = Math.max(1, Math.min(64, parseInt(process.env.MAX_VOD_SOURCES || '24', 10) || 24));
+const MAX_VOD_SOURCES = Math.max(1, Math.min(512, parseInt(process.env.MAX_VOD_SOURCES || '128', 10) || 128));
 const MAX_RESPONSE_BYTES = 6 * 1024 * 1024;
 const KINDS = new Set(['all', 'movies', 'series', 'anime']);
 
