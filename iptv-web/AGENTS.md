@@ -66,6 +66,10 @@ IPTV_DEPLOY_DIR=/path/to/active/iptv-web bash "$HOME/src/iptv/iptv-web/tools/loc
 ```
 
 The local agent must be able to write its own checkout and run Docker Compose against the active deployment. If it cannot, use the server's existing admin account to grant the specific agent OS user those permissions; do not make files world-writable. `GITHUB_REPO_TOKEN` is not needed merely to edit and test files locally, but GitHub push/PR operations require working Git credentials. Never commit the deployment `.env` or copy it into the Git checkout.
+## Public radio UI and API
+
+The standalone public radio page lives in `public/radio.html`, `public/radio.css`, and `public/radio.js`; backend integration is in `lib/radio.js`. The home portal is `/`, radio is `/radio.html`, and the existing IPTV app remains at `/watch.html`. Use the community-maintained Radio Browser directory through the server's mirror-discovery API. Preserve caching, short-lived stream tickets, SSRF redirect checks, HLS rewrite protection, and the relay concurrency cap. Never accept a raw client-provided URL in the new radio relay. Add tests to `test/radio.test.js` and run the full Node test suite.
+
 ## UI work
 
 UI changes are first-class project work. Common maintained files are:
