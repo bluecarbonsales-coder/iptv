@@ -7,7 +7,8 @@ const { readBody, sendJson } = require('./util');
 
 const MAX_SERVICES = 200;
 const DEFAULT_SERVICES = [
-  { id: 'watch-tv', name: 'Watch TV', url: '/watch.html', description: 'Live channels, movies, series and your playlists.', category: 'Media', icon: '▶', featured: true, order: 0 },
+  { id: 'watch-tv', name: 'Live TV', url: '/watch.html', description: 'Live channels, channel groups and your own playlists.', category: 'Media', icon: '▶', featured: true, order: 0 },
+  { id: 'theatre', name: 'Theatre', url: '/movies.html', description: 'A dedicated cinema for movies, TV series, anime, animation and documentaries.', category: 'Media', icon: '▻', featured: true, order: 1 },
   { id: 'public-radio', name: 'Public Radio', url: '/radio.html', description: 'Explore live public radio stations by country, language and genre.', category: 'Media', icon: '♫', featured: true, order: 5 },
   { id: 'seedhub', name: 'SeedHub', url: 'https://www.seedhub.cc/', description: 'External movie and TV catalog. Website availability does not guarantee media playback or content rights.', category: 'Media resources', icon: 'S', featured: false, order: 95 },
   { id: 'streambert', name: 'Streambert', url: 'https://github.com/truelockmc/streambert', description: 'Official Streambert desktop-app repository and releases; this is not a VOD API endpoint.', category: 'Media resources', icon: 'B', featured: false, order: 96 },
@@ -80,7 +81,7 @@ function createPortalApi(options = {}) {
   function writeStore(services) {
     fs.mkdirSync(dataDir, { recursive: true });
     const tempPath = storePath + '.' + process.pid + '.' + crypto.randomBytes(5).toString('hex') + '.tmp';
-    fs.writeFileSync(tempPath, JSON.stringify({ version: 2, services }, null, 2) + '\n', { mode: 0o600 });
+    fs.writeFileSync(tempPath, JSON.stringify({ version: 3, services }, null, 2) + '\n', { mode: 0o600 });
     fs.renameSync(tempPath, storePath);
   }
 
@@ -104,6 +105,13 @@ function createPortalApi(options = {}) {
           const now = new Date().toISOString();
           parsed.services.push({ ...item, createdAt: now, updatedAt: now });
         }
+      }
+    }
+    if (version < 3) {
+      const item = DEFAULT_SERVICES.find((service) => service.id === 'theatre');
+      if (item && !parsed.services.some((service) => service && service.id === item.id)) {
+        const now = new Date().toISOString();
+        parsed.services.push({ ...item, createdAt: now, updatedAt: now });
       }
       writeStore(parsed.services);
     }
