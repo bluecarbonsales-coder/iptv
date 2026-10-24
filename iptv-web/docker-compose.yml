@@ -22,8 +22,8 @@ services:
       AGENT_AUTONOMY: "${AGENT_AUTONOMY:-full}"
       AGENT_AUTOMATION_ENABLED: "${AGENT_AUTOMATION_ENABLED:-1}"
       AUTO_SOURCE_SYNC_HOURS: "${AUTO_SOURCE_SYNC_HOURS:-12}"
-      # Comma/newline-separated trusted registry JSON URLs. Blank by default; do not use random untrusted lists.
-      VOD_SOURCE_LIST_URLS: "${VOD_SOURCE_LIST_URLS:-}"
+      # Maintained TVboxorg registry is the default; set your own comma/newline-separated JSON registries to override.
+      VOD_SOURCE_LIST_URLS: "${VOD_SOURCE_LIST_URLS:-https://raw.githubusercontent.com/TVboxorg/TVbox/main/dist/official.json}"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3920/healthz"]
       interval: 60s
