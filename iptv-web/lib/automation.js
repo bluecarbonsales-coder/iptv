@@ -78,7 +78,7 @@ async function mapLimit(items, limit, fn) {
 function normalizeName(name) {
   return String(name || '').toLowerCase().normalize('NFKC').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 }
-function createAutomation({ dataDir, refresh, log = () => {}, onProvidersChanged = () => {} }) {
+function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, onProvidersChanged = () => {} }) {
   let inFlight = null;
   let timer = null;
   let startupTimer = null;
@@ -92,6 +92,8 @@ function createAutomation({ dataDir, refresh, log = () => {}, onProvidersChanged
       enabled: process.env.AGENT_AUTOMATION_ENABLED !== '0',
       autonomy: autonomy(),
       intervalHours: HOURS('AUTO_SOURCE_SYNC_HOURS', 12, 1),
+      liveRefreshHours: HOURS('REFRESH_HOURS', 12, 1),
+      liveCatalogAgeHours: catalog && catalog.meta && catalog.meta.updated ? Math.max(0, Math.round((Date.now() - Date.parse(catalog.meta.updated)) / 360000) / 10) : null,
       configuredRegistryCount: registryUrls().length,
       providerCount: registry.sources.length,
       enabledProviderCount: registry.sources.filter((source) => source.enabled !== false).length,
@@ -229,6 +231,25 @@ function createAutomation({ dataDir, refresh, log = () => {}, onProvidersChanged
     return { checked: enabled.length, ok, failed, results: results.map((entry) => entry.value || { status: 'error', error: String(entry.reason && entry.reason.message || 'check failed') }) };
   }
 
+  async function refreshLiveIfDue(actor = 'automation') {
+    if (!catalog || typeof refresh !== 'function') return { refreshed: false, reason: 'not_configured' };
+    const ageHours = catalog.meta && catalog.meta.updated && Number.isFinite(Date.parse(catalog.meta.updated))
+      ? (Date.now() - Date.parse(catalog.meta.updated)) / 3600000
+      : Infinity;
+    const maxAge = HOURS('REFRESH_HOURS', 12, 1);
+    if (catalog.ready && ageHours <= maxAge) {
+      return { refreshed: false, reason: 'catalog_is_fresh', ageHours: Math.round(ageHours * 10) / 10 };
+    }
+    const result = await refresh();
+    audit(dataDir, {
+      actor,
+      action: 'catalog.refresh',
+      status: 'ok',
+      summary: 'Scheduled live catalog refresh completed',
+    });
+    return { refreshed: true, previousAgeHours: Number.isFinite(ageHours) ? Math.round(ageHours * 10) / 10 : null, result };
+  }
+
   async function runCycle(actor = 'automation') {
     if (inFlight) return inFlight;
     inFlight = (async () => {
@@ -238,6 +259,7 @@ function createAutomation({ dataDir, refresh, log = () => {}, onProvidersChanged
       try {
         run.discovery = await syncSourceLists(actor);
         run.health = await checkProviders(actor);
+        run.liveCatalog = await refreshLiveIfDue(actor);
         run.status = 'completed';
       } catch (err) {
         run.status = 'failed';
@@ -287,6 +309,6 @@ function createAutomation({ dataDir, refresh, log = () => {}, onProvidersChanged
     started = false;
   }
 
-  return { status, syncSourceLists, checkProviders, runCycle, task, start, stop, audit: (entry) => audit(dataDir, entry), readAudit: (limit) => readAudit(dataDir, limit) };
+  return { status, syncSourceLists, checkProviders, refreshLiveIfDue, runCycle, task, start, stop, audit: (entry) => audit(dataDir, entry), readAudit: (limit) => readAudit(dataDir, limit) };
 }
 module.exports = { createAutomation, audit, readAudit, registryUrls };
