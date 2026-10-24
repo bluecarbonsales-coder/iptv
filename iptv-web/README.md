@@ -59,8 +59,7 @@ play fine through it.
   containing compatible Apple CMS APIs. Imported providers are probed before they are saved; the probe
   does not determine whether the content is licensed for redistribution.
 - **Open-license video catalogs** — built-in Internet Archive and Wikimedia Commons adapters search public-domain / CC metadata and return compatible video files when available. Each result links to its original item/license page; non-commercial CC licenses are excluded from automatic results.
-- **Agent-first management** — documented OpenAPI endpoints for Hermes and other agents, token auth,
-  health/maintenance tasks, automatic trusted-registry synchronization, provider probes, and an audit log.
+- **Agent-first management** — documented OpenAPI endpoints, a dependency-free Hermes CLI, authenticated CRUD, mutable runtime settings, automatic configured-registry synchronization, provider health checks, task execution, and an audit log. Trusted agents can update project code through their repository workspace.
 - **M3U export** — `/api/export.m3u` mirrors the current filters, and can emit either the
   original stream URLs or relay URLs (`&proxy=1`) for use in VLC/Kodi.
 - **Bilingual UI** — English / 简体中文.
@@ -92,9 +91,12 @@ play fine through it.
 | `GET /img?u=` | channel-logo relay with a disk cache |
 | `GET /api/agent/v1/openapi.json` | OpenAPI schema for agent control |
 | `GET /api/agent/v1/capabilities` | capabilities, autonomy policy, source limits |
+| `GET/PATCH /api/agent/v1/settings` | inspect/change trusted registry URLs, autonomy mode, refresh cadence without rebuild |
+| `GET /api/agent/v1/commons/search?q=&type=` | search Commons video files with declared open licenses |
 | `GET/PATCH /api/agent/v1/settings` | inspect/update runtime schedule and trusted registry URLs without rebuilding |
 | `GET /api/agent/v1/status` | live catalog, source/provider health, automation status |
 | `GET /api/agent/v1/audit?limit=50` | recent automation/agent audit events |
+| `GET /api/agent/v1/archive/search?q=&type=` | search Internet Archive public-domain/CC candidates |
 | `GET /api/agent/v1/commons/search?q=&type=` | search open-license video files on Wikimedia Commons |
 | `POST /api/agent/v1/tasks/run` | run `maintain_sources`, `sync_source_lists`, `check_vod_providers`, or `refresh_live_catalog` |
 | `GET/POST /api/agent/v1/live/sources` | list/add live M3U resources |
@@ -148,14 +150,35 @@ lib/refresh.js       download iptv-org API -> data/catalog.json (+ meta.json, .g
 lib/sources.js        persistent M3U source registry and catalogue merger
 lib/vod.js            Apple CMS / MacCMS provider adapter + provider-list importer
 lib/archive-vod.js     Internet Archive public-domain / CC movie adapter
+lib/commons-vod.js     Wikimedia Commons open-license video adapter
+lib/agent-settings.js persistent runtime settings that agents can update
+lib/registry-lock.js   serialized registry writes across agent/refresh operations
 lib/automation.js     scheduled provider discovery, health checks, and audit
-lib/agent.js          Hermes/agent API, OpenAPI schema, token and autonomy gate
+lib/agent.js          Hermes/agent API, OpenAPI schema, token auth and agent settings
+tools/agentctl.js     dependency-free CLI for Hermes and other agents
 lib/m3u.js           M3U parser (server); public/js/m3u.js is the browser twin
 lib/static.js        static serving with etag + gzip
 public/              index.html, app.css, app.js, js/i18n.js, vendor/hls.min.js
 tools/probe.js       stream-health sampler: node tools/probe.js 40 all
 deploy/              scripts used to stand the site up on the server
 ```
+
+## Hermes / agent CLI
+
+The dependency-free `tools/agentctl.js` CLI wraps the authenticated agent API and returns JSON for automation. Set `IPTV_BASE_URL` and `AGENT_API_TOKEN` in your Hermes service environment; do not store the token in the repository or a prompt.
+
+```bash
+node iptv-web/tools/agentctl.js capabilities
+node iptv-web/tools/agentctl.js status
+node iptv-web/tools/agentctl.js settings
+node iptv-web/tools/agentctl.js task maintain_sources
+node iptv-web/tools/agentctl.js vod-search anime cyberpunk
+node iptv-web/tools/agentctl.js archive-search public domain comedy
+node iptv-web/tools/agentctl.js commons-search open license animation
+node iptv-web/tools/agentctl.js settings-patch '{"sourceListUrls":["https://registry.example/sources.json"],"autoSourceSyncHours":12,"autonomy":"full"}'
+```
+
+The HTTP agent API can manage live/VOD providers and recurring maintenance; trusted agents can also use their normal repository workspace/shell tools to change code, run tests, and deploy. See the repository-root [`AGENTS.md`](../AGENTS.md) for the workflow and API contract.
 
 ## Running it
 
