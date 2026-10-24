@@ -304,3 +304,12 @@ Features: IMAP TLS 993, SMTP STARTTLS 587 or TLS 465, folder/message view, compo
 Agents use AGENT_API_TOKEN Bearer or X-Agent-Token authentication with GET /api/agent/v1/mail/openapi.json, /accounts, /folders, /messages, /message, /contacts and /drafts plus POST /drafts and /drafts/:id/send. Agent-created drafts require owner approval by default. Set EMAIL_AGENT_SEND_MODE=direct only if trusted agents should send unattended. Allowed mail hosts are restricted by EMAIL_ALLOWED_MAIL_HOSTS.
 
 CI passing does not prove the live VPS has these environment values, that SMTP/IMAP connections work, or that this change is deployed.
+
+
+## Media Discovery
+
+The `/discover.html` page combines Internet Archive results with optional Jackett torrent-indexer results and supports persistent saved URLs/magnet links. It does not download or host video files. Browser playback is only offered for links that the source adapter has actually identified as a direct media file; otherwise results open at the source. Torrent links require a compatible external torrent client.
+
+Optional Jackett setup: configure `JACKETT_URL` and `JACKETT_API_KEY` in the deployment's private `.env`, then recreate the `iptv-web` service. Do not publish Jackett or its API key to the public internet. Search uses the Jackett Torznab API. Public-domain/Creative Commons discovery uses the existing Internet Archive adapter, which filters on declared rights metadata; verify the individual item's terms.
+
+Saved links are stored in `/data/media-links.json` on the existing `iptv-data` volume. Listing and mutation require the existing `SOURCE_TOKEN`, `REFRESH_TOKEN`, or `AGENT_API_TOKEN` via the `X-Source-Token` header. No new volume or media download client is required. Keep the portal behind Cloudflare Access if saved link metadata should remain private.
