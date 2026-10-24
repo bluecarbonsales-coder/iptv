@@ -95,6 +95,27 @@ function createMetadataApi({ fetchImpl = globalThis.fetch, env = process.env, no
     }
   }
 
+  async function tvmazeSearch(req, res, params, query) {
+    const q = String(query.q || '').trim();
+    if (q.length < 2 || q.length > 100) return sendJson(req, res, 400, { error: 'q must contain 2–100 characters' });
+    const key = 'tvmaze:' + q.toLowerCase();
+    try {
+      const hit = cached(key);
+      if (hit) return sendJson(req, res, 200, hit);
+      const url = new URL('https://api.tvmaze.com/search/shows');
+      url.searchParams.set('q', q);
+      const data = await requestJson(url);
+      const results = (Array.isArray(data) ? data : []).slice(0, 20).map(row => {
+        const show = row && row.show ? row.show : {};
+        return { id: show.id, title: show.name || '', summary: String(show.summary || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(), genres: Array.isArray(show.genres) ? show.genres : [], status: show.status || null, premiered: show.premiered || null, ended: show.ended || null, rating: show.rating && Number.isFinite(show.rating.average) ? show.rating.average : null, image: show.image && (show.image.medium || show.image.original) || null, url: show.url || null };
+      });
+      return sendJson(req, res, 200, store(key, { provider: 'tvmaze', attribution: 'TVmaze', results }));
+    } catch (error) {
+      const status = error.status || 502;
+      return sendJson(req, res, status, { error: status === 429 ? 'TVmaze rate limit reached; retry shortly' : 'TVmaze search unavailable' });
+    }
+  }
+
   async function title(req, res, params, query) {
     const imdbId = String(query.imdbId || '').trim();
     const titleText = String(query.t || '').trim();
@@ -159,7 +180,7 @@ function createMetadataApi({ fetchImpl = globalThis.fetch, env = process.env, no
     }
   }
 
-  return { search, title };
+  return { search, title, tvmazeSearch };
 }
 
 module.exports = { createMetadataApi };
