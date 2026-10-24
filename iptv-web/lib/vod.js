@@ -166,11 +166,58 @@ async function getDetail(source, vodId) {
   if (lastError) throw lastError;
   throw Object.assign(new Error('Video details were not found'), { statusCode: 404 });
 }
+function parseSourceList(payload) {
+  const raw = [];
+  if (payload && Array.isArray(payload.sources)) {
+    for (const source of payload.sources) raw.push({
+      name: source && source.name,
+      api: source && (source.url || source.api),
+      detail: source && source.detail,
+      kind: source && source.kind,
+    });
+  }
+  if (payload && payload.api_site && typeof payload.api_site === 'object' && !Array.isArray(payload.api_site)) {
+    for (const [key, source] of Object.entries(payload.api_site)) raw.push({
+      name: source && source.name || key,
+      api: source && (source.api || source.url),
+      detail: source && source.detail,
+      kind: source && source.kind,
+    });
+  }
+  if (payload && Array.isArray(payload.sites)) {
+    for (const source of payload.sites) raw.push({
+      name: source && source.name || source && source.key,
+      api: source && (source.api || source.url),
+      detail: source && source.detail,
+      kind: source && source.kind,
+    });
+  }
+
+  const found = new Map();
+  for (const item of raw) {
+    if (!item || !item.api || !isHttpUrl(String(item.api).trim())) continue;
+    let api;
+    try { api = normalizeApiUrl(item.api); } catch { continue; }
+    const name = text(item.name || new URL(api).hostname).slice(0, 80) || 'VOD provider';
+    let detail = null;
+    if (item.detail && isHttpUrl(String(item.detail).trim())) {
+      try { detail = normalizeApiUrl(item.detail); } catch {}
+    }
+    const kind = KINDS.has(item.kind) ? item.kind : 'all';
+    if (!found.has(api)) found.set(api, { name, api, detail, kind });
+  }
+  if (!found.size) {
+    throw Object.assign(new Error('No supported VOD APIs found. Expected LibreTV SourceList JSON (sources), MoonTV config.json (api_site), or a TVBox-style sites array using Apple CMS / MacCMS APIs.'), { statusCode: 400 });
+  }
+  return [...found.values()];
+}
+
 function publicSource(source) {
   return {
     id: source.id,
     name: source.name,
     api: source.api,
+    detail: source.detail || null,
     kind: source.kind,
     enabled: source.enabled !== false,
     addedAt: source.addedAt || null,
@@ -181,5 +228,5 @@ function publicSource(source) {
 module.exports = {
   MAX_VOD_SOURCES, KINDS, registryPath, loadSourcesSync, saveSources,
   newId, isHttpUrl, normalizeApiUrl, apiQuery, fetchJson, listFrom, classify,
-  parseEpisodes, normalizeItem, probeSource, searchSource, getDetail, publicSource,
+  parseEpisodes, normalizeItem, probeSource, searchSource, getDetail, parseSourceList, publicSource,
 };
