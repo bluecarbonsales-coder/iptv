@@ -64,13 +64,13 @@ function createMediaDiscovery({ dataDir }) {
           if (!response.ok) throw new Error('HTTP ' + response.status);
           const xml = await bodyToString(response);
           if (Buffer.byteLength(xml) > 1024 * 1024) throw new Error('Feed too large');
-          const entries = xml.match(/<(item|entry)\\b[\\s\\S]*?<\\/(item|entry)>/gi) || [];
+          const entries = xml.match(/<(item|entry)\b[\s\S]*?<\/(item|entry)>/gi) || [];
           for (const entry of entries.slice(0, 20)) {
-            const titleMatch = entry.match(/<title(?:\\s[^>]*)?>([\\s\\S]*?)<\\/title>/i);
-            const linkMatch = entry.match(/<link\\b[^>]*href=["']([^"']+)["'][^>]*\\/?\s*>/i) || entry.match(/<link(?:\\s[^>]*)?>([\\s\\S]*?)<\\/link>/i) || entry.match(/<guid(?:\\s[^>]*)?>([\\s\\S]*?)<\\/guid>/i);
-            const title = titleMatch ? titleMatch[1].replace(/<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>/g, '$1').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').trim() : '';
+            const titleMatch = entry.match(/<title(?:\s[^>]*)?>([\s\S]*?)<\/title>/i);
+            const linkMatch = entry.match(/<link\b[^>]*href=["']([^"']+)["'][^>]*\/?\s*>/i) || entry.match(/<link(?:\s[^>]*)?>([\s\S]*?)<\/link>/i) || entry.match(/<guid(?:\s[^>]*)?>([\s\S]*?)<\/guid>/i);
+            const title = titleMatch ? titleMatch[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').trim() : '';
             const url = validateUrl(linkMatch && (linkMatch[1] || linkMatch[0]).trim());
-            if (title && url && /^https?:/i.test(url)) results.push({ id: 'feed:' + crypto.createHash('sha1').update(feed.id + url).digest('hex').slice(0, 16), title, source: feed.title, kind: 'feed-link', url, playable: /\\.(mp4|webm|m3u8)(?:$|\\?)/i.test(url), description: 'From your saved feed. Check the original page for availability and rights.' });
+            if (title && url && /^https?:/i.test(url)) results.push({ id: 'feed:' + crypto.createHash('sha1').update(feed.id + url).digest('hex').slice(0, 16), title, source: feed.title, kind: 'feed-link', url, playable: /\.(mp4|webm|m3u8)(?:$|\?)/i.test(url), description: 'From your saved feed. Check the original page for availability and rights.' });
           }
         } catch (e) { errors.push({ source: feed.title, error: e.message }); }
       }
@@ -91,7 +91,7 @@ function createMediaDiscovery({ dataDir }) {
           if (Buffer.byteLength(xml) > 2 * 1024 * 1024) throw new Error('Jackett response too large');
           const items = xml.match(/<item\b[\s\S]*?<\/item>/gi) || [];
           for (const item of items.slice(0, 30)) {
-            const get = (tag) => { const m = item.match(new RegExp('<' + tag + '(?:\\s[^>]*)?>([\\s\\S]*?)<\\/' + tag + '>', 'i')); return m ? m[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').trim() : ''; };
+            const get = (tag) => { const m = item.match(new RegExp('<' + tag + '(?:\s[^>]*)?>([\s\S]*?)<\/' + tag + '>', 'i')); return m ? m[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').trim() : ''; };
             const attrs = item.match(/<enclosure\b[^>]*url=["']([^"']+)["'][^>]*>/i);
             const link = get('link') || (attrs ? attrs[1] : '');
             const title = get('title');
