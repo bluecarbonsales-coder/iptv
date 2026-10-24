@@ -286,8 +286,8 @@ function createRadioApi(options = {}) {
       ended = true;
       activeStreams = Math.max(0, activeStreams - 1);
     };
-    req.on('close', release);
     res.on('close', release);
+    res.on('finish', release);
     try {
       const { response } = await fetchUpstream(item.url, {
         timeoutMs: 12_000,
