@@ -156,7 +156,7 @@ function createRadioApi(options = {}) {
 
   async function apiJson(apiPath, opts = {}) {
     const cacheKey = opts.cacheKey || '';
-    const cached = cacheKey && cacheGet(cacheKey);
+    const cached = cacheKey ? cacheGet(cacheKey) : undefined;
     if (cached !== undefined) return cached;
 
     const attempted = new Set();
@@ -297,7 +297,7 @@ function createRadioApi(options = {}) {
       tickets.delete(ticket);
       return sendJson(req, res, 404, { error: 'Radio stream ticket expired. Press Play again.' });
     }
-    if (activeStreams >= MAX_STREAMS) return sendJson(req, res, 503, { error: 'The radio relay is busy. Try direct HTTPS playback or retry shortly.' });
+    if (activeStreams >= MAX_STREAMS) return sendJson(req, res, 503, { error: 'The radio relay is busy. Retry in a moment.' });
     activeStreams += 1;
     let ended = false;
     const release = () => {
