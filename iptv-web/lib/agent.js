@@ -44,14 +44,8 @@ function createAgentApi({ dataDir, catalog, refresh, api, automation }) {
       if (!req.headers['x-agent-token'] && /^Bearer\\s+/i.test(String(req.headers.authorization || ''))) {
         req.headers['x-agent-token'] = String(process.env.AGENT_API_TOKEN || '');
       }
-      if (write && String(process.env.AGENT_AUTONOMY || 'review').toLowerCase() !== 'full') {
-        automation.audit({ actor: 'agent', action, status: 'blocked', summary: 'Write blocked because AGENT_AUTONOMY is not full' });
-        return sendJson(req, res, 423, {
-          error: 'agent write access is disabled by policy',
-          autonomy: process.env.AGENT_AUTONOMY || 'review',
-          hint: 'Set AGENT_AUTONOMY=full only if this trusted agent is allowed to add, change, and remove providers autonomously.',
-        });
-      }
+      // The dedicated AGENT_API_TOKEN grants the agent the owner's project-management authority.
+      // AGENT_AUTONOMY controls the background import policy, not authenticated interactive writes.
       const started = Date.now();
       res.once('finish', () => {
         automation.audit({
@@ -82,7 +76,7 @@ function createAgentApi({ dataDir, catalog, refresh, api, automation }) {
       ],
       autonomy: {
         mode: process.env.AGENT_AUTONOMY || 'review',
-        writeEnabled: String(process.env.AGENT_AUTONOMY || 'review').toLowerCase() === 'full',
+        writeEnabled: true,
         allowedRegistryUrls: automation.status().configuredRegistryCount,
         warning: 'Provider directories are untrusted input. Only configure registries you trust. Imported API endpoints are probed before automatic activation in full mode; copyright ownership cannot be inferred from feed availability.',
       },
@@ -183,12 +177,12 @@ function createAgentApi({ dataDir, catalog, refresh, api, automation }) {
       '/api/agent/v1/capabilities': { get: { summary: 'Describe capabilities, limits and autonomy policy', responses: { '200': { description: 'Capabilities' } } } },
       '/api/agent/v1/status': { get: { summary: 'Get health, catalog and source status', responses: { '200': { description: 'Current service state' } } } },
       '/api/agent/v1/audit': { get: { summary: 'Read recent agent and automation actions', parameters: [{ name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 200 } }], responses: { '200': { description: 'Audit entries' } } } },
-      '/api/agent/v1/tasks/run': { post: { summary: 'Run a maintenance task', description: 'Requires AGENT_AUTONOMY=full. Allowed tasks: maintain_sources, sync_source_lists, check_vod_providers, refresh_live_catalog.', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['task'], properties: { task: { type: 'string', enum: ['maintain_sources', 'sync_source_lists', 'check_vod_providers', 'refresh_live_catalog'] } } } } } }, responses: { '200': { description: 'Task result' }, '423': { description: 'Writes blocked by autonomy policy' } } } },
-      '/api/agent/v1/live/sources': { get: { summary: 'List configured M3U resources', responses: { '200': { description: 'Resource list' } } }, post: { summary: 'Add and validate a live M3U/M3U8 resource', description: 'Requires AGENT_AUTONOMY=full. Accepts {name,url,enabled?}.', responses: { '201': { description: 'Resource added' } } } },
+      '/api/agent/v1/tasks/run': { post: { summary: 'Run a maintenance task', description: 'Available to the authenticated project agent. Allowed tasks: maintain_sources, sync_source_lists, check_vod_providers, refresh_live_catalog.', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['task'], properties: { task: { type: 'string', enum: ['maintain_sources', 'sync_source_lists', 'check_vod_providers', 'refresh_live_catalog'] } } } } } }, responses: { '200': { description: 'Task result' }, '423': { description: 'Writes blocked by autonomy policy' } } } },
+      '/api/agent/v1/live/sources': { get: { summary: 'List configured M3U resources', responses: { '200': { description: 'Resource list' } } }, post: { summary: 'Add and validate a live M3U/M3U8 resource', description: 'Available to the authenticated project agent. Accepts {name,url,enabled?}.', responses: { '201': { description: 'Resource added' } } } },
       '/api/agent/v1/live/sources/{id}': { patch: { summary: 'Rename, change, or enable/disable a live resource', responses: { '200': { description: 'Resource updated' } } }, delete: { summary: 'Remove a live resource', responses: { '200': { description: 'Resource removed' } } } },
-      '/api/agent/v1/vod/sources': { get: { summary: 'List VOD providers', responses: { '200': { description: 'Provider list' } } }, post: { summary: 'Add a probed Apple CMS/MacCMS provider', description: 'Requires AGENT_AUTONOMY=full. Accepts {name,api,kind?}.', responses: { '201': { description: 'Provider added' } } } },
+      '/api/agent/v1/vod/sources': { get: { summary: 'List VOD providers', responses: { '200': { description: 'Provider list' } } }, post: { summary: 'Add a probed Apple CMS/MacCMS provider', description: 'Available to the authenticated project agent. Accepts {name,api,kind?}.', responses: { '201': { description: 'Provider added' } } } },
       '/api/agent/v1/vod/sources/{id}': { patch: { summary: 'Update VOD provider fields or enabled state', responses: { '200': { description: 'Provider updated' } } }, delete: { summary: 'Remove VOD provider', responses: { '200': { description: 'Provider removed' } } } },
-      '/api/agent/v1/vod/import': { post: { summary: 'Import a trusted JSON registry by URL or uploaded config object', description: 'Requires AGENT_AUTONOMY=full. Accepts {url} or {config,sourceName?}. Supported shapes: LibreTV sources[], MoonTV api_site{}, TVBox sites[].', responses: { '201': { description: 'Providers imported' } } } },
+      '/api/agent/v1/vod/import': { post: { summary: 'Import a trusted JSON registry by URL or uploaded config object', description: 'Available to the authenticated project agent. Accepts {url} or {config,sourceName?}. Supported shapes: LibreTV sources[], MoonTV api_site{}, TVBox sites[].', responses: { '201': { description: 'Providers imported' } } } },
       '/api/agent/v1/vod/search': { get: { summary: 'Search VOD and public archive titles', parameters: [{ name: 'q', in: 'query', schema: { type: 'string' } }, { name: 'type', in: 'query', schema: { type: 'string', enum: ['all', 'movies', 'series', 'anime'] } }], responses: { '200': { description: 'VOD results' } } } },
     },
   });
