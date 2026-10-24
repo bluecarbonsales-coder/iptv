@@ -187,7 +187,7 @@ function createApi(catalog, refresh, dataDir) {
     const kind = vodLib.KINDS.has(query.type) ? query.type : 'all';
     const term = String(query.q || '').trim().slice(0, 120);
     const registry = vodLib.loadSourcesSync(sourceDataDir);
-    const sources = registry.sources.filter((s) => s.enabled !== false && (kind === 'all' || s.kind === kind));
+    const sources = registry.sources.filter((s) => s.enabled !== false && (kind === 'all' || s.kind === kind || s.kind === 'all'));
     if (!sources.length) return sendJson(req, res, 200, { type: kind, total: 0, pages: 1, items: [], providers: [], hint: 'Add an authorized Apple CMS / MacCMS VOD API in VOD resources.' });
     const results = await Promise.allSettled(sources.map((source) => vodLib.searchSource(source, term, 1)));
     const items = [];
