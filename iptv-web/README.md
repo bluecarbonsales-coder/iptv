@@ -91,7 +91,6 @@ play fine through it.
 | `GET /img?u=` | channel-logo relay with a disk cache |
 | `GET /api/agent/v1/openapi.json` | OpenAPI schema for agent control |
 | `GET /api/agent/v1/capabilities` | capabilities, autonomy policy, source limits |
-| `GET/PATCH /api/agent/v1/settings` | inspect/update runtime schedule and trusted registry URLs without rebuilding |
 | `GET /api/agent/v1/status` | live catalog, source/provider health, automation status |
 | `GET /api/agent/v1/audit?limit=50` | recent automation/agent audit events |
 | `GET /api/agent/v1/project/status` | repository identity, permissions, workflows and GitHub-token readiness |
@@ -174,7 +173,7 @@ deploy/              scripts used to stand the site up on the server
 
 ## Hermes / agent CLI
 
-The dependency-free `tools/agentctl.js` CLI wraps the authenticated agent API and returns JSON for automation. Set `IPTV_BASE_URL` and `AGENT_API_TOKEN` in your Hermes service environment; do not store the token in the repository or a prompt. For a **local agent on the deployment server**, see [`AGENTS.md`](AGENTS.md): give the agent's OS account write access to the real checkout and the privileges needed for tests, Docker rebuilds and deployment. Local editing of the repository and UI does not require `GITHUB_REPO_TOKEN`; that server-side token is only for remote GitHub operations through the HTTP API.
+The dependency-free `tools/agentctl.js` CLI wraps the authenticated agent API and returns JSON for automation. Set `IPTV_BASE_URL` and `AGENT_API_TOKEN` in your Hermes service environment; do not store the token in the repository or a prompt. For a **local agent on the deployment server**, see [`AGENTS.md`](AGENTS.md): it grants the local agent full project/file/UI editing authority and documents the deployment path. A local checkout and shell access do not require a `GITHUB_REPO_TOKEN`; that server-side token is only for remote GitHub operations via the HTTP API. For a **local agent on the deployment server**, see [`AGENTS.md`](AGENTS.md): give the agent's OS account write access to the real checkout and the privileges needed for tests, Docker rebuilds and deployment. Local editing of the repository and UI does not require `GITHUB_REPO_TOKEN`; that server-side token is only for remote GitHub operations through the HTTP API.
 
 ```bash
 node iptv-web/tools/agentctl.js capabilities
