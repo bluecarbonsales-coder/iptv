@@ -110,3 +110,19 @@ For movie/series metadata work, read [METADATA-APIS.md](METADATA-APIS.md) first.
 - Use `https://api.tvmaze.com/search/shows?q={URL-encoded query}` for TV-series discovery. Backend route: `GET /api/metadata/tvmaze?q=...`.
 - Attribute TVmaze and follow its CC BY-SA/share-alike requirements: https://www.tvmaze.com/api
 - Treat the supplied TVmaze account key as sensitive; if Premium user endpoints are needed, keep it in deployment secrets, never public docs or client code.
+
+
+## Hermes-first navigation and local resource discovery
+
+Hermes is the only intended configuration editor for the production portal. Do not reintroduce public-browser source or navigation editing. Use the authenticated agent endpoints:
+
+- `GET /api/agent/v1/navigation` and `PUT /api/agent/v1/navigation` for the Theatre sidebar. The public page reads the filtered configuration from `GET /api/navigation`.
+- `GET|POST /api/agent/v1/portal/services` and `PATCH|DELETE /api/agent/v1/portal/services/:id` for homepage shortcuts.
+- Existing `/api/agent/v1/live/sources` and `/api/agent/v1/vod/sources` routes for TV and VOD providers.
+- `GET /api/agent/v1/discovery/visitor-trends` for privacy-preserving aggregate demand signals.
+
+The source-management APIs intentionally require `X-Agent-Token`; do not re-enable writes using `SOURCE_TOKEN` or `REFRESH_TOKEN`. Keep `AGENT_API_TOKEN` in the deployment environment and never expose it to browser code.
+
+Visitor discovery is opt-in. The public form accepts a broad country code, optional region, language and interest category. The collector stores aggregate daily counts only, retains at most 30 days and only reports groups with at least three requests. Do not add raw IP logging, exact GPS coordinates, street addresses, user IDs, or per-person browsing history. Hermes should use the trends to prioritize official, public-domain and open-license resources—not to infer redistribution rights.
+
+Read `HERMES-OPTIMIZATION.md` for the operating policy. Run `node --check` on changed JavaScript files and `npm test` before deployment.
