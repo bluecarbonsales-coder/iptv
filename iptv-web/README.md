@@ -313,3 +313,8 @@ The `/discover.html` page combines Internet Archive results with optional Jacket
 Optional Jackett setup: configure `JACKETT_URL` and `JACKETT_API_KEY` in the deployment's private `.env`, then recreate the `iptv-web` service. Do not publish Jackett or its API key to the public internet. Search uses the Jackett Torznab API. Public-domain/Creative Commons discovery uses the existing Internet Archive adapter, which filters on declared rights metadata; verify the individual item's terms.
 
 Saved links are stored in `/data/media-links.json` on the existing `iptv-data` volume. Listing and mutation require the existing `SOURCE_TOKEN`, `REFRESH_TOKEN`, or `AGENT_API_TOKEN` via the `X-Source-Token` header. No new volume or media download client is required. Keep the portal behind Cloudflare Access if saved link metadata should remain private.
+
+
+## TMDB metadata integration
+
+Set `TMDB_API_KEY` in the private deployment `.env` to enable trending titles, movie/TV search, posters, ratings, and watch-provider availability metadata in Theatre. The key is used only by the server-side `/api/tmdb/*` routes and is not included in browser JavaScript or source control. API responses are cached in process for ten minutes. TMDB metadata is discovery information, not a guarantee that a title has a playable stream; playback still uses your configured VOD sources. Follow TMDB's non-commercial/commercial terms and attribution requirements. This product uses the TMDB API but is not endorsed or certified by TMDB.
