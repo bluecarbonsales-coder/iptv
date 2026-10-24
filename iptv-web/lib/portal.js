@@ -104,9 +104,12 @@ function createPortalApi(options = {}) {
   function authorize(req, res) {
     const givenSource = req.headers['x-source-token'];
     const givenAgent = req.headers['x-agent-token'];
-    const sourceExpected = process.env.SOURCE_TOKEN || process.env.REFRESH_TOKEN || '';
-    const agentExpected = process.env.AGENT_API_TOKEN || '';
-    if (matchesToken(givenSource, sourceExpected) || matchesToken(givenAgent, agentExpected)) return true;
+    if (
+      matchesToken(givenSource, process.env.SOURCE_TOKEN || '') ||
+      matchesToken(givenSource, process.env.REFRESH_TOKEN || '') ||
+      matchesToken(givenSource, process.env.AGENT_API_TOKEN || '') ||
+      matchesToken(givenAgent, process.env.AGENT_API_TOKEN || '')
+    ) return true;
     if (!sourceExpected && !agentExpected) {
       sendJson(req, res, 503, { error: 'service-link management is disabled until SOURCE_TOKEN, REFRESH_TOKEN, or AGENT_API_TOKEN is configured' });
     } else {
