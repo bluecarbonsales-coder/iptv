@@ -1,0 +1,30 @@
+services:
+  iptv-web:
+    build: .
+    image: iptv-web:1.0
+    container_name: iptv-web
+    restart: unless-stopped
+    # Bound to loopback only: the host's openresty publishes it over TLS.
+    ports:
+      - "127.0.0.1:3920:3920"
+    volumes:
+      - iptv-data:/data
+    environment:
+      TZ: Asia/Tokyo
+      REFRESH_HOURS: "12"
+      # Required for POST /api/refresh coming from outside the host.
+      REFRESH_TOKEN: "${REFRESH_TOKEN:-}"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3920/healthz"]
+      interval: 60s
+      timeout: 6s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  iptv-data:

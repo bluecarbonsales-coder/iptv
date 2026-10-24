@@ -1,0 +1,225 @@
+'use strict';
+// Fetch the iptv-org API dump and compile it into data/catalog.json + data/meta.json.
+//
+//   node lib/refresh.js             # download from the first reachable source
+//   node lib/refresh.js --src=...   # build from an existing directory of api json files
+const fs = require('fs');
+const path = require('path');
+const zlib = require('zlib');
+const { QUALITY_HEIGHT } = require('./catalog');
+
+const FILES = ['channels.json', 'streams.json', 'logos.json', 'categories.json', 'countries.json'];
+
+const SOURCES = [
+  'https://iptv-org.github.io/api/',
+  'https://gh-proxy.org/https://raw.githubusercontent.com/iptv-org/api/gh-pages/',
+  'https://ghproxy.net/https://raw.githubusercontent.com/iptv-org/api/gh-pages/',
+];
+
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
+// No per-channel cap: a handful of channels carry >100 sources and every one of them is a
+// fallback for the player, so keep them all (MAX_STREAMS_PER_CHANNEL=25 to re-impose one).
+const MAX_STREAMS_PER_CHANNEL = parseInt(process.env.MAX_STREAMS_PER_CHANNEL || '0', 10) || Infinity;
+
+function log(...a) {
+  console.log(new Date().toISOString(), ...a);
+}
+
+async function download(srcDir) {
+  const out = {};
+  for (const f of FILES) {
+    const url = srcDir + f;
+    const res = await fetch(url, { headers: { 'User-Agent': 'iptv-web/1.0' } });
+    if (!res.ok) throw new Error(`${url} -> HTTP ${res.status}`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    out[f] = JSON.parse(buf.toString('utf8'));
+    log(`  ${f.padEnd(16)} ${(buf.length / 1048576).toFixed(2)} MB`);
+  }
+  return out;
+}
+
+function pickLogo(logosForChannel) {
+  const inUse = logosForChannel.filter((l) => l.in_use !== false);
+  const pool = inUse.length ? inUse : logosForChannel;
+  let best = null;
+  let bestScore = -1;
+  for (const l of pool) {
+    const score = (l.width || 0) * (l.height || 0) + (l.in_use ? 1e6 : 0);
+    if (score > bestScore) {
+      bestScore = score;
+      best = l;
+    }
+  }
+  return best ? best.url : null;
+}
+
+function build(api, stats) {
+  const countries = new Map((api['countries.json'] || []).map((c) => [c.code, c]));
+  const categories = new Map((api['categories.json'] || []).map((c) => [c.id, c]));
+
+  const logosByChannel = new Map();
+  for (const l of api['logos.json'] || []) {
+    if (!l.channel) continue;
+    if (!logosByChannel.has(l.channel)) logosByChannel.set(l.channel, []);
+    logosByChannel.get(l.channel).push(l);
+  }
+
+  const streamsByChannel = new Map();
+  let orphanStreams = 0;
+  for (const s of api['streams.json'] || []) {
+    if (!s.channel || !s.url) {
+      orphanStreams++;
+      continue;
+    }
+    if (!streamsByChannel.has(s.channel)) streamsByChannel.set(s.channel, []);
+    streamsByChannel.get(s.channel).push(s);
+  }
+
+  const channels = [];
+  let droppedNoStream = 0;
+
+  // Every channel that still has at least one stream is kept — no adult / category / country
+  // filtering happens at build time. iptv-org removes the streams of channels it blocks
+  // (DMCA, NSFW), so those drop out through the stream test alone; anything still listed here
+  // is watchable and is exposed with `nsfw` + labels so the UI can filter client-side.
+  for (const ch of api['channels.json'] || []) {
+    const raw = streamsByChannel.get(ch.id) || [];
+    if (!raw.length) {
+      droppedNoStream++;
+      continue;
+    }
+    const seen = new Set();
+    const streams = [];
+    for (const s of raw) {
+      if (seen.has(s.url)) continue;
+      seen.add(s.url);
+      streams.push({
+        u: s.url,
+        q: s.quality || null,
+        r: s.referrer || null,
+        ua: s.user_agent || null,
+        l: s.labels || [],
+        f: s.feed || null,
+      });
+    }
+    streams.sort((a, b) => QUALITY_HEIGHT(b.q) - QUALITY_HEIGHT(a.q));
+    const capped = Number.isFinite(MAX_STREAMS_PER_CHANNEL) ? streams.slice(0, MAX_STREAMS_PER_CHANNEL) : streams;
+
+    channels.push({
+      id: ch.id,
+      name: ch.name,
+      alt: (ch.alt_names || []).slice(0, 4),
+      country: ch.country || null,
+      cats: ch.categories || [],
+      nsfw: !!ch.is_nsfw,
+      network: ch.network || null,
+      website: ch.website || null,
+      launched: ch.launched || null,
+      closed: ch.closed || null,
+      logo: pickLogo(logosByChannel.get(ch.id) || []),
+      streams: capped,
+      ns: streams.length,
+    });
+  }
+
+  channels.sort((a, b) => a.name.localeCompare(b.name));
+
+  // meta: only the facets that actually occur, with counts
+  const cCount = new Map();
+  const catCount = new Map();
+  const qCount = new Map();
+  let streamTotal = 0;
+  for (const c of channels) {
+    if (c.country) cCount.set(c.country, (cCount.get(c.country) || 0) + 1);
+    for (const cat of c.cats) catCount.set(cat, (catCount.get(cat) || 0) + 1);
+    for (const s of c.streams) {
+      streamTotal++;
+      if (s.q) qCount.set(s.q, (qCount.get(s.q) || 0) + 1);
+    }
+  }
+
+  const meta = {
+    updated: new Date().toISOString(),
+    total: channels.length,
+    streams: streamTotal,
+    countries: [...cCount.entries()]
+      .map(([code, count]) => ({
+        code,
+        name: (countries.get(code) || {}).name || code,
+        flag: (countries.get(code) || {}).flag || '',
+        count,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    categories: [...catCount.entries()]
+      .map(([id, count]) => ({ id, name: (categories.get(id) || {}).name || id, count }))
+      .sort((a, b) => b.count - a.count),
+    qualities: [...qCount.entries()].map(([q, count]) => ({ q, count })).sort((a, b) => b.count - a.count),
+  };
+
+  stats.channels = channels.length;
+  stats.streams = streamTotal;
+  stats.nsfw = channels.filter((c) => c.nsfw).length;
+  stats.droppedNoStream = droppedNoStream;
+  stats.orphanStreams = orphanStreams;
+  stats.cappedChannels = channels.filter((c) => c.ns > c.streams.length).length;
+
+  return { channels, meta };
+}
+
+async function main() {
+  const srcArg = process.argv.find((a) => a.startsWith('--src='));
+  let api;
+  const stats = {};
+
+  if (srcArg) {
+    const dir = srcArg.split('=')[1].replace(/\/?$/, '/');
+    log(`building from local dir ${dir}`);
+    api = {};
+    for (const f of FILES) {
+      const p = path.join(dir, f);
+      if (!fs.existsSync(p)) {
+        log(`  skip missing ${f}`);
+        api[f] = [];
+        continue;
+      }
+      api[f] = JSON.parse(fs.readFileSync(p, 'utf8'));
+      log(`  ${f.padEnd(16)} ${(fs.statSync(p).size / 1048576).toFixed(2)} MB`);
+    }
+  } else {
+    let lastErr;
+    for (const src of SOURCES) {
+      try {
+        log(`downloading from ${src}`);
+        api = await download(src);
+        stats.source = src;
+        break;
+      } catch (err) {
+        lastErr = err;
+        log(`  failed: ${err.message}`);
+      }
+    }
+    if (!api) throw lastErr || new Error('all sources failed');
+  }
+
+  const { channels, meta } = build(api, stats);
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  const payload = JSON.stringify({ meta, channels });
+  const out = path.join(DATA_DIR, 'catalog.json');
+  fs.writeFileSync(out, payload);
+  fs.writeFileSync(path.join(DATA_DIR, 'meta.json'), JSON.stringify(meta, null, 2));
+  // pre-compressed copy the server streams straight to the browser
+  const gz = zlib.gzipSync(Buffer.from(payload), { level: 9 });
+  fs.writeFileSync(out + '.gz', gz);
+
+  log('built catalog', JSON.stringify(stats));
+  log(`wrote ${out} (${(payload.length / 1048576).toFixed(2)} MB, gz ${(gz.length / 1048576).toFixed(2)} MB)`);
+}
+
+if (require.main === module) {
+  main().catch((err) => {
+    console.error('refresh failed:', err.message);
+    process.exit(1);
+  });
+}
+
+module.exports = { build, SOURCES, FILES };
