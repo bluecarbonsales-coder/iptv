@@ -46,8 +46,26 @@ curl --fail --silent --show-error http://127.0.0.1:3920/healthz
 docker compose ps
 ```
 
-If the Git checkout is separate from the active Compose directory, use the existing deployment process to sync the checked-out release into the configured deployment directory, then run `bash tools/local-agent-deploy.sh` from that directory. Never replace or delete the persistent `iptv-data` volume as part of an app-code deployment. Verify the service health after deployment and inspect logs on failure.
+If the Git checkout is separate from the active Compose directory, run the deployment helper from the checkout with `IPTV_DEPLOY_DIR=/path/to/active/iptv-web bash iptv-web/tools/local-agent-deploy.sh`. It runs tests in the checkout, syncs the tested source into the active deployment directory while preserving that directory's `.env`, then builds/restarts the Compose service and checks `/healthz`. Never replace or delete the persistent `iptv-data` volume as part of an app-code deployment. Verify the service health after deployment and inspect logs on failure.
 
+## Bootstrap a writable local checkout
+
+If the server's active deployment package is not a Git checkout, the shipped `tools/bootstrap-agent-workspace.sh` creates a real, writable checkout owned by the local agent's OS user. Run as that user (not inside the application container):
+
+```bash
+IPTV_DEPLOY_DIR=/path/to/active/iptv-web \
+IPTV_ENV_FILE=/path/to/active/iptv-web/.env \
+IPTV_WORKSPACE_DIR="$HOME/src/iptv" \
+bash /path/to/active/iptv-web/tools/bootstrap-agent-workspace.sh
+```
+
+The script uses the server-side `GITHUB_REPO_TOKEN` in the deployment `.env` or an existing `gh auth` login to clone/update the project and configure GitHub credentials for that local user. After editing and testing code in `$HOME/src/iptv`, deploy it with:
+
+```bash
+IPTV_DEPLOY_DIR=/path/to/active/iptv-web bash "$HOME/src/iptv/iptv-web/tools/local-agent-deploy.sh"
+```
+
+The local agent must be able to write its own checkout and run Docker Compose against the active deployment. If it cannot, use the server's existing admin account to grant the specific agent OS user those permissions; do not make files world-writable. `GITHUB_REPO_TOKEN` is not needed merely to edit and test files locally, but GitHub push/PR operations require working Git credentials. Never commit the deployment `.env` or copy it into the Git checkout.
 ## UI work
 
 UI changes are first-class project work. Common maintained files are:
