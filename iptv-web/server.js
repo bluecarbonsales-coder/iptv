@@ -61,7 +61,7 @@ async function refreshNow() {
 }
 
 const app = new Router();
-const api = createApi(catalog, refreshNow);
+const api = createApi(catalog, refreshNow, DATA_DIR);
 const staticHandler = serveStatic(PUBLIC_DIR);
 
 // POST /api/refresh drags 18 MB from iptv-org: allow it freely from the host itself,
@@ -79,6 +79,10 @@ function refreshGuard(req, res, params, query) {
 
 app.get('/healthz', api.health);
 app.get('/api/meta', api.meta);
+app.get('/api/sources', api.sourceList);
+app.post('/api/sources', api.addSource);
+app.patch('/api/sources/:id', api.updateSource);
+app.delete('/api/sources/:id', api.deleteSource);
 app.get('/api/channels', api.channels);
 app.get('/api/channel/:id', api.channel);
 app.get('/api/playlist.m3u', api.playlistProxied);
