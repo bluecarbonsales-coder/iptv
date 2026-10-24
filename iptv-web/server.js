@@ -30,6 +30,7 @@ const refreshLib = require('./lib/refresh');
 const { createAutomation } = require('./lib/automation');
 const { createAgentApi } = require('./lib/agent');
 const { createPortalApi } = require('./lib/portal');
+const { createResourceAvailability } = require('./lib/resource-availability');
 const { createRadioApi } = require('./lib/radio');
 
 const PORT = parseInt(process.env.PORT, 10) || 3920;
@@ -78,6 +79,7 @@ const automation = createAutomation({
 api = createApi(catalog, refreshNow, DATA_DIR, automation);
 const agent = createAgentApi({ dataDir: DATA_DIR, catalog, refresh: refreshNow, api, automation });
 const portal = createPortalApi({ dataDir: DATA_DIR });
+const resourceAvailability = createResourceAvailability({ getServices: portal.getServices });
 const radio = createRadioApi();
 const staticHandler = serveStatic(PUBLIC_DIR);
 
@@ -130,6 +132,7 @@ app.get('/api/agent/v1/archive/search', agent.archiveSearch);
 app.get('/api/agent/v1/commons/search', agent.commonsSearch);
 
 // Persistent home-page links; only reads are public, all mutations require an existing management token.
+app.get('/api/portal/availability', resourceAvailability.handler);
 app.get('/api/portal/services', portal.list);
 app.post('/api/portal/services', portal.add);
 app.patch('/api/portal/services/:id', portal.update);

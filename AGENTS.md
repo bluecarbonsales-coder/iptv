@@ -85,6 +85,12 @@ The built-in Internet Archive and Wikimedia Commons adapters find open-license m
 
 Source mutations use `POST`, `PATCH`, and `DELETE` under `/api/agent/v1/live/sources` and `/api/agent/v1/vod/sources`. Use the IDs returned by the API; avoid duplicate providers. Validate input and inspect the response body, not only the HTTP status.
 
+## External service availability and fastest-response recommendations
+
+The service portal at `/` now monitors each configured HTTP(S) shortcut via `iptv-web/lib/resource-availability.js`; its UI is in `public/portal.js` and `public/portal.css`. Endpoint: `GET /api/portal/availability`, with an optional cooldown-limited `?refresh=1`. The monitor only probes URLs already stored in the validated portal directory, limits concurrency and timeouts, uses the existing redirect-by-redirect SSRF guard, caches results, labels access restriction separately from failure, and selects the lowest-latency successful link in category `Media resources`. The latency is measured from the application server and must not be described as user-side throughput or actual stream speed.
+
+SeedHub (`https://www.seedhub.cc/`) and the official Streambert repository (`https://github.com/truelockmc/streambert`) are external portal shortcuts. Do not treat these website/repository URLs as Apple CMS/MacCMS APIs or scrape them into the VOD adapter without an explicitly supported and authorized API. Keep their availability badges and label Streambert correctly as a desktop app/repository, not a browser stream origin. Run the full test suite after changes.
+
 ## Public radio directory and player
 
 The project includes a Radio Browser-powered station browser at `/radio.html`. Maintain it as a standalone page alongside the service portal (`/`) and IPTV player (`/watch.html`), not as a player-specific OpenResty feature. Its UI files are `iptv-web/public/radio.html`, `radio.css`, and `radio.js`; its backend and tests are `iptv-web/lib/radio.js` and `iptv-web/test/radio.test.js`. API routes are `/api/radio/stations`, `/api/radio/options`, `/api/radio/resolve/:uuid`, and `/api/radio/stream/:ticket`.

@@ -1,7 +1,10 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { isSafeServiceUrl, validateService, matchesToken, DEFAULT_SERVICES, MAX_SERVICES } = require('../lib/portal');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { createPortalApi, isSafeServiceUrl, validateService, matchesToken, DEFAULT_SERVICES, MAX_SERVICES } = require('../lib/portal');
 
 test('portal accepts safe absolute URLs and same-site relative service paths', () => {
   assert.equal(isSafeServiceUrl('https://example.com'), true);
@@ -41,6 +44,35 @@ test('management token comparison checks exact values and defaults are extensibl
   assert.equal(matchesToken(undefined, 'long-random-secret'), false);
   assert.ok(DEFAULT_SERVICES.some((service) => service.url === '/watch.html'));
   assert.ok(DEFAULT_SERVICES.some((service) => service.id === 'public-radio' && service.url === '/radio.html'));
+  assert.ok(DEFAULT_SERVICES.some((service) => service.id === 'seedhub' && service.category === 'Media resources'));
+  assert.ok(DEFAULT_SERVICES.some((service) => service.id === 'streambert' && service.url === 'https://github.com/truelockmc/streambert'));
   assert.ok(DEFAULT_SERVICES.length >= 5);
   assert.equal(MAX_SERVICES, 200);
+});
+
+
+test('existing portal data is migrated once with SeedHub and Streambert while preserving custom links', () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'iptv-portal-migration-'));
+  try {
+    fs.writeFileSync(path.join(dataDir, 'portal-services.json'), JSON.stringify({
+      version: 1,
+      services: [{ id: 'custom-service', name: 'Custom', url: 'https://custom.example/', category: 'Work' }],
+    }));
+    const portal = createPortalApi({ dataDir });
+    const services = portal.getServices();
+    const ids = services.map((item) => item.id);
+    assert.ok(ids.includes('custom-service'));
+    assert.ok(ids.includes('public-radio'));
+    assert.ok(ids.includes('seedhub'));
+    assert.ok(ids.includes('streambert'));
+    assert.equal(JSON.parse(fs.readFileSync(path.join(dataDir, 'portal-services.json'), 'utf8')).version, 2);
+
+    // User removals should persist once the one-time migration has completed.
+    const saved = JSON.parse(fs.readFileSync(path.join(dataDir, 'portal-services.json'), 'utf8'));
+    saved.services = saved.services.filter((item) => item.id !== 'seedhub');
+    fs.writeFileSync(path.join(dataDir, 'portal-services.json'), JSON.stringify(saved));
+    assert.equal(portal.getServices().some((item) => item.id === 'seedhub'), false);
+  } finally {
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
 });

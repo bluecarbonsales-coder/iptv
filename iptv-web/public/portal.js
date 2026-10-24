@@ -2,7 +2,8 @@
   'use strict';
 
   const $ = (selector, root) => (root || document).querySelector(selector);
-  const state = { services: [], category: 'All', query: '', canManage: false, token: '', editingId: null };
+  const state = { services: [], category: 'All', query: '', canManage: false, token: '', editingId: null, availability: {}, availabilityScanning: false, fastestResource: null, availabilityScanCompletedAt: null };
+  let availabilityTimer = null;
   const grid = $('#serviceGrid');
   const categoryList = $('#categoryList');
   const status = $('#manageStatus');
@@ -66,6 +67,74 @@
       categoryList.append(button);
     });
   }
+  function formatLatency(value) {
+    if (!Number.isFinite(Number(value)) || value < 0) return '—';
+    const ms = Number(value);
+    return ms < 1000 ? Math.round(ms) + ' ms' : (ms / 1000).toFixed(2) + ' s';
+  }
+  function availabilityLabel(item) {
+    if (!item) return { text: 'Checking…', status: 'checking' };
+    if (item.status === 'local') return { text: 'Local · available', status: 'local' };
+    if (item.status === 'online') return { text: 'Available · ' + formatLatency(item.latencyMs), status: 'online' };
+    if (item.status === 'slow') return { text: 'Slow · ' + formatLatency(item.latencyMs), status: 'slow' };
+    if (item.status === 'restricted') return { text: (item.httpStatus === 429 ? 'Rate limited' : 'Restricted') + (item.httpStatus ? ' · HTTP ' + item.httpStatus : ''), status: 'restricted' };
+    if (item.status === 'not_found') return { text: 'Not found · HTTP ' + (item.httpStatus || 404), status: 'not-found' };
+    if (item.status === 'unavailable') return { text: 'Unavailable' + (item.httpStatus ? ' · HTTP ' + item.httpStatus : ''), status: 'offline' };
+    if (item.status === 'offline') return { text: 'Offline' + (item.reason === 'timeout' ? ' · timed out' : ''), status: 'offline' };
+    return { text: 'Checking…', status: 'checking' };
+  }
+  function renderRecommendation() {
+    const title = $('#fastestTitle');
+    const details = $('#fastestDetails');
+    const summary = $('#availabilitySummary');
+    title.replaceChildren();
+    const statuses = Object.values(state.availability);
+    const count = (status) => statuses.filter((item) => item.status === status).length;
+    const working = count('online') + count('slow');
+    const limited = count('restricted') + count('not_found');
+    const offline = count('offline') + count('unavailable');
+    summary.textContent = (state.availabilityScanning ? 'Checking · ' : 'Checked · ') +
+      working + ' responsive' + (limited ? ' · ' + limited + ' restricted/missing' : '') +
+      (offline ? ' · ' + offline + ' offline' : '');
+    if (state.fastestResource) {
+      const service = state.services.find((item) => String(item.id) === String(state.fastestResource.id));
+      const lead = document.createElement('span');
+      lead.textContent = 'Fastest responding media resource: ';
+      const link = document.createElement('a');
+      link.href = service ? safeHref(service.url) : '#';
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = state.fastestResource.name + ' · ' + formatLatency(state.fastestResource.latencyMs);
+      title.append(lead, link);
+      details.textContent = 'Measured from this app server to the site. Lower website response time does not guarantee faster video playback or better speed from your device.';
+    } else if (state.availabilityScanning) {
+      title.textContent = 'Checking SeedHub and Streambert…';
+      details.textContent = 'The recommendation appears when at least one media resource responds successfully.';
+    } else {
+      title.textContent = 'No responsive media resource detected';
+      details.textContent = 'One or both resources may be offline, blocked from the server, or returning an error. “Restricted” is different from offline.';
+    }
+    $('#availabilityRefresh').disabled = state.availabilityScanning;
+    $('#availabilityRefresh').textContent = state.availabilityScanning ? 'Checking…' : '↻ Check now';
+  }
+  async function loadAvailability(force) {
+    try {
+      const url = '/api/portal/availability' + (force ? '?refresh=1' : '');
+      const data = await request(url, { cache: 'no-store' });
+      state.availability = Object.fromEntries((data.statuses || []).map((item) => [String(item.id), item]));
+      state.availabilityScanning = Boolean(data.scanning);
+      state.fastestResource = data.fastest || null;
+      state.availabilityScanCompletedAt = data.scanCompletedAt || null;
+      renderServices();
+    } catch (error) {
+      $('#availabilitySummary').textContent = 'Availability check unavailable';
+      $('#fastestTitle').textContent = 'Source status could not be loaded';
+      $('#fastestDetails').textContent = error.message;
+    } finally {
+      clearTimeout(availabilityTimer);
+      availabilityTimer = setTimeout(() => loadAvailability(false), state.availabilityScanning ? 4000 : 60000);
+    }
+  }
   function makeIcon(service) {
     const icon = document.createElement('span');
     icon.className = 'service-icon';
@@ -113,6 +182,22 @@
     link.append(name, desc);
     card.append(link);
 
+    const result = availabilityLabel(state.availability[String(service.id)]);
+    const availability = document.createElement('div');
+    availability.className = 'service-availability availability-' + result.status;
+    if (state.availability[String(service.id)] && state.availability[String(service.id)].checkedAt) {
+      availability.title = 'Checked ' + new Date(state.availability[String(service.id)].checkedAt).toLocaleString() + ' from the app server';
+    } else {
+      availability.title = 'Source availability is checked from the app server';
+    }
+    const indicator = document.createElement('span');
+    indicator.className = 'availability-dot';
+    indicator.setAttribute('aria-hidden', 'true');
+    const availabilityText = document.createElement('span');
+    availabilityText.textContent = result.text;
+    availability.append(indicator, availabilityText);
+    card.append(availability);
+
     const bottom = document.createElement('div');
     bottom.className = 'service-bottom';
     const category = document.createElement('span');
@@ -131,6 +216,7 @@
     return card;
   }
   function renderServices() {
+    renderRecommendation();
     const services = filteredServices();
     grid.replaceChildren();
     if (!services.length) {
@@ -171,6 +257,7 @@
       buildCategories();
       renderServices();
       $('#pageStatus').textContent = 'Your links are stored on this server.';
+      loadAvailability(false);
     } catch (error) {
       $('#pageStatus').textContent = error.message;
       grid.replaceChildren();
@@ -288,6 +375,7 @@
     }
   }
   function bindEvents() {
+    $('#availabilityRefresh').addEventListener('click', () => loadAvailability(true));
     $('#search').addEventListener('input', () => {
       state.query = $('#search').value;
       renderServices();

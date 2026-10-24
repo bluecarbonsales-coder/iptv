@@ -8,19 +8,21 @@ Live deployment: **https://iptv.nafisainternational.com**
 
 The root path `/` is now a configurable service portal, not a player-specific landing page. It provides a searchable directory of self-hosted apps and external websites, category filters, responsive cards, and authenticated add/edit/delete/reorder controls. Existing IPTV functionality remains available at **`/watch.html`**.
 
-The initial directory includes the player, known Nafisa service shortcuts, and examples such as ChatGPT, GitHub, Cloudflare, YouTube, and Wikipedia. Edit or delete any example to match the services you actually use. Service definitions persist in `DATA_DIR/portal-services.json` (in Docker, `/data/portal-services.json`), separate from the image and preserved with the existing data volume.
+The initial directory includes the player, known Nafisa service shortcuts, and examples such as ChatGPT, GitHub, Cloudflare, YouTube, and Wikipedia. Edit or delete any example to match the services you actually use. It also includes **SeedHub** and the official **Streambert** project link under *Media resources*. SeedHub is a web catalog; Streambert is a desktop-app repository—not an Apple CMS/MacCMS VOD API—so these are external shortcuts rather than falsely advertised native providers. Service definitions persist in `DATA_DIR/portal-services.json` (in Docker, `/data/portal-services.json`), separate from the image and preserved with the existing data volume.
 
 To manage links, choose **Manage links** on the homepage and enter the existing `SOURCE_TOKEN`, `REFRESH_TOKEN`, or `AGENT_API_TOKEN` configured in the server environment. The token is kept only in page memory and is not written to local storage. Management calls use the API below:
 
 | Route | Purpose |
 |---|---|
+| `GET /api/portal/availability` | Live HTTP availability and response latency for each portal shortcut; includes the fastest responding media-resource site |
+| `GET /api/portal/availability?refresh=1` | Request an availability refresh (cooldown and in-flight scan limits still apply) |
 | `GET /api/portal/services` | Public service directory |
 | `GET /api/portal/services?manage=1` | Validate management access and return the directory |
 | `POST /api/portal/services` | Add a link (management token required) |
 | `PATCH /api/portal/services/:id` | Edit a link (management token required) |
 | `DELETE /api/portal/services/:id` | Remove a link (management token required) |
 
-Links accept same-site relative paths or absolute HTTP(S) URLs. Each card opens safely in a new tab. Removing a link only removes its shortcut; it does not modify or delete the linked service.
+Links accept same-site relative paths or absolute HTTP(S) URLs. Each card opens safely in a new tab. Removing a link only removes its shortcut; it does not modify or delete the linked service. Every card always shows a reachability state: local, online, slow, restricted, not found, offline, or checking. External sites are probed with a bounded HEAD request (falling back to a one-byte range GET when HEAD is blocked), SSRF-checked on every redirect, with caching and limited concurrency. The *Fastest responding media resource* banner compares SeedHub and Streambert by HTTP response latency measured from the application server; that is **not** an end-user speed test or a guarantee of media-stream throughput. HTTP 403/429 is reported as restricted/rate-limited instead of being mislabeled offline.
 
 The portal uses plain HTML, CSS, browser JavaScript, and the existing Node standard-library server. It has no npm dependencies and does not rely on OpenResty-specific features or any single player framework. It can sit behind Cloudflare Tunnel/Access, OpenResty, Nginx, Caddy, Traefik, or another ingress that forwards requests to the app. Keep the Node port private as in the existing deployment. If the directory itself should be private, protect the homepage with Cloudflare Access or equivalent; the directory's URLs and names are visible to visitors who can reach the public homepage.
 
@@ -98,6 +100,7 @@ play fine through it.
   original stream URLs or relay URLs (`&proxy=1`) for use in VLC/Kodi.
 - **Bilingual UI** — English / 简体中文.
 - **Service portal homepage** — configurable service directory at `/`, with `/watch.html` preserving the IPTV player; persistent links, category filters, search, and token-protected link management.
+- **Resource availability and fastest-response recommendation** — a status badge on every home-page shortcut, HTTP latency checks, and an automatically updated recommendation among the media resources.
 - **World radio** — `/radio.html`, searchable Radio Browser directory, station filters, persistent favorites, HLS playback, and limited fallback relay for incompatible HTTP/HTTPS streams.
 - **No dependencies** — plain Node stdlib, no npm install, no build step.
 
