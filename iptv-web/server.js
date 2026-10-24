@@ -66,6 +66,7 @@ const app = new Router();
 let api;
 const automation = createAutomation({
   dataDir: DATA_DIR,
+  catalog,
   refresh: refreshNow,
   log,
   onProvidersChanged: () => api && api.clearVodCache(),
