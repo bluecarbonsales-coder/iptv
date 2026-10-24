@@ -134,7 +134,7 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
       try {
         config = await readConfig(listUrl);
         try { vodCandidates = vod.parseSourceList(config); } catch (err) {
-          if (!Array.isArray(config.liveSources)) throw err;
+          if (!Array.isArray(config.liveSources) && !Array.isArray(config.lives)) throw err;
         }
         liveCandidates = parseLiveRegistry(config);
         if (!vodCandidates.length && !liveCandidates.length) throw new Error('Registry has no compatible VOD sources[] / api_site{} / sites[] or liveSources[] entries');
