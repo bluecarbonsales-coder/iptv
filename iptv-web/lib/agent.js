@@ -80,7 +80,7 @@ function createAgentApi({ dataDir, catalog, refresh, api, automation }) {
         mode: automation.status().autonomy,
         writeEnabled: true,
         allowedRegistryUrls: automation.status().configuredRegistryCount,
-        warning: 'Provider directories are untrusted input. Only configure registries you trust. Imported API endpoints are probed before automatic activation in full mode; copyright ownership cannot be inferred from feed availability.',
+        warning: 'The TVboxorg availability-probed registry is configured by default on fresh deployments. Additional registries are agent-managed; imported API endpoints are probed before activation in full mode. Compatibility probes do not establish content rights.',
       },
       sources: {
         live: 'iptv-org catalogue plus explicitly configured M3U/M3U8 resources',
