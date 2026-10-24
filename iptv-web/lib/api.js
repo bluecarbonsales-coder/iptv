@@ -113,17 +113,7 @@ function createApi(catalog, refresh, dataDir) {
         await sourceLib.fetchSource({ id: params.id, name: patch.name || 'Validation', url });
         patch.url = url;
       }
-      if (body.enabled !== undefined) {
-        patch.enabled = body.enabled === true;
-        if (patch.enabled && !initial.lastChecked) {
-          const candidate = { ...initial };
-          const probe = await vodLib.probeSource(candidate);
-          patch.lastChecked = new Date().toISOString();
-          patch.lastItemCount = probe.count;
-          patch.listAction = probe.action;
-          patch.lastError = null;
-        }
-      }
+      if (body.enabled !== undefined) patch.enabled = body.enabled === true;
 
       const updated = await withLock(liveLockKey, () => {
         const sources = sourceLib.loadSourcesSync(sourceDataDir).sources;
