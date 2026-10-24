@@ -3,7 +3,7 @@
   const $ = (sel, root) => (root || document).querySelector(sel);
   const state = {
     query: '', countrycode: '', language: '', tag: '', order: 'clickcount',
-    offset: 0, limit: 48, stations: [], favorites: loadJson('radio.favorites', []),
+    offset: 0, page: 1, limit: 50, nextOffset: null, stations: [], favorites: loadJson('radio.favorites', []),
     favoriteStations: loadJson('radio.favoriteStations', []),
     recent: loadJson('radio.recent', []), onlyFavorites: false, activeUuid: '', activeProxyUrl: '', proxyFallbackUsed: false, isLoading: false,
   };
@@ -126,14 +126,25 @@
       items.forEach((station) => grid.append(makeCard(station)));
     }
     $('#resultsCount').textContent = String(items.length);
-    $('#loadMore').hidden = state.onlyFavorites || state.nextOffset == null || state.stations.length === 0;
-    $('#loadMore').disabled = state.isLoading;
-    $('#loadMore').textContent = state.isLoading ? 'Loading stations…' : 'Load more stations ↓';
+    renderPagination();
     updateFavorites();
+  }
+  function renderPagination() {
+    const el = $('#radioPagination');
+    if (!el) return;
+    if (state.onlyFavorites || (!state.stations.length && state.nextOffset == null)) { el.innerHTML = ''; return; }
+    const pages = new Set([1, state.page]);
+    if (state.page > 1) pages.add(state.page - 1);
+    if (state.nextOffset != null) pages.add(state.page + 1);
+    const sorted = [...pages].filter(p => p > 0).sort((a,b) => a-b);
+    let html = '<button data-page="'+(state.page-1)+'" '+(state.page===1||state.isLoading?'disabled':'')+'>‹</button>';
+    for (const p of sorted) html += '<button data-page="'+p+'" class="'+(p===state.page?'active':'')+'" '+(state.isLoading?'disabled':'')+'>'+p+'</button>';
+    html += '<button data-page="'+(state.page+1)+'" '+(state.nextOffset==null||state.isLoading?'disabled':'')+'>›</button>';
+    el.innerHTML = html;
   }
   async function loadStations(reset) {
     if (state.isLoading && !reset) return;
-    if (reset) { state.offset = 0; state.nextOffset = null; state.stations = []; }
+    if (reset) { state.offset = (state.page - 1) * state.limit; state.nextOffset = null; state.stations = []; }
     state.isLoading = true;
     const currentSequence = ++loadSequence;
     render();
@@ -147,11 +158,7 @@
       const result = await request('/api/radio/stations?' + params.toString());
       if (currentSequence !== loadSequence) return;
       const incoming = Array.isArray(result.stations) ? result.stations : [];
-      if (reset) state.stations = incoming;
-      else {
-        const existing = new Set(state.stations.map((s) => s.stationuuid));
-        state.stations.push(...incoming.filter((s) => !existing.has(s.stationuuid)));
-      }
+      state.stations = incoming;
       state.nextOffset = result.nextOffset;
       state.offset = result.nextOffset == null ? state.offset : result.nextOffset;
       setStatus(incoming.length ? 'Directory supplied by Radio Browser. Availability may vary by station and region.' : 'No matches in this result page.');
@@ -345,7 +352,7 @@
       render();
     });
     $('#reloadStations').addEventListener('click', () => loadStations(true));
-    $('#loadMore').addEventListener('click', () => loadStations(false));
+    $('#radioPagination').addEventListener('click', (event) => { const button = event.target.closest('[data-page]'); if (!button || button.disabled) return; const target = Number(button.dataset.page); if (!Number.isInteger(target) || target < 1 || (target > state.page && state.nextOffset == null)) return; state.page = target; loadStations(true); window.scrollTo({ top: $('#stationHeading').getBoundingClientRect().top + window.scrollY - 90, behavior: 'smooth' }); });
     $('#stopRadio').addEventListener('click', stopRadio);
     audio.addEventListener('play', render);
     audio.addEventListener('pause', render);
