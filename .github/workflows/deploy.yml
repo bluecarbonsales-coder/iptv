@@ -27,6 +27,8 @@ jobs:
         run: |
           node --check iptv-web/server.js
           for file in iptv-web/lib/*.js iptv-web/public/*.js iptv-web/public/js/*.js iptv-web/tools/*.js; do node --check "$file"; done
+      - name: Install application dependencies
+        run: npm install --prefix iptv-web --no-audit --no-fund
       - name: Run tests
         run: node --test iptv-web/test/*.test.js
       - name: Build Docker image
