@@ -35,6 +35,7 @@ async function mapLimit(items, limit, fn) {
 
 function createApi(catalog, refresh, dataDir) {
   const sourceDataDir = dataDir || require('path').join(__dirname, '..', 'data');
+  vodLib.ensureDefaultSources(sourceDataDir);
   const vodSearchCache = new Map();
   const liveLockKey = 'live-sources:' + sourceDataDir;
   const vodLockKey = 'vod-sources:' + sourceDataDir;
