@@ -8,6 +8,7 @@ const { readBody } = require('./util');
 const sourceLib = require('./sources');
 const vodLib = require('./vod');
 const archiveLib = require('./archive-vod');
+const commonsLib = require('./commons-vod');
 const { withLock } = require('./registry-lock');
 
 // Absolute origin as the browser sees it (proxy sets X-Forwarded-Proto).
@@ -410,6 +411,8 @@ function createApi(catalog, refresh, dataDir) {
     });
     let archiveOk = false;
     let archiveError = null;
+    let commonsOk = false;
+    let commonsError = null;
     if (kind !== 'series') {
       try {
         const archiveItems = await archiveLib.search(term, kind, 30);
@@ -438,6 +441,33 @@ function createApi(catalog, refresh, dataDir) {
       } catch (err) {
         archiveError = String(err.message || 'Internet Archive search failed').slice(0, 180);
       }
+      try {
+        const commonsItems = await commonsLib.search(term, kind, 25);
+        commonsOk = true;
+        for (const item of commonsItems) {
+          items.push({
+            id: 'vod-commons-' + item.id,
+            vod: true,
+            vodId: item.id,
+            sourceId: 'commons',
+            sourceName: item.sourceName,
+            name: item.name,
+            logo: item.logo,
+            country: null,
+            cats: [item.category || (item.kind === 'anime' ? 'Open-license animation' : 'Open-license video')],
+            year: item.year || '',
+            remarks: item.remarks,
+            overview: item.overview,
+            streams: 1,
+            labels: [],
+            kind: item.kind,
+            licenseUrl: item.licenseUrl || null,
+            pageUrl: item.pageUrl || null,
+          });
+        }
+      } catch (err) {
+        commonsError = String(err.message || 'Wikimedia Commons search failed').slice(0, 180);
+      }
     }
     const seen = new Set();
     const unique = items.filter((item) => {
@@ -447,8 +477,12 @@ function createApi(catalog, refresh, dataDir) {
       return true;
     });
     const providerSummary = sources.map((s, i) => ({ name: s.name, ok: results[i].status === 'fulfilled' }));
-    if (kind !== 'series') providerSummary.push({ name: 'Internet Archive (public domain / CC)', ok: archiveOk });
+    if (kind !== 'series') {
+      providerSummary.push({ name: 'Internet Archive (public domain / CC)', ok: archiveOk });
+      providerSummary.push({ name: 'Wikimedia Commons (open-license video)', ok: commonsOk });
+    }
     if (archiveError) errors.push({ source: 'Internet Archive (public domain / CC)', error: archiveError });
+    if (commonsError) errors.push({ source: 'Wikimedia Commons (open-license video)', error: commonsError });
     const payload = {
       type: kind,
       total: unique.length,
@@ -467,6 +501,27 @@ function createApi(catalog, refresh, dataDir) {
   };
 
   const vodDetail = async (req, res, params) => {
+    if (params.sourceId === 'commons') {
+      try {
+        const item = await commonsLib.getDetail(params.vodId);
+        return sendJson(req, res, 200, {
+          id: item.id,
+          sourceId: 'commons',
+          sourceName: item.sourceName,
+          name: item.name,
+          logo: item.logo,
+          overview: item.overview,
+          year: item.year,
+          category: item.category,
+          remarks: item.remarks,
+          licenseUrl: item.licenseUrl || null,
+          pageUrl: item.pageUrl || null,
+          episodes: item.episodes,
+        });
+      } catch (err) {
+        return sendJson(req, res, err.statusCode || 502, { error: err.message || 'could not load Commons item' });
+      }
+    }
     if (params.sourceId === 'archive') {
       try {
         const item = await archiveLib.getDetail(params.vodId);
