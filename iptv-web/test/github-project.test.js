@@ -86,7 +86,7 @@ test('full project control supports merge and workflow dispatch using authentica
         status: 200, headers: { 'content-type': 'application/json' },
       });
     }
-    return new Response('', { status: 204 });
+    return new Response(null, { status: 204 });
   };
   const github = createGitHubProject({ token: 'secret', repository: 'owner/repo', fetchImpl });
   assert.equal((await github.mergePullRequest({ number: 7, method: 'squash' })).merged, true);
