@@ -996,6 +996,30 @@
         $('#vodImport').disabled = false;
       }
     };
+    $('#vodListFile').addEventListener('change', async (event) => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      try {
+        if (file.size > 1024 * 1024) throw new Error('JSON config must be 1 MB or smaller.');
+        $('#vodStatus').textContent = 'Reading provider config…';
+        const config = JSON.parse(await file.text());
+        const data = await sourceRequest('/api/vod/import', {
+          method: 'POST',
+          headers: sourceHeaders(),
+          body: JSON.stringify({ config, sourceName: file.name }),
+        });
+        await loadVodSources();
+        const details = [(data.imported || 0) + ' provider(s) imported'];
+        if (data.duplicates) details.push(data.duplicates + ' already configured');
+        if (data.skippedLimit) details.push(data.skippedLimit + ' skipped (provider limit reached)');
+        $('#vodStatus').textContent = details.join(' · ') + '. Imported providers have not been individually verified.';
+        if (isVodView(state.view)) await load(true);
+      } catch (err) {
+        $('#vodStatus').textContent = err.message;
+      } finally {
+        event.target.value = '';
+      }
+    });
     $('#vodAdd').onclick = async () => {
       try {
         const headers = sourceHeaders();
