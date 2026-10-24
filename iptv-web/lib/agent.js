@@ -19,7 +19,7 @@ function safeUrlSummary(raw) {
     return u.origin + u.pathname + (u.search ? '?[query-redacted]' : '');
   } catch { return '[invalid URL]'; }
 }
-function createAgentApi({ dataDir, catalog, refresh, api, automation, navigationConfig, visitorContext }) {
+function createAgentApi({ dataDir, catalog, refresh, api, automation, navigationConfig, visitorContext, portal }) {
   const project = createGitHubProject();
   function authenticate(req, res) {
     const expected = process.env.AGENT_API_TOKEN;
@@ -75,6 +75,7 @@ function createAgentApi({ dataDir, catalog, refresh, api, automation, navigation
         'import configured LibreTV/MoonTV/TVBox-compatible provider registries',
         'add, update, enable, disable, and delete providers',
         'read and replace Theatre navigation configuration',
+        'list, add, edit, reorder, and remove homepage service shortcuts',
         'read privacy-preserving aggregate visitor resource trends after explicit visitor consent',
         'run source checks and scheduled maintenance',
         'refresh the live IPTV catalogue',
@@ -297,6 +298,23 @@ function createAgentApi({ dataDir, catalog, refresh, api, automation, navigation
     }
   };
 
+  const portalList = (req, res, params, query) => {
+    if (!portal) return sendJson(req, res, 503, { error: 'portal shortcut store is unavailable' });
+    return portal.list(req, res, params, { ...(query || {}), manage: '1' });
+  };
+  const portalAdd = (req, res, params, query) => {
+    if (!portal) return sendJson(req, res, 503, { error: 'portal shortcut store is unavailable' });
+    return portal.add(req, res, params, query);
+  };
+  const portalUpdate = (req, res, params, query) => {
+    if (!portal) return sendJson(req, res, 503, { error: 'portal shortcut store is unavailable' });
+    return portal.update(req, res, params, query);
+  };
+  const portalDelete = (req, res, params, query) => {
+    if (!portal) return sendJson(req, res, 503, { error: 'portal shortcut store is unavailable' });
+    return portal.remove(req, res, params, query);
+  };
+
   const navigationGet = (req, res) => {
     if (!navigationConfig) return sendJson(req, res, 503, { error: 'navigation config is unavailable' });
     try { sendJson(req, res, 200, navigationConfig.read()); }
@@ -358,6 +376,8 @@ function createAgentApi({ dataDir, catalog, refresh, api, automation, navigation
       },
     },
     paths: {
+      "/api/agent/v1/portal/services": { get: { summary: "List homepage shortcuts", responses: { '200': { description: "Homepage shortcuts" } } }, post: { summary: "Add homepage shortcut", responses: { '201': { description: "Shortcut added" } } } },
+      "/api/agent/v1/portal/services/{id}": { patch: { summary: "Update homepage shortcut", responses: { '200': { description: "Shortcut updated" } } }, delete: { summary: "Remove homepage shortcut", responses: { '200': { description: "Shortcut removed" } } } },
       "/api/agent/v1/navigation": { get: { summary: "Read Theatre navigation configuration", responses: { '200': { description: "Navigation configuration" } } }, put: { summary: "Replace Theatre navigation configuration", responses: { '200': { description: "Navigation updated" } } } },
       "/api/agent/v1/discovery/visitor-trends": { get: { summary: "Read privacy-preserving aggregate visitor resource trends", responses: { '200': { description: "Aggregated visitor trends" } } } },
       "/api/agent/v1/capabilities": { get: { summary: "Describe capabilities, limits and autonomy policy", responses: { '200': { description: "GET /api/agent/v1/capabilities" }, '201': { description: 'Operation completed' } } } },
@@ -392,6 +412,10 @@ function createAgentApi({ dataDir, catalog, refresh, api, automation, navigation
   });
 
   return {
+    portalList: gate('agent.portal.list', false, portalList),
+    portalAdd: gate('agent.portal.add', true, portalAdd),
+    portalUpdate: gate('agent.portal.update', true, portalUpdate),
+    portalDelete: gate('agent.portal.delete', true, portalDelete),
     navigationGet: gate('agent.navigation.read', false, navigationGet),
     navigationReplace: gate('agent.navigation.replace', true, navigationReplace),
     visitorTrends: gate('agent.discovery.visitor_trends', false, visitorTrends),
