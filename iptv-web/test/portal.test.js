@@ -40,6 +40,7 @@ test('management token comparison checks exact values and defaults are extensibl
   assert.equal(matchesToken('short', 'long-random-secret'), false);
   assert.equal(matchesToken(undefined, 'long-random-secret'), false);
   assert.ok(DEFAULT_SERVICES.some((service) => service.url === '/watch.html'));
+  assert.ok(DEFAULT_SERVICES.some((service) => service.id === 'public-radio' && service.url === '/radio.html'));
   assert.ok(DEFAULT_SERVICES.length >= 5);
   assert.equal(MAX_SERVICES, 200);
 });
