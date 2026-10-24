@@ -138,7 +138,7 @@
     const currentSequence = ++loadSequence;
     render();
     setStatus(reset ? 'Searching the global radio directory…' : 'Loading more stations…');
-    const params = new URLSearchParams({ limit: String(state.limit), offset: String(state.offset), order: state.order, reverse: 'true' });
+    const params = new URLSearchParams({ limit: String(state.limit), offset: String(state.offset), order: state.order, reverse: state.order === 'name' ? 'false' : 'true' });
     if (state.query) params.set('q', state.query);
     if (state.countrycode) params.set('countrycode', state.countrycode);
     if (state.language) params.set('language', state.language);
