@@ -1,6 +1,6 @@
 'use strict';
 // User-managed video-on-demand provider registry compatible with Apple CMS / MacCMS APIs.
-// Providers must be supplied by the operator; no third-party feed is bundled by default.
+// Initial provider URLs are operator-supplied in default-vod-sources.js and can be managed in the UI.
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
