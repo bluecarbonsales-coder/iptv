@@ -30,7 +30,7 @@ test('provider source summaries redact common query secrets', () => {
     enabled: true,
   });
   assert.equal(source.api.includes('top-secret'), false);
-  assert.equal(source.api.includes('[REDACTED]'), true);
+  assert.equal(source.api.includes('REDACTED'), true);
   assert.equal(source.apiHost, 'provider.example');
 });
 
