@@ -95,6 +95,8 @@ function refreshGuard(req, res, params, query) {
 app.get('/api/agent/v1/openapi.json', agent.openApi);
 app.get('/api/agent/v1/capabilities', agent.capabilities);
 app.get('/api/agent/v1/status', agent.status);
+app.get('/api/agent/v1/settings', agent.settingsView);
+app.patch('/api/agent/v1/settings', agent.settingsUpdate);
 app.get('/api/agent/v1/audit', agent.auditLog);
 app.post('/api/agent/v1/tasks/run', agent.runTask);
 app.get('/api/agent/v1/live/sources', agent.liveList);
