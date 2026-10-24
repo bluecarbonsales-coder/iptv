@@ -6,6 +6,7 @@
 // Routes:
 //   GET  /                     service portal homepage
 //   GET  /watch.html           IPTV player UI
+//   GET  /radio.html           public radio directory and player
 //   GET  /api/meta             facets: countries, categories, qualities, counts
 //   GET  /api/channels         ?q=&country=&category=&minQuality=&nsfw=&page=&limit=&sort=
 //   GET  /api/channel/:id      full record incl. every stream URL
@@ -29,6 +30,7 @@ const refreshLib = require('./lib/refresh');
 const { createAutomation } = require('./lib/automation');
 const { createAgentApi } = require('./lib/agent');
 const { createPortalApi } = require('./lib/portal');
+const { createRadioApi } = require('./lib/radio');
 
 const PORT = parseInt(process.env.PORT, 10) || 3920;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -76,6 +78,7 @@ const automation = createAutomation({
 api = createApi(catalog, refreshNow, DATA_DIR, automation);
 const agent = createAgentApi({ dataDir: DATA_DIR, catalog, refresh: refreshNow, api, automation });
 const portal = createPortalApi({ dataDir: DATA_DIR });
+const radio = createRadioApi();
 const staticHandler = serveStatic(PUBLIC_DIR);
 
 // POST /api/refresh drags 18 MB from iptv-org: allow it freely from the host itself,
@@ -131,6 +134,12 @@ app.get('/api/portal/services', portal.list);
 app.post('/api/portal/services', portal.add);
 app.patch('/api/portal/services/:id', portal.update);
 app.delete('/api/portal/services/:id', portal.remove);
+
+// Public Radio Browser directory and UUID-based stream relay (no arbitrary URL proxy).
+app.get('/api/radio/stations', radio.stations);
+app.get('/api/radio/options', radio.listOptions);
+app.get('/api/radio/resolve/:uuid', radio.resolveStation);
+app.get('/api/radio/stream/:ticket', radio.stream);
 
 app.get('/healthz', api.health);
 app.get('/api/meta', api.meta);
