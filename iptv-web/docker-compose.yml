@@ -40,6 +40,8 @@ services:
       # Optional Jackett integration for torrent indexer search; keep the API key in the server .env.
       JACKETT_URL: "${JACKETT_URL:-}"
       JACKETT_API_KEY: "${JACKETT_API_KEY:-}"
+      # TMDB key stays in this private server environment; never expose it to browser code.
+      TMDB_API_KEY: "${TMDB_API_KEY:-}"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3920/healthz"]
       interval: 60s
