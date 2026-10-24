@@ -137,26 +137,53 @@ function providerStatus(payload) {
   }
 }
 async function probeSource(source) {
-  // Probe with a normal list request; providers may return an empty list on a new catalog.
-  const payload = await fetchJson(apiQuery(source, { ac: 'videolist', pg: 1 }));
-  providerStatus(payload);
-  if (!Array.isArray(payload) && !(payload && (Array.isArray(payload.list) || payload.data))) {
-    throw Object.assign(new Error('Response is not a supported Apple CMS / MacCMS catalog'), { statusCode: 400 });
+  // TVBox aggregation includes providers that are only reachable with ac=list;
+  // try both documented Apple CMS / MacCMS list actions during initial validation.
+  let lastError = null;
+  for (const action of ['videolist', 'list']) {
+    try {
+      const payload = await fetchJson(apiQuery(source, { ac: action, pg: 1 }));
+      providerStatus(payload);
+      const supported = Array.isArray(payload) ||
+        (payload && Array.isArray(payload.list)) ||
+        (payload && payload.data && (Array.isArray(payload.data.list) || Array.isArray(payload.data)));
+      if (!supported) throw Object.assign(new Error('Response is not a supported Apple CMS / MacCMS catalog'), { statusCode: 400 });
+      source.listAction = action;
+      return { count: listFrom(payload).length, action };
+    } catch (err) {
+      lastError = err;
+    }
   }
-  return { count: listFrom(payload).length };
+  throw lastError || Object.assign(new Error('Provider did not support Apple CMS / MacCMS list actions'), { statusCode: 400 });
 }
 async function searchSource(source, query, page) {
-  const payload = await fetchJson(apiQuery(source, { ac: 'videolist', wd: query, pg: page }));
-  providerStatus(payload);
+  const action = source.listAction === 'list' ? 'list' : 'videolist';
+  let payload;
+  try {
+    payload = await fetchJson(apiQuery(source, { ac: action, wd: query, pg: page }));
+    providerStatus(payload);
+    const hasResultShape = Array.isArray(payload) ||
+      (payload && Array.isArray(payload.list)) ||
+      (payload && payload.data && (Array.isArray(payload.data.list) || Array.isArray(payload.data)));
+    if (!hasResultShape) throw new Error('Provider returned an unsupported VOD list response');
+  } catch (err) {
+    if (action !== 'list') throw err;
+    // Prefer the standard video-list action for providers whose list action only supports
+    // a broad catalog listing without search pagination.
+    payload = await fetchJson(apiQuery(source, { ac: 'videolist', wd: query, pg: page }));
+    providerStatus(payload);
+  }
   return listFrom(payload).map((row) => normalizeItem(row, source)).filter(Boolean);
 }
 async function getDetail(source, vodId) {
   let lastError;
-  for (const mode of ['detail', 'videolist']) {
+  const actions = source.listAction === 'list' ? ['detail', 'list', 'videolist'] : ['detail', 'videolist', 'list'];
+  for (const mode of actions) {
     try {
       const payload = await fetchJson(apiQuery(source, { ac: mode, ids: vodId, wd: '' }));
       providerStatus(payload);
-      const item = listFrom(payload).map((row) => normalizeItem(row, source)).find((row) => row && row.id === String(vodId)) || listFrom(payload).map((row) => normalizeItem(row, source)).find(Boolean);
+      const rows = listFrom(payload).map((row) => normalizeItem(row, source)).filter(Boolean);
+      const item = rows.find((row) => row.id === String(vodId)) || rows[0];
       if (item && item.episodes.length) return item;
       if (item) lastError = new Error('Provider returned no playable episodes');
     } catch (err) {
@@ -166,6 +193,7 @@ async function getDetail(source, vodId) {
   if (lastError) throw lastError;
   throw Object.assign(new Error('Video details were not found'), { statusCode: 404 });
 }
+
 function parseSourceList(payload) {
   const raw = [];
   if (payload && Array.isArray(payload.sources)) {
