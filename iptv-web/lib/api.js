@@ -143,6 +143,72 @@ function createApi(catalog, refresh, dataDir) {
     }
   };
 
+  const importVodSourceList = async (req, res) => {
+    if (!authorizeSourceWrite(req, res)) return;
+    try {
+      const body = JSON.parse(await readBody(req, 16384));
+      const listUrl = vodLib.normalizeApiUrl(body.url);
+      const { response } = await upstreamFetch(listUrl, {
+        timeoutMs: 15000,
+        extraHeaders: { Accept: 'application/json, text/plain;q=0.9, */*;q=0.8' },
+      });
+      if (!response.ok) return sendJson(req, res, 502, { error: 'Source list returned HTTP ' + response.status });
+      const length = Number(response.headers.get('content-length') || 0);
+      if (length > 1024 * 1024) return sendJson(req, res, 413, { error: 'Source list must be at most 1 MB' });
+      const raw = await bodyToString(response);
+      if (Buffer.byteLength(raw, 'utf8') > 1024 * 1024) return sendJson(req, res, 413, { error: 'Source list must be at most 1 MB' });
+      let config;
+      try { config = JSON.parse(raw.replace(/^\uFEFF/, '')); }
+      catch { return sendJson(req, res, 400, { error: 'Source list URL must return JSON' }); }
+      const candidates = vodLib.parseSourceList(config);
+      const registry = vodLib.loadSourcesSync(sourceDataDir);
+      const existing = new Set(registry.sources.map((source) => source.api));
+      const available = Math.max(0, vodLib.MAX_VOD_SOURCES - registry.sources.length);
+      const added = [];
+      let duplicates = 0;
+      let overLimit = 0;
+      for (const item of candidates) {
+        if (existing.has(item.api)) { duplicates++; continue; }
+        if (added.length >= available) { overLimit++; continue; }
+        const source = {
+          id: vodLib.newId(),
+          name: item.name,
+          api: item.api,
+          detail: item.detail || null,
+          kind: item.kind,
+          enabled: true,
+          addedAt: new Date().toISOString(),
+          lastChecked: null,
+          lastError: null,
+          importedFrom: listUrl,
+        };
+        added.push(source);
+        existing.add(item.api);
+      }
+      if (!added.length) {
+        return sendJson(req, res, 200, {
+          added: [],
+          imported: 0,
+          duplicates,
+          skippedLimit: overLimit,
+          message: candidates.length && duplicates === candidates.length ? 'All compatible providers are already configured.' : 'No slots available. Remove an existing provider and retry.',
+        });
+      }
+      registry.sources.push(...added);
+      vodLib.saveSources(sourceDataDir, registry.sources);
+      vodSearchCache.clear();
+      sendJson(req, res, 201, {
+        imported: added.length,
+        duplicates,
+        skippedLimit: overLimit,
+        sources: added.map(vodLib.publicSource),
+        note: 'Providers were imported from configuration only, not independently verified. Review enabled resources and use only catalogs you are authorized to access.',
+      });
+    } catch (err) {
+      sendJson(req, res, err.statusCode || 400, { error: err.message || 'could not import VOD provider list' });
+    }
+  };
+
   const updateVodSource = async (req, res, params) => {
     if (!authorizeSourceWrite(req, res)) return;
     try {
@@ -400,7 +466,7 @@ function createApi(catalog, refresh, dataDir) {
     });
   };
 
-  return { meta, channels, channel, refreshNow, playlist, playlistProxied, exportM3u, health, sourceList, addSource, updateSource, deleteSource, listVodSources, addVodSource, updateVodSource, deleteVodSource, vodSearch, vodDetail };
+  return { meta, channels, channel, refreshNow, playlist, playlistProxied, exportM3u, health, sourceList, addSource, updateSource, deleteSource, listVodSources, addVodSource, importVodSourceList, updateVodSource, deleteVodSource, vodSearch, vodDetail };
 }
 
 module.exports = { createApi };
