@@ -39,15 +39,23 @@ function hours(value, fallback) {
 function settingsPath(dataDir) {
   return path.join(dataDir, 'agent-settings.json');
 }
+function environmentHours(name, fallback) {
+  try { return hours(process.env[name], fallback); }
+  catch { return fallback; }
+}
+function environmentRegistryUrls() {
+  try { return uniqueRegistryUrls(process.env.VOD_SOURCE_LIST_URLS || ''); }
+  catch { return []; }
+}
 function defaults() {
   const autonomy = String(process.env.AGENT_AUTONOMY || 'full').toLowerCase();
   return {
     version: 1,
     autonomy: VALID_AUTONOMY.has(autonomy) ? autonomy : 'full',
     automationEnabled: process.env.AGENT_AUTOMATION_ENABLED !== '0',
-    autoSourceSyncHours: hours(process.env.AUTO_SOURCE_SYNC_HOURS, 12),
-    refreshHours: hours(process.env.REFRESH_HOURS, 12),
-    sourceListUrls: uniqueRegistryUrls(process.env.VOD_SOURCE_LIST_URLS || ''),
+    autoSourceSyncHours: environmentHours('AUTO_SOURCE_SYNC_HOURS', 12),
+    refreshHours: environmentHours('REFRESH_HOURS', 12),
+    sourceListUrls: environmentRegistryUrls(),
   };
 }
 function getSettings(dataDir) {
