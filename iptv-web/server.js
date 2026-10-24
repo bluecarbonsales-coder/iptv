@@ -80,6 +80,12 @@ function refreshGuard(req, res, params, query) {
 app.get('/healthz', api.health);
 app.get('/api/meta', api.meta);
 app.get('/api/sources', api.sourceList);
+app.get('/api/vod/sources', api.listVodSources);
+app.post('/api/vod/sources', api.addVodSource);
+app.patch('/api/vod/sources/:id', api.updateVodSource);
+app.delete('/api/vod/sources/:id', api.deleteVodSource);
+app.get('/api/vod', api.vodSearch);
+app.get('/api/vod/:sourceId/:vodId', api.vodDetail);
 app.post('/api/sources', api.addSource);
 app.patch('/api/sources/:id', api.updateSource);
 app.delete('/api/sources/:id', api.deleteSource);
