@@ -8,6 +8,7 @@
 |---|---|---|---|
 | TMDB | Search/discovery, movie and TV details, posters, overviews, ratings and release metadata | `https://api.themoviedb.org/3` | `TMDB_API_KEY` |
 | OMDb | Secondary title details and IMDb-ID lookup; useful for IMDb ratings and cross-checking metadata | `https://www.omdbapi.com/` | `OMDB_API_KEY` |
+| TVmaze | TV-show search, show details, episodes, cast and schedules | `https://api.tvmaze.com` | No key required for public API |
 
 ## Current development keys
 
@@ -17,6 +18,18 @@ These values are committed at the owner's explicit request for a non-production 
 - `OMDB_API_KEY=dfa677fa`
 
 The same development values are listed in `iptv-web/.env.example`. Treat them as public, rate-limited test credentials—not secrets and not production configuration. Never put other credentials (GitHub tokens, agent tokens, email passwords, or deployment secrets) in this file.
+
+## TVmaze public API (no key required)
+
+Show search:
+
+```http
+GET https://api.tvmaze.com/search/shows?q=The%20Office
+```
+
+The application exposes this through `GET /api/metadata/tvmaze?q=The%20Office`. Credit TVmaze with a visible link and comply with its CC BY-SA/share-alike licensing terms.
+
+The separately supplied TVmaze account key is not committed here. Public metadata requests do not need it; treat it as sensitive and store it only in deployment secrets if you verify a need for Premium user endpoints.
 
 ## Request examples
 
@@ -61,6 +74,7 @@ Use URL encoding for all user-supplied search terms. Do not log full request URL
 
 ## Official documentation
 
+- TVmaze API: https://www.tvmaze.com/api
 - TMDB API: https://developer.themoviedb.org/docs
 - TMDB FAQ and commercial-use guidance: https://developer.themoviedb.org/docs/faq
 - OMDb API and key page: https://www.omdbapi.com/
