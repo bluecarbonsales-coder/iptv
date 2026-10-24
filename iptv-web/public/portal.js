@@ -243,12 +243,12 @@
     $('#serviceCount').textContent = String(state.services.length);
     $('#visibleCount').textContent = String(services.length);
     $('#heroStat').textContent = String(state.services.length).padStart(2, '0');
-    $('#btnAdd').hidden = !state.canManage;
-    $('#btnLock').hidden = !state.canManage;
-    $('#btnManage').hidden = state.canManage;
-    $('#manageNote').hidden = state.canManage;
-    $('#unlockPanel').hidden = state.canManage;
-    $('#manageActions').hidden = !state.canManage;
+    $('#btnAdd').hidden = true;
+    $('#btnLock').hidden = true;
+    $('#btnManage').hidden = true;
+    $('#manageNote').hidden = false;
+    $('#unlockPanel').hidden = true;
+    $('#manageActions').hidden = true;
   }
   async function loadServices() {
     try {
