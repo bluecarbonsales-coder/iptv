@@ -33,6 +33,7 @@ const { createPortalApi } = require('./lib/portal');
 const { createResourceAvailability } = require('./lib/resource-availability');
 const { createRadioApi } = require('./lib/radio');
 const { createMailApi } = require('./lib/mail-workspace');
+const { createMetadataApi } = require('./lib/metadata');
 
 const PORT = parseInt(process.env.PORT, 10) || 3920;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -83,6 +84,7 @@ const portal = createPortalApi({ dataDir: DATA_DIR });
 const resourceAvailability = createResourceAvailability({ getServices: portal.getServices });
 const radio = createRadioApi();
 const mail = createMailApi({ dataDir: DATA_DIR });
+const metadata = createMetadataApi();
 const staticHandler = serveStatic(PUBLIC_DIR);
 
 // POST /api/refresh drags 18 MB from iptv-org: allow it freely from the host itself,
@@ -171,6 +173,10 @@ app.get('/api/agent/v1/mail/contacts', mail.agentContacts);
 app.get('/api/agent/v1/mail/drafts', mail.agentDrafts);
 app.post('/api/agent/v1/mail/drafts', mail.agentDraftCreate);
 app.post('/api/agent/v1/mail/drafts/:id/send', mail.agentDraftSend);
+
+// Movie metadata search and title enrichment (API keys remain server-side).
+app.get('/api/metadata/search', metadata.search);
+app.get('/api/metadata/title', metadata.title);
 
 // Public Radio Browser directory and UUID-based stream relay (no arbitrary URL proxy).
 app.get('/api/radio/stations', radio.stations);
