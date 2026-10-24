@@ -17,12 +17,27 @@ function baseUrl(req) {
 function createApi(catalog, refresh, dataDir) {
   const sourceDataDir = dataDir || require('path').join(__dirname, '..', 'data');
 
+  function authorizeSourceWrite(req, res) {
+    const expected = process.env.SOURCE_TOKEN || process.env.REFRESH_TOKEN;
+    const given = req.headers['x-source-token'];
+    if (!expected) {
+      sendJson(req, res, 503, { error: 'source management is disabled until SOURCE_TOKEN or REFRESH_TOKEN is configured' });
+      return false;
+    }
+    if (typeof given !== 'string' || given.length !== expected.length || !require('crypto').timingSafeEqual(Buffer.from(given), Buffer.from(expected))) {
+      sendJson(req, res, 403, { error: 'source management token required' });
+      return false;
+    }
+    return true;
+  }
+
   const sourceList = (req, res) => {
     const { sources } = sourceLib.loadSourcesSync(sourceDataDir);
     sendJson(req, res, 200, { sources: sources.map(publicSource) });
   };
 
   const addSource = async (req, res) => {
+    if (!authorizeSourceWrite(req, res)) return;
     try {
       const body = JSON.parse(await readBody(req, 16384));
       const name = String(body.name || '').trim().slice(0, 80);
@@ -48,6 +63,7 @@ function createApi(catalog, refresh, dataDir) {
   };
 
   const updateSource = async (req, res, params) => {
+    if (!authorizeSourceWrite(req, res)) return;
     try {
       const body = JSON.parse(await readBody(req, 16384));
       const { sources } = sourceLib.loadSourcesSync(sourceDataDir);
@@ -76,6 +92,7 @@ function createApi(catalog, refresh, dataDir) {
   };
 
   const deleteSource = async (req, res, params) => {
+    if (!authorizeSourceWrite(req, res)) return;
     const { sources } = sourceLib.loadSourcesSync(sourceDataDir);
     const next = sources.filter((s) => s.id !== params.id);
     if (next.length === sources.length) return sendJson(req, res, 404, { error: 'source not found' });
