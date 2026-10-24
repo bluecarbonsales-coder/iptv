@@ -144,7 +144,7 @@ app.get('/api/agent/v1/commons/search', agent.commonsSearch);
 
 // Persistent home-page links; only reads are public, all mutations require an existing management token.
 app.get('/api/navigation', (req, res) => {
-  try { sendJson(req, res, 200, navigationConfig.read()); }
+  try { const config = navigationConfig.read(); sendJson(req, res, 200, { ...config, items: config.items.filter((item) => item.enabled !== false) }); }
   catch (err) { sendJson(req, res, 500, { error: 'navigation config unavailable' }); }
 });
 app.post('/api/visitor/context', async (req, res) => {
