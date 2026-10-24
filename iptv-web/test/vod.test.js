@@ -56,3 +56,40 @@ test('normalizes MacCMS records without dropping provider context', () => {
   assert.equal(item.episodes.length, 1);
   assert.equal(item.logo, 'https://cdn.example/poster.jpg');
 });
+
+test('imports LibreTV SourceList JSON with deduplication and preserves detail metadata', () => {
+  const sources = vod.parseSourceList({
+    name: 'Trusted list',
+    version: 2,
+    sources: [
+      { name: 'Movies One', url: 'https://catalog.example/api.php/provide/vod', detail: 'https://catalog.example' },
+      { name: 'Duplicate', url: 'https://catalog.example/api.php/provide/vod' },
+      { name: 'Unsafe', url: 'file:///etc/passwd' },
+      { name: 'Embedded credentials', url: 'https://user:pass@catalog.example/api.php/provide/vod' },
+    ],
+  });
+  assert.equal(sources.length, 1);
+  assert.equal(sources[0].name, 'Movies One');
+  assert.equal(sources[0].api, 'https://catalog.example/api.php/provide/vod');
+  assert.equal(sources[0].detail, 'https://catalog.example/');
+});
+
+test('imports MoonTV api_site and compatible TVBox sites structures', () => {
+  const moon = vod.parseSourceList({
+    api_site: {
+      filmhub: { name: 'Film Hub', api: 'https://one.example/api.php/provide/vod', detail: 'https://one.example' },
+    },
+  });
+  assert.equal(moon.length, 1);
+  assert.equal(moon[0].name, 'Film Hub');
+
+  const tvbox = vod.parseSourceList({
+    sites: [{ key: 'anime', name: 'Anime Catalog', api: 'https://anime.example/api.php/provide/vod' }],
+  });
+  assert.equal(tvbox.length, 1);
+  assert.equal(tvbox[0].kind, 'all');
+});
+
+test('rejects config documents without compatible VOD APIs', () => {
+  assert.throws(() => vod.parseSourceList({ foo: [] }), /No supported VOD APIs found/);
+});
