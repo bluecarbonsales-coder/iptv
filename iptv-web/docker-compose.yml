@@ -18,6 +18,10 @@ services:
       SOURCE_TOKEN: "${SOURCE_TOKEN:-}"
       # Agent endpoints remain disabled until a strong AGENT_API_TOKEN is set.
       AGENT_API_TOKEN: "${AGENT_API_TOKEN:-}"
+      # GitHub App/PAT with repository contents, pull-request, and Actions permissions for autonomous code changes.
+      GITHUB_REPO_TOKEN: "${GITHUB_REPO_TOKEN:-}"
+      GITHUB_REPOSITORY: "${GITHUB_REPOSITORY:-bluecarbonsales-coder/iptv}"
+      GITHUB_DEFAULT_BRANCH: "${GITHUB_DEFAULT_BRANCH:-main}"
       # "full" permits an authenticated agent to add/update/remove providers. Use "review" to block agent writes.
       AGENT_AUTONOMY: "${AGENT_AUTONOMY:-full}"
       AGENT_AUTOMATION_ENABLED: "${AGENT_AUTOMATION_ENABLED:-1}"
