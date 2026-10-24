@@ -17,8 +17,8 @@ read_env_value() {
   while IFS= read -r line || [[ -n "$line" ]]; do
     [[ "$line" == "$wanted="* ]] || continue
     value="${line#*=}"
-    if [[ "$value" == \"*\" && "${#value}" -ge 2 ]]; then value="${value:1:-1}"; fi
-    if [[ "$value" == \'*\' && "${#value}" -ge 2 ]]; then value="${value:1:-1}"; fi
+    if [[ "${value:0:1}" == '"' && "${value: -1}" == '"' ]]; then value="${value:1:-1}"; fi
+    if [[ "${value:0:1}" == "'" && "${value: -1}" == "'" ]]; then value="${value:1:-1}"; fi
     printf '%s' "$value"
     return 0
   done < "$file"
@@ -88,15 +88,15 @@ TOKEN=""
 while IFS= read -r line || [[ -n "$line" ]]; do
   [[ "$line" == GITHUB_REPO_TOKEN=* ]] || continue
   TOKEN="${line#*=}"
-  if [[ "$TOKEN" == \"*\" && "${#TOKEN}" -ge 2 ]]; then TOKEN="${TOKEN:1:-1}"; fi
-  if [[ "$TOKEN" == \'*\' && "${#TOKEN}" -ge 2 ]]; then TOKEN="${TOKEN:1:-1}"; fi
+  if [[ "${TOKEN:0:1}" == '"' && "${TOKEN: -1}" == '"' ]]; then TOKEN="${TOKEN:1:-1}"; fi
+  if [[ "${TOKEN:0:1}" == "'" && "${TOKEN: -1}" == "'" ]]; then TOKEN="${TOKEN:1:-1}"; fi
   break
 done < "$ENV_FILE"
 [[ -n "$TOKEN" && "$TOKEN" != replace-with-* ]] || exit 0
 printf 'username=x-access-token\npassword=%s\n\n' "$TOKEN"
 CREDENTIAL_HELPER
   chmod 700 "$HELPER"
-  git -C "$WORKSPACE" config --local credential.helper "!\\"$HELPER\\" \\"$ENV_FILE\\""
+  git -C "$WORKSPACE" config --local credential.helper "!$HELPER $ENV_FILE"
 fi
 git -C "$WORKSPACE" config --local user.name "${GIT_AUTHOR_NAME:-IPTV Project Agent}"
 git -C "$WORKSPACE" config --local user.email "${GIT_AUTHOR_EMAIL:-iptv-project-agent@users.noreply.github.com}"
