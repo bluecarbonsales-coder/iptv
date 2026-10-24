@@ -381,6 +381,7 @@
   }
 
   function setView(v, reload) {
+    if (isVodView(v)) { window.location.href = '/movies.html?section=' + encodeURIComponent(v === 'vod' ? 'all' : v); return; }
     state.view = v;
     $('.tab').forEach((b) => b.classList.toggle('active', b.dataset.view === v));
     if (v !== 'playlists' || !state.playlistId) state.playlistId = null;
