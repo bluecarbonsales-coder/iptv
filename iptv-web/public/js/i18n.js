@@ -3,7 +3,11 @@
   'use strict';
   const DICT = {
     en: {
-      tabAll: 'All',
+      tabAll: 'Live',
+      tabMovies: 'Movies',
+      tabSeries: 'Series',
+      tabAnime: 'Anime',
+      tabVod: 'VOD',
       tabFavorites: 'Favourites',
       tabRecent: 'Recent',
       tabPlaylists: 'Playlists',
@@ -59,7 +63,11 @@
       updated: 'Data updated',
     },
     zh: {
-      tabAll: '全部',
+      tabAll: '直播',
+      tabMovies: '电影',
+      tabSeries: '剧集',
+      tabAnime: '动漫',
+      tabVod: '点播',
       tabFavorites: '收藏',
       tabRecent: '最近',
       tabPlaylists: '播放列表',
