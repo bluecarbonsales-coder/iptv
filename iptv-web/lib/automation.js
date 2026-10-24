@@ -7,7 +7,7 @@ const path = require('path');
 const { upstreamFetch, bodyToString } = require('./fetch-upstream');
 const vod = require('./vod');
 const live = require('./sources');
-const { withLock } = require('./registry-lock');
+const { withLock, withFileLock } = require('./registry-lock');
 const settingsLib = require('./agent-settings');
 
 const MAX_REGISTRY_BYTES = 1024 * 1024;
@@ -90,6 +90,7 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
   let lastRun = null;
   let lastProviderCheck = null;
   let started = false;
+  const withLiveLock = (fn) => withFileLock(live.sourcesPath(dataDir) + '.lock', () => withLock('live-sources:' + dataDir, fn));
 
   function status() {
     const registry = vod.loadSourcesSync(dataDir);
@@ -304,7 +305,7 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
         }
       }
       if (liveUpdates.length || liveAdditions.length) {
-        await withLock('live-sources:' + dataDir, () => {
+        await withLiveLock(() => {
           const current = live.loadSourcesSync(dataDir).sources;
           const currentUrls = new Set(current.map((source) => source.url));
           const safeAdds = liveAdditions.filter((item) => !currentUrls.has(item.url));
