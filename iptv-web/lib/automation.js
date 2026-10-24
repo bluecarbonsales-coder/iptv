@@ -115,7 +115,7 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
     const urls = registryUrls(dataDir);
     const report = {
       registriesChecked: 0, vodImported: 0, vodUpdated: 0, liveImported: 0, liveUpdated: 0,
-      duplicates: 0, rejected: 0, errors: [],
+      duplicates: 0, rejected: 0, skippedLimit: 0, errors: [],
     };
     report.imported = 0;
     report.updated = 0;
@@ -154,7 +154,8 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
       const handledVod = new Set();
       const vodUpdates = [];
       const vodAdditions = [];
-      for (const candidate of vodCandidates.slice(0, MAX_NEW_PER_CYCLE)) {
+      let vodProcessed = 0;
+      for (const candidate of vodCandidates) {
         const sameEndpoint = initialVod.find((source) => source.api === candidate.api);
         if (sameEndpoint) {
           if (sameEndpoint.importedFrom === listUrl) {
@@ -175,6 +176,11 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
           }
           continue;
         }
+        if (vodProcessed >= MAX_NEW_PER_CYCLE) {
+          report.skippedLimit++;
+          continue;
+        }
+        vodProcessed++;
         const prior = initialVod.find((source) =>
           source.importedFrom === listUrl &&
           normalizeName(source.name) === normalizeName(candidate.name) &&
@@ -245,7 +251,8 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
       const handledLive = new Set();
       const liveUpdates = [];
       const liveAdditions = [];
-      for (const candidate of liveCandidates.slice(0, MAX_NEW_PER_CYCLE)) {
+      let liveProcessed = 0;
+      for (const candidate of liveCandidates) {
         const sameEndpoint = initialLive.find((source) => source.url === candidate.url);
         if (sameEndpoint) {
           if (sameEndpoint.importedFrom === listUrl) {
@@ -265,6 +272,11 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
           }
           continue;
         }
+        if (liveProcessed >= MAX_NEW_PER_CYCLE) {
+          report.skippedLimit++;
+          continue;
+        }
+        liveProcessed++;
         const prior = initialLive.find((source) =>
           source.importedFrom === listUrl &&
           normalizeName(source.name) === normalizeName(candidate.name) &&
@@ -336,7 +348,7 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
       summary: 'Registries ' + report.registriesChecked +
         '; VOD +' + report.vodImported + '/~' + report.vodUpdated +
         '; live +' + report.liveImported + '/~' + report.liveUpdated +
-        '; duplicates ' + report.duplicates + '; rejected ' + report.rejected,
+        '; duplicates ' + report.duplicates + '; rejected ' + report.rejected + '; deferred by cycle limit ' + report.skippedLimit,
     });
     return report;
   }
