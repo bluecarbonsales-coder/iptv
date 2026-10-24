@@ -9,7 +9,7 @@ const { upstreamFetch, bodyToString } = require('./fetch-upstream');
 
 const MAX_VOD_SOURCES = Math.max(1, Math.min(512, parseInt(process.env.MAX_VOD_SOURCES || '128', 10) || 128));
 const MAX_RESPONSE_BYTES = 6 * 1024 * 1024;
-const KINDS = new Set(['all', 'movies', 'series', 'anime']);
+const KINDS = new Set(['all', 'movies', 'series', 'anime', 'documentary']);
 
 function registryPath(dataDir) {
   return path.join(dataDir, 'vod-sources.json');
@@ -105,7 +105,8 @@ function text(value) {
 function classify(item) {
   const category = text([item.type_name, item.typeName, item.vod_class, item.category, item.type].filter(Boolean).join(' ')).toLowerCase();
   if (/动漫|动画|anime|animation|cartoon|donghua/.test(category)) return 'anime';
-  if (/电视剧|剧集|连续剧|国产剧|欧美剧|泰剧|短剧|美剧|韩剧|日剧|港剧|台剧|日韩剧|华语剧|综艺|纪录片|纪录|series|tv show|drama|documentary|variety/.test(category)) return 'series';
+  if (/纪录片|纪录|documentary|nonfiction/.test(category)) return 'documentary';
+  if (/电视剧|剧集|连续剧|国产剧|欧美剧|泰剧|短剧|美剧|韩剧|日剧|港剧|台剧|日韩剧|华语剧|综艺|series|tv show|drama|variety/.test(category)) return 'series';
   if (/电影|动作片|喜剧片|爱情片|科幻片|恐怖片|战争片|犯罪片|悬疑片|剧情片|惊悚片|冒险片|movie|film|feature/.test(category)) return 'movies';
   return 'all';
 }
