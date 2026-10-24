@@ -151,7 +151,16 @@ app.get('/api/navigation', (req, res) => {
   try { const config = navigationConfig.read(); sendJson(req, res, 200, { ...config, items: config.items.filter((item) => item.enabled !== false) }); }
   catch (err) { sendJson(req, res, 500, { error: 'navigation config unavailable' }); }
 });
+let visitorContextWindowStart = Date.now();
+let visitorContextRequests = 0;
 app.post('/api/visitor/context', async (req, res) => {
+  const now = Date.now();
+  if (now - visitorContextWindowStart >= 60000) {
+    visitorContextWindowStart = now;
+    visitorContextRequests = 0;
+  }
+  if (visitorContextRequests >= 120) return sendJson(req, res, 429, { error: 'visitor discovery submission limit reached; try again later' });
+  visitorContextRequests++;
   try {
     const body = JSON.parse(await require('./lib/util').readBody(req, 4096));
     sendJson(req, res, 200, visitorContext.record(body));
