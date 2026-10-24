@@ -18,6 +18,14 @@ const autonomy = (dataDir) => settingsLib.getSettings(dataDir).autonomy;
 function registryUrls(dataDir) {
   return settingsLib.getSettings(dataDir).sourceListUrls;
 }
+function registryUrlSummary(raw) {
+  try {
+    const url = new URL(raw);
+    return url.origin + url.pathname + (url.search ? '?[query-redacted]' : '');
+  } catch {
+    return '[invalid URL]';
+  }
+}
 function auditPath(dataDir) {
   return path.join(dataDir, 'agent-audit.jsonl');
 }
@@ -90,7 +98,7 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
       autonomy: autonomy(dataDir),
       intervalHours: settingsLib.getSettings(dataDir).autoSourceSyncHours,
       liveRefreshHours: settingsLib.getSettings(dataDir).refreshHours,
-      registryUrls: registryUrls(dataDir),
+      registryUrls: registryUrls(dataDir).map(registryUrlSummary),
       liveCatalogAgeHours: catalog && catalog.meta && catalog.meta.updated ? Math.max(0, Math.round((Date.now() - Date.parse(catalog.meta.updated)) / 360000) / 10) : null,
       configuredRegistryCount: registryUrls(dataDir).length,
       providerCount: registry.sources.length,
