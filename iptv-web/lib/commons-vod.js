@@ -26,7 +26,7 @@ function licenseInfo(meta = {}) {
   if (/creativecommons\.org\/publicdomain\/(?:zero|mark)\//.test(url) || /\bcc0\b|public domain|pdm/.test(name + ' ' + terms)) {
     return { label: name || 'Public domain / CC0', url: url || null };
   }
-  if (/creativecommons\.org\/licenses\/by-sa?\//.test(url) || /\bcc by(?:-sa)?\b/.test(name)) {
+  if (/creativecommons\.org\/licenses\/by(?:-sa)?\//.test(url) || /\bcc by(?:-sa)?\b/.test(name)) {
     return { label: name || 'Creative Commons Attribution', url: url || null };
   }
   return null;
@@ -68,6 +68,7 @@ function normalizePage(page) {
 async function fetchJson(url) {
   const { response } = await upstreamFetch(url, {
     timeoutMs: 15000,
+    userAgent: 'IPTV-Web/1.0 (open-license video catalog; https://iptv.nafisainternational.com)',
     extraHeaders: {
       Accept: 'application/json',
       'Api-User-Agent': 'IPTV-Web/1.0 (open-license video catalog; https://iptv.nafisainternational.com) Node.js',
