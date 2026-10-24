@@ -49,5 +49,24 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # Full IPTV player (Live TV, EPG, Movies and Series). Kept on loopback;
+  # publish it only through the private Cloudflare Tunnel hostname.
+  nodecast-tv:
+    image: ghcr.io/technomancer702/nodecast-tv:latest
+    container_name: nodecast-tv
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3921:3000"
+    volumes:
+      - ./nodecast-data:/app/data
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 volumes:
   iptv-data:
