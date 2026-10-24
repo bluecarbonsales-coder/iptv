@@ -40,6 +40,10 @@ function createAgentApi({ dataDir, catalog, refresh, api, automation }) {
   function gate(action, write, handler) {
     return async (req, res, params, query) => {
       if (!authenticate(req, res)) return;
+      // Normalize bearer auth for existing source-management handlers which also support X-Agent-Token.
+      if (!req.headers['x-agent-token'] && /^Bearer\\s+/i.test(String(req.headers.authorization || ''))) {
+        req.headers['x-agent-token'] = String(process.env.AGENT_API_TOKEN || '');
+      }
       if (write && String(process.env.AGENT_AUTONOMY || 'review').toLowerCase() !== 'full') {
         automation.audit({ actor: 'agent', action, status: 'blocked', summary: 'Write blocked because AGENT_AUTONOMY is not full' });
         return sendJson(req, res, 423, {
