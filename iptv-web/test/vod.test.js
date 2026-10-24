@@ -28,14 +28,15 @@ test('classifies movies, series, and anime using common source labels', () => {
   assert.equal(vod.classify({ type_name: 'Science' }), 'all');
 });
 
-test('parses first available play-source group and deduplicates episodes', () => {
+test('parses alternate play-source groups and deduplicates episodes', () => {
   const items = vod.parseEpisodes({
     vod_play_from: 'line1$$$line2',
     vod_play_url: 'Ep 1$https://cdn.example/one.m3u8#Ep 2$https://cdn.example/two.m3u8$$$Alt$https://cdn.example/alt.m3u8',
   });
   assert.deepEqual(items, [
-    { title: 'Ep 1', url: 'https://cdn.example/one.m3u8' },
-    { title: 'Ep 2', url: 'https://cdn.example/two.m3u8' },
+    { title: 'line1 · Ep 1', url: 'https://cdn.example/one.m3u8' },
+    { title: 'line1 · Ep 2', url: 'https://cdn.example/two.m3u8' },
+    { title: 'line2 · Alt', url: 'https://cdn.example/alt.m3u8' },
   ]);
 });
 
