@@ -23,9 +23,17 @@ function loadSourcesSync(dataDir) {
 }
 function ensureDefaultSources(dataDir) {
   const target = registryPath(dataDir);
-  if (fs.existsSync(target)) return false;
+  let registry = { sources: [] };
+  try {
+    registry = JSON.parse(fs.readFileSync(target, 'utf8'));
+    if (!Array.isArray(registry.sources)) registry.sources = [];
+  } catch {}
+  if (registry.defaultsSeeded === true) return false;
   const now = new Date().toISOString();
-  const sources = DEFAULT_SOURCES.slice(0, MAX_VOD_SOURCES).map((source) => ({
+  const existing = new Set(registry.sources.map((source) => source.api));
+  const seeded = DEFAULT_SOURCES.slice(0, MAX_VOD_SOURCES).filter((source) => {
+    try { return !existing.has(normalizeApiUrl(source.api)); } catch { return false; }
+  }).map((source) => ({
     id: newId(),
     name: source.name,
     api: normalizeApiUrl(source.api),
@@ -39,14 +47,14 @@ function ensureDefaultSources(dataDir) {
     listAction: 'videolist',
     importedFrom: 'operator-provided initial list',
   }));
-  saveSources(dataDir, sources);
-  return true;
+  saveSources(dataDir, registry.sources.concat(seeded).slice(0, MAX_VOD_SOURCES));
+  return seeded.length > 0;
 }
 function saveSources(dataDir, sources) {
   fs.mkdirSync(dataDir, { recursive: true });
   const target = registryPath(dataDir);
   const temp = target + '.tmp';
-  fs.writeFileSync(temp, JSON.stringify({ version: 1, sources }, null, 2), { mode: 0o600 });
+  fs.writeFileSync(temp, JSON.stringify({ version: 1, defaultsSeeded: true, sources }, null, 2), { mode: 0o600 });
   fs.renameSync(temp, target);
 }
 function newId() {
