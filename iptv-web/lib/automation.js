@@ -8,22 +8,15 @@ const { upstreamFetch, bodyToString } = require('./fetch-upstream');
 const vod = require('./vod');
 const live = require('./sources');
 const { withLock } = require('./registry-lock');
+const settingsLib = require('./agent-settings');
 
 const MAX_REGISTRY_BYTES = 1024 * 1024;
 const MAX_NEW_PER_CYCLE = 24;
-const HOURS = (name, fallback, min = 1) => {
-  const n = Number(process.env[name]);
-  return Number.isFinite(n) ? Math.max(min, Math.min(24 * 30, n)) : fallback;
-};
-const intervalMs = () => HOURS('AUTO_SOURCE_SYNC_HOURS', 12, 1) * 3600000;
-const autonomy = () => String(process.env.AGENT_AUTONOMY || 'review').toLowerCase();
+const intervalMs = (dataDir) => settingsLib.getSettings(dataDir).autoSourceSyncHours * 3600000;
+const autonomy = (dataDir) => settingsLib.getSettings(dataDir).autonomy;
 
-function registryUrls() {
-  return String(process.env.VOD_SOURCE_LIST_URLS || '')
-    .split(/[\n,;]/)
-    .map((url) => url.trim())
-    .filter((url) => /^https?:\/\//i.test(url))
-    .slice(0, 32);
+function registryUrls(dataDir) {
+  return settingsLib.getSettings(dataDir).sourceListUrls;
 }
 function auditPath(dataDir) {
   return path.join(dataDir, 'agent-audit.jsonl');
@@ -124,7 +117,7 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
   }
 
   async function syncSourceLists(actor = 'automation') {
-    const urls = registryUrls();
+    const urls = registryUrls(dataDir);
     const report = {
       registriesChecked: 0, vodImported: 0, vodUpdated: 0, liveImported: 0, liveUpdated: 0,
       duplicates: 0, rejected: 0, errors: [],
@@ -132,7 +125,7 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
     report.imported = 0;
     report.updated = 0;
     report.liveChanged = false;
-    if (autonomy() === 'off') {
+    if (autonomy(dataDir) === 'off') {
       report.skipped = 'AGENT_AUTONOMY=off';
       audit(dataDir, { actor, action: 'source_list.sync', status: 'blocked', summary: 'Automatic provider discovery disabled by policy' });
       return report;
@@ -182,7 +175,7 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
           api: candidate.api,
           detail: candidate.detail || null,
           kind: candidate.kind,
-          enabled: autonomy() === 'full',
+          enabled: autonomy(dataDir) === 'full',
           addedAt: prior ? prior.addedAt : new Date().toISOString(),
           lastChecked: null,
           lastError: null,
@@ -353,8 +346,13 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
     const ageHours = catalog.meta && catalog.meta.updated && Number.isFinite(Date.parse(catalog.meta.updated))
       ? (Date.now() - Date.parse(catalog.meta.updated)) / 3600000
       : Infinity;
-    const maxAge = HOURS('REFRESH_HOURS', 12, 1);
-    if (catalog.ready && ageHours <= maxAge) {
+    const maxAge = settingsLib.getSettings(dataDir).refreshHours;
+    const liveSources = live.loadSourcesSync(dataDir).sources.filter((source) => source.enabled !== false);
+    const liveNeedsRefresh = liveSources.some((source) => {
+      const updated = source.lastUpdated ? Date.parse(source.lastUpdated) : NaN;
+      return !Number.isFinite(updated) || Date.now() - updated > maxAge * 3600000;
+    });
+    if (catalog.ready && ageHours <= maxAge && !liveNeedsRefresh) {
       return { refreshed: false, reason: 'catalog_is_fresh', ageHours: Math.round(ageHours * 10) / 10 };
     }
     const result = await refresh();
@@ -403,13 +401,13 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
   }
 
   function start() {
-    if (started || process.env.AGENT_AUTOMATION_ENABLED === '0') return;
+    if (started || !settingsLib.getSettings(dataDir).automationEnabled) return;
     started = true;
     const schedule = () => {
       if (timer) clearInterval(timer);
       timer = setInterval(() => {
         runCycle('scheduler').catch((err) => log('source maintenance failed:', err.message));
-      }, intervalMs());
+      }, intervalMs(dataDir));
       timer.unref && timer.unref();
     };
     startupTimer = setTimeout(() => {
@@ -426,6 +424,14 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
     started = false;
   }
 
-  return { status, syncSourceLists, checkProviders, refreshLiveIfDue, runCycle, task, start, stop, audit: (entry) => audit(dataDir, entry), readAudit: (limit) => readAudit(dataDir, limit) };
+  async function updateSettings(patch, actor = 'agent') {
+    const updated = settingsLib.updateSettings(dataDir, patch);
+    stop();
+    if (updated.automationEnabled) start();
+    audit(dataDir, { actor, action: 'settings.update', status: 'ok', summary: 'Updated agent runtime settings; automation ' + (updated.automationEnabled ? 'enabled' : 'disabled') + '; autonomy ' + updated.autonomy });
+    return updated;
+  }
+
+  return { status, syncSourceLists, checkProviders, refreshLiveIfDue, runCycle, task, start, stop, getSettings: () => settingsLib.getSettings(dataDir), updateSettings, audit: (entry) => audit(dataDir, entry), readAudit: (limit) => readAudit(dataDir, limit) };
 }
 module.exports = { createAutomation, audit, readAudit, registryUrls };
