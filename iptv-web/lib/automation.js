@@ -105,6 +105,11 @@ function createAutomation({ dataDir, refresh, log = () => {}, onProvidersChanged
   async function syncSourceLists(actor = 'automation') {
     const urls = registryUrls();
     const report = { registriesChecked: 0, imported: 0, updated: 0, duplicates: 0, rejected: 0, errors: [] };
+    if (autonomy() === 'off') {
+      report.skipped = 'AGENT_AUTONOMY=off';
+      audit(dataDir, { actor, action: 'source_list.sync', status: 'blocked', summary: 'Automatic source discovery disabled by policy' });
+      return report;
+    }
     if (!urls.length) return report;
     for (const listUrl of urls) {
       let candidates;
@@ -162,6 +167,7 @@ function createAutomation({ dataDir, refresh, log = () => {}, onProvidersChanged
           record.enabled = false;
           record.lastError = 'Imported in review mode; enable after checking compatibility and rights';
         }
+        existingUrls.add(candidate.api);
         if (prior) {
           handled.add(prior.id);
           updates.push(record);
