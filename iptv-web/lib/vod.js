@@ -83,7 +83,7 @@ function text(value) {
 function classify(item) {
   const category = text([item.type_name, item.typeName, item.vod_class, item.category, item.type].filter(Boolean).join(' ')).toLowerCase();
   if (/动漫|动画|anime|animation|cartoon/.test(category)) return 'anime';
-  if (/电视剧|剧集|连续剧|美剧|韩剧|日剧|港剧|台剧|series|tv show|drama/.test(category)) return 'series';
+  if (/电视剧|剧集|连续剧|国产剧|欧美剧|泰剧|短剧|美剧|韩剧|日剧|港剧|台剧|series|tv show|drama/.test(category)) return 'series';
   if (/电影|movie|film|feature/.test(category)) return 'movies';
   return 'all';
 }
