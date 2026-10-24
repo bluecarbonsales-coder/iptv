@@ -34,6 +34,7 @@ const { createResourceAvailability } = require('./lib/resource-availability');
 const { createRadioApi } = require('./lib/radio');
 const { createMailApi } = require('./lib/mail-workspace');
 const { createMediaDiscovery } = require('./lib/media-discovery');
+const { createTmdbApi } = require('./lib/tmdb');
 
 const PORT = parseInt(process.env.PORT, 10) || 3920;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -85,6 +86,7 @@ const resourceAvailability = createResourceAvailability({ getServices: portal.ge
 const radio = createRadioApi();
 const mail = createMailApi({ dataDir: DATA_DIR });
 const mediaDiscovery = createMediaDiscovery({ dataDir: DATA_DIR });
+const tmdb = createTmdbApi();
 const staticHandler = serveStatic(PUBLIC_DIR);
 
 // POST /api/refresh drags 18 MB from iptv-org: allow it freely from the host itself,
@@ -141,6 +143,11 @@ app.get('/api/portal/services', portal.list);
 app.post('/api/portal/services', portal.add);
 app.patch('/api/portal/services/:id', portal.update);
 app.delete('/api/portal/services/:id', portal.remove);
+
+// TMDB metadata API; credentials remain server-side.
+app.get('/api/tmdb/search', tmdb.search);
+app.get('/api/tmdb/trending', tmdb.trending);
+app.get('/api/tmdb/:id', tmdb.detail);
 
 // Media discovery: Jackett search + public-domain archive results + persistent saved links.
 app.get('/api/media/search', mediaDiscovery.search);
