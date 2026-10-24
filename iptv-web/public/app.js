@@ -767,6 +767,79 @@
       setView('playlists', true);
     });
 
+    // Persistent server-side resources. The management token stays in this tab only.
+    const sourceToken = $('#sourceToken');
+    sourceToken.value = '';
+    function sourceHeaders() {
+      const token = sourceToken.value.trim();
+      if (!token) throw new Error('Enter the management token first.');
+      return { 'Content-Type': 'application/json', 'X-Source-Token': token };
+    }
+    async function sourceRequest(url, options) {
+      const res = await fetch(url, options || {});
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+      return data;
+    }
+    async function loadServerSources() {
+      const list = $('#sourceList');
+      $('#sourceStatus').textContent = 'Loading resources…';
+      try {
+        const data = await sourceRequest('/api/sources');
+        list.innerHTML = (data.sources || []).map((s) => {
+          const status = s.error ? 'Error: ' + s.error : (s.count + ' channels · ' + s.streams + ' streams');
+          return '<li data-source="' + esc(s.id) + '"><div class="pl-info"><strong>' + esc(s.name) + '</strong><small>' + esc(status) + '</small></div><button type="button" class="link-btn" data-source-toggle="' + esc(s.id) + '" data-enabled="' + (!s.enabled) + '">' + (s.enabled ? 'Disable' : 'Enable') + '</button><button type="button" class="link-btn del" data-source-delete="' + esc(s.id) + '" aria-label="Delete ' + esc(s.name) + '">Delete</button></li>';
+        }).join('');
+        if (!data.sources.length) list.innerHTML = '<li><small>No persistent resources yet.</small></li>';
+        $('#sourceStatus').textContent = data.sources.length + ' resource(s) configured.';
+      } catch (err) {
+        $('#sourceStatus').textContent = err.message;
+      }
+    }
+    $('#sourceReload').onclick = loadServerSources;
+    $('#sourceAdd').onclick = async () => {
+      try {
+        const headers = sourceHeaders();
+        const name = $('#sourceName').value.trim();
+        const url = $('#sourceUrl').value.trim();
+        if (!name || !url) throw new Error('Enter both a resource name and playlist URL.');
+        $('#sourceAdd').disabled = true;
+        $('#sourceStatus').textContent = 'Validating playlist and refreshing catalogue…';
+        await sourceRequest('/api/sources', { method: 'POST', headers, body: JSON.stringify({ name, url }) });
+        $('#sourceName').value = '';
+        $('#sourceUrl').value = '';
+        toast('Resource added and catalogue refreshed.');
+        await loadServerSources();
+        await loadMeta();
+        await load(true);
+      } catch (err) {
+        $('#sourceStatus').textContent = err.message;
+      } finally {
+        $('#sourceAdd').disabled = false;
+      }
+    };
+    $('#sourceList').addEventListener('click', async (e) => {
+      const toggle = e.target.closest('[data-source-toggle]');
+      const remove = e.target.closest('[data-source-delete]');
+      if (!toggle && !remove) return;
+      try {
+        const headers = sourceHeaders();
+        if (remove) {
+          if (!confirm('Delete this persistent resource? Its channels will be removed from the catalogue on refresh.')) return;
+          await sourceRequest('/api/sources/' + encodeURIComponent(remove.dataset.sourceDelete), { method: 'DELETE', headers });
+        } else {
+          await sourceRequest('/api/sources/' + encodeURIComponent(toggle.dataset.sourceToggle), { method: 'PATCH', headers, body: JSON.stringify({ enabled: toggle.dataset.enabled === 'true' }) });
+        }
+        $('#sourceStatus').textContent = 'Refreshing catalogue…';
+        await loadServerSources();
+        await loadMeta();
+        await load(true);
+      } catch (err) {
+        $('#sourceStatus').textContent = err.message;
+      }
+    });
+    loadServerSources();
+
     // player wiring
     $('#pClose').onclick = closePlayer;
     $('#pFav').onclick = () => player.item && toggleFav(player.item.id);
