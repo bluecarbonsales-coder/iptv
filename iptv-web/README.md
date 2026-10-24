@@ -7,6 +7,26 @@ that too.
 
 Live deployment: **https://iptv.nafisainternational.com**
 
+## Service portal homepage
+
+The root path `/` is now a configurable service portal, not a player-specific landing page. It provides a searchable directory of self-hosted apps and external websites, category filters, responsive cards, and authenticated add/edit/delete/reorder controls. Existing IPTV functionality remains available at **`/watch.html`**.
+
+The initial directory includes the player, known Nafisa service shortcuts, and examples such as ChatGPT, GitHub, Cloudflare, YouTube, and Wikipedia. Edit or delete any example to match the services you actually use. Service definitions persist in `DATA_DIR/portal-services.json` (in Docker, `/data/portal-services.json`), separate from the image and preserved with the existing data volume.
+
+To manage links, choose **Manage links** on the homepage and enter the existing `SOURCE_TOKEN`, `REFRESH_TOKEN`, or `AGENT_API_TOKEN` configured in the server environment. The token is kept only in page memory and is not written to local storage. Management calls use the API below:
+
+| Route | Purpose |
+|---|---|
+| `GET /api/portal/services` | Public service directory |
+| `GET /api/portal/services?manage=1` | Validate management access and return the directory |
+| `POST /api/portal/services` | Add a link (management token required) |
+| `PATCH /api/portal/services/:id` | Edit a link (management token required) |
+| `DELETE /api/portal/services/:id` | Remove a link (management token required) |
+
+Links accept same-site relative paths or absolute HTTP(S) URLs. Each card opens safely in a new tab. Removing a link only removes its shortcut; it does not modify or delete the linked service.
+
+The portal uses plain HTML, CSS, browser JavaScript, and the existing Node standard-library server. It has no npm dependencies and does not rely on OpenResty-specific features or any single player framework. It can sit behind Cloudflare Tunnel/Access, OpenResty, Nginx, Caddy, Traefik, or another ingress that forwards requests to the app. Keep the Node port private as in the existing deployment. If the directory itself should be private, protect the homepage with Cloudflare Access or equivalent; the directory's URLs and names are visible to visitors who can reach the public homepage.
+
 ```
 ┌────────────┐   https   ┌──────────────┐   loopback  ┌────────────────────┐
 │  browser   │ ────────► │  openresty   │ ──────────► │  node (this app)   │
@@ -63,6 +83,7 @@ play fine through it.
 - **M3U export** — `/api/export.m3u` mirrors the current filters, and can emit either the
   original stream URLs or relay URLs (`&proxy=1`) for use in VLC/Kodi.
 - **Bilingual UI** — English / 简体中文.
+- **Service portal homepage** — configurable service directory at `/`, with `/watch.html` preserving the IPTV player; persistent links, category filters, search, and token-protected link management.
 - **No dependencies** — plain Node stdlib, no npm install, no build step.
 
 ## API
@@ -115,6 +136,10 @@ play fine through it.
 | `GET /api/agent/v1/vod/search?type=&q=` | machine-oriented VOD + licensed-archive search |
 | `GET /api/agent/v1/archive/search?type=&q=` | search the built-in Internet Archive adapter |
 | `GET /healthz` | counts, timestamp, uptime |
+| `GET /api/portal/services` | searchable-homepage service directory; reads are public |
+| `POST /api/portal/services` | add a homepage service shortcut (requires existing management token) |
+| `PATCH /api/portal/services/:id` | update a shortcut (requires existing management token) |
+| `DELETE /api/portal/services/:id` | remove a shortcut only (requires existing management token) |
 
 `POST /api/refresh` is accepted from the host itself without a token; anything arriving
 through the reverse proxy must send `X-Refresh-Token` matching `REFRESH_TOKEN`. Resource-management
@@ -182,7 +207,7 @@ lib/agent.js          Hermes/agent API, OpenAPI schema, token auth and agent set
 tools/agentctl.js     dependency-free CLI for Hermes and other agents
 lib/m3u.js           M3U parser (server); public/js/m3u.js is the browser twin
 lib/static.js        static serving with etag + gzip
-public/              index.html, app.css, app.js, js/i18n.js, vendor/hls.min.js
+public/              index.html (service portal), watch.html (IPTV player), portal.css/js, app.css/js, js/i18n.js, vendor/hls.min.js
 tools/probe.js       stream-health sampler: node tools/probe.js 40 all
 deploy/              scripts used to stand the site up on the server
 ```
@@ -216,7 +241,8 @@ Local:
 ```bash
 node lib/refresh.js --src=data-src   # or without --src to download from iptv-org
 PORT=3920 node server.js
-# http://127.0.0.1:3920
+# http://127.0.0.1:3920       (service portal)
+# http://127.0.0.1:3920/watch.html (IPTV player)
 ```
 
 Docker (what the server runs):

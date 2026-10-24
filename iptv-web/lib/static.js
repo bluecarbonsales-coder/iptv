@@ -39,7 +39,7 @@ function serveStatic(rootDir, options = {}) {
     const type = mimeFor(abs);
     const etag = `W/"${stat.size}-${stat.mtimeMs}"`;
     const headers = {
-      'Cache-Control': /index\.html$/.test(abs) ? 'no-cache' : 'public, max-age=86400',
+      'Cache-Control': /(?:index|watch)\.html$/.test(abs) ? 'no-cache' : 'public, max-age=86400',
       ETag: etag,
       'Last-Modified': stat.mtime.toUTCString(),
       'Access-Control-Allow-Origin': '*',
