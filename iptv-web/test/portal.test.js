@@ -44,6 +44,7 @@ test('management token comparison checks exact values and defaults are extensibl
   assert.equal(matchesToken(undefined, 'long-random-secret'), false);
   assert.ok(DEFAULT_SERVICES.some((service) => service.url === '/watch.html'));
   assert.ok(DEFAULT_SERVICES.some((service) => service.id === 'theatre' && service.url === '/movies.html'));
+  assert.ok(DEFAULT_SERVICES.some((service) => service.id === 'nodecast-tv' && service.url === 'https://player.nafisainternational.com'));
   assert.ok(DEFAULT_SERVICES.some((service) => service.id === 'public-radio' && service.url === '/radio.html'));
   assert.ok(DEFAULT_SERVICES.some((service) => service.id === 'seedhub' && service.category === 'Media resources'));
   assert.ok(DEFAULT_SERVICES.some((service) => service.id === 'streambert' && service.url === 'https://github.com/truelockmc/streambert'));
@@ -52,7 +53,7 @@ test('management token comparison checks exact values and defaults are extensibl
 });
 
 
-test('existing portal data is migrated once with SeedHub and Streambert while preserving custom links', () => {
+test('existing portal data is migrated with Nodecast TV while preserving custom links and removals', () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'iptv-portal-migration-'));
   try {
     fs.writeFileSync(path.join(dataDir, 'portal-services.json'), JSON.stringify({
@@ -67,13 +68,15 @@ test('existing portal data is migrated once with SeedHub and Streambert while pr
     assert.ok(ids.includes('theatre'));
     assert.ok(ids.includes('seedhub'));
     assert.ok(ids.includes('streambert'));
-    assert.equal(JSON.parse(fs.readFileSync(path.join(dataDir, 'portal-services.json'), 'utf8')).version, 3);
+    assert.ok(ids.includes('nodecast-tv'));
+    assert.equal(JSON.parse(fs.readFileSync(path.join(dataDir, 'portal-services.json'), 'utf8')).version, 4);
 
     // User removals should persist once the one-time migration has completed.
     const saved = JSON.parse(fs.readFileSync(path.join(dataDir, 'portal-services.json'), 'utf8'));
-    saved.services = saved.services.filter((item) => item.id !== 'seedhub');
+    saved.services = saved.services.filter((item) => !['seedhub', 'nodecast-tv'].includes(item.id));
     fs.writeFileSync(path.join(dataDir, 'portal-services.json'), JSON.stringify(saved));
     assert.equal(portal.getServices().some((item) => item.id === 'seedhub'), false);
+    assert.equal(portal.getServices().some((item) => item.id === 'nodecast-tv'), false);
   } finally {
     fs.rmSync(dataDir, { recursive: true, force: true });
   }
