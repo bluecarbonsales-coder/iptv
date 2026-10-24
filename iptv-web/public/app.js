@@ -879,9 +879,13 @@
 
     // Persistent server-side resources. The management token stays in this tab only.
     const sourceToken = $('#sourceToken');
+    const vodToken = $('#vodToken');
     sourceToken.value = '';
+    vodToken.value = '';
+    sourceToken.addEventListener('input', () => { vodToken.value = sourceToken.value; });
+    vodToken.addEventListener('input', () => { sourceToken.value = vodToken.value; });
     function sourceHeaders() {
-      const token = sourceToken.value.trim();
+      const token = (vodToken.value || sourceToken.value).trim();
       if (!token) throw new Error('Enter the management token first.');
       return { 'Content-Type': 'application/json', 'X-Source-Token': token };
     }
@@ -956,7 +960,8 @@
         const data = await sourceRequest('/api/vod/sources', { headers: sourceHeaders() });
         list.innerHTML = (data.sources || []).map((s) => {
           const kind = s.kind === 'all' ? 'All VOD' : s.kind === 'movies' ? 'Movies' : s.kind === 'series' ? 'Series' : 'Anime';
-          return '<li data-vod-source="' + esc(s.id) + '"><div class="pl-info"><strong>' + esc(s.name) + '</strong><small>' + esc(kind + (s.lastError ? ' · ' + s.lastError : '')) + '</small></div><button type="button" class="link-btn" data-vod-toggle="' + esc(s.id) + '" data-enabled="' + (!s.enabled) + '">' + (s.enabled ? 'Disable' : 'Enable') + '</button><button type="button" class="link-btn del" data-vod-delete="' + esc(s.id) + '" aria-label="Delete ' + esc(s.name) + '">Delete</button></li>';
+          const checkStatus = s.lastError ? ' · Error: ' + s.lastError : (!s.lastChecked ? ' · Not checked yet' : ' · API checked');
+          return '<li data-vod-source="' + esc(s.id) + '"><div class="pl-info"><strong>' + esc(s.name) + '</strong><small>' + esc(kind + checkStatus) + '</small></div><button type="button" class="link-btn" data-vod-toggle="' + esc(s.id) + '" data-enabled="' + (!s.enabled) + '">' + (s.enabled ? 'Disable' : 'Enable') + '</button><button type="button" class="link-btn del" data-vod-delete="' + esc(s.id) + '" aria-label="Delete ' + esc(s.name) + '">Delete</button></li>';
         }).join('');
         if (!(data.sources || []).length) list.innerHTML = '<li><small>No VOD APIs configured yet.</small></li>';
         $('#vodStatus').textContent = data.sources.length + ' VOD provider(s) configured.';
@@ -965,6 +970,32 @@
       }
     }
     $('#vodReload').onclick = loadVodSources;
+    $('#vodImport').onclick = async () => {
+      try {
+        const headers = sourceHeaders();
+        const url = $('#vodListUrl').value.trim();
+        if (!url) throw new Error('Enter a public JSON URL for the provider list/config.');
+        $('#vodImport').disabled = true;
+        $('#vodStatus').textContent = 'Importing provider definitions…';
+        const data = await sourceRequest('/api/vod/import', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ url }),
+        });
+        $('#vodListUrl').value = '';
+        await loadVodSources();
+        const details = [];
+        details.push((data.imported || 0) + ' provider(s) imported');
+        if (data.duplicates) details.push(data.duplicates + ' already configured');
+        if (data.skippedLimit) details.push(data.skippedLimit + ' skipped (provider limit reached)');
+        $('#vodStatus').textContent = details.join(' · ') + '. Imported providers have not been individually verified.';
+        if (isVodView(state.view)) await load(true);
+      } catch (err) {
+        $('#vodStatus').textContent = err.message;
+      } finally {
+        $('#vodImport').disabled = false;
+      }
+    };
     $('#vodAdd').onclick = async () => {
       try {
         const headers = sourceHeaders();
