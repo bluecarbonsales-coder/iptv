@@ -154,8 +154,13 @@
     return p;
   }
 
+  function isVodView(view) {
+    return ['movies', 'series', 'anime', 'vod'].includes(view);
+  }
+
   async function load(reset) {
     if (state.view === 'playlists') return renderPlaylistsView();
+    if (isVodView(state.view)) return loadVod(reset);
     if (state.loading) return;
     state.loading = true;
     if (reset) {
@@ -185,6 +190,50 @@
     }
   }
 
+  async function loadVod(reset) {
+    if (state.loading) return;
+    state.loading = true;
+    if (reset) {
+      state.page = 1;
+      grid.innerHTML = '';
+      emptyBox.hidden = true;
+    }
+    $('#resultCount').textContent = 'Searching VOD resources…';
+    try {
+      const params = new URLSearchParams({ type: state.view === 'vod' ? 'all' : state.view });
+      if (state.q) params.set('q', state.q);
+      const res = await fetch('/api/vod?' + params.toString());
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+      const items = data.items || [];
+      state.total = data.total || 0;
+      state.pages = data.pages || 1;
+      state.page = 1;
+      state.items = items;
+      renderCards(items, false);
+      $('#resultCount').innerHTML = `<b>${state.total.toLocaleString()}</b> ${state.view === 'anime' ? 'anime titles' : state.view === 'series' ? 'series' : state.view === 'movies' ? 'movies' : 'VOD titles'}`;
+      const good = (data.providers || []).filter((provider) => provider.ok).length;
+      const failures = (data.errors || []).length;
+      const badges = [];
+      if (state.q) badges.push(`<span class="af">Search: <b>${esc(state.q)}</b></span>`);
+      if (good) badges.push(`<span class="af">${good} provider${good === 1 ? '' : 's'} responded</span>`);
+      if (failures) badges.push(`<span class="af">${failures} provider${failures === 1 ? '' : 's'} unavailable</span>`);
+      $('#activeFilters').innerHTML = badges.join('');
+      loadMoreBtn.hidden = true;
+      if (!items.length) {
+        emptyBox.hidden = false;
+        emptyBox.textContent = data.hint || (failures ? 'No titles returned. Check the provider API URLs and availability in VOD resources.' : 'No titles found. Add an authorized VOD API or try another search.');
+      }
+      syncHash();
+    } catch (err) {
+      $('#resultCount').textContent = '';
+      emptyBox.hidden = false;
+      emptyBox.textContent = 'Could not load VOD resources: ' + err.message;
+    } finally {
+      state.loading = false;
+    }
+  }
+
   function renderResultBar() {
     const bits = [];
     const n = state.total.toLocaleString();
@@ -199,6 +248,20 @@
   }
 
   function cardHTML(it) {
+    if (it.vod) {
+      const fav = favSet.has(it.id);
+      const poster = imgUrl(it.logo);
+      const subtitle = [it.year, it.remarks, it.sourceName].filter(Boolean).join(' · ');
+      return `<article class="card vod-card" data-id="${esc(it.id)}" tabindex="0" title="${esc(it.overview || it.name)}">
+        <div class="thumb vod-thumb">${poster ? `<img loading="lazy" src="${esc(poster)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'ini',textContent:'${esc(initials(it.name))}'}))">` : `<div class="ini">${esc(initials(it.name))}</div>`}</div>
+        <div class="meta">
+          <div class="nm" title="${esc(it.name)}">${esc(it.name)}</div>
+          <div class="sub">${subtitle ? `<span>${esc(subtitle)}</span>` : ''}<span class="badge">${esc(it.kind || 'VOD')}</span></div>
+          ${it.overview ? `<div class="vod-overview">${esc(it.overview)}</div>` : ''}
+        </div>
+        <button class="fav${fav ? ' on' : ''}" data-fav="${esc(it.id)}" title="${t('tabFavorites')}">${fav ? '★' : '☆'}</button>
+      </article>`;
+    }
     const fav = favSet.has(it.id);
     const logo = imgUrl(it.logo);
     const badges = [];
@@ -319,6 +382,18 @@
   };
 
   async function buildSources(item) {
+    if (item.vod) {
+      const res = await fetch('/api/vod/' + encodeURIComponent(item.sourceId) + '/' + encodeURIComponent(item.vodId));
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'VOD details failed to load');
+      return (data.episodes || []).map((episode, i) => ({
+        url: episode.url,
+        title: episode.title || ('Episode ' + (i + 1)),
+        quality: null,
+        labels: [],
+        index: i,
+      }));
+    }
     if (item.playlist) {
       return [
         {
@@ -351,7 +426,7 @@
     player.autoTried = 0;
     $('#player').hidden = false;
     $('#pName').textContent = item.name;
-    $('#pSub').textContent = [item.country ? countryLabel(item.country) : null, (item.cats || []).join(', ')].filter(Boolean).join(' · ');
+    $('#pSub').textContent = [item.year || null, item.remarks || null, item.sourceName || null, item.country ? countryLabel(item.country) : null, (item.cats || []).join(', ')].filter(Boolean).join(' · ');
     $('#pLogo').hidden = !item.logo;
     if (item.logo) $('#pLogo').src = imgUrl(item.logo);
     $('#pFav').textContent = favSet.has(item.id) ? '★' : '☆';
@@ -360,18 +435,20 @@
     setStatus('');
     showOverlay(t('connecting'), true);
 
+    let sourceError = '';
     try {
       player.sources = await buildSources(item);
     } catch (err) {
       player.sources = [];
+      sourceError = err.message || 'source lookup failed';
     }
     if (!player.sources.length) {
-      showOverlay(t('noSources'), false, true);
+      showOverlay(sourceError || t('noSources'), false, true);
       return;
     }
     const sel = $('#pSource');
     sel.innerHTML = player.sources
-      .map((s, i) => `<option value="${i}">${i + 1}. ${esc(s.quality || 'auto')}${s.labels && s.labels.length ? ' · ' + esc(s.labels.join('/')) : ''} — ${esc(s.url.slice(0, 58))}</option>`)
+       .map((s, i) => `<option value="${i}">${i + 1}. ${esc(s.title || s.quality || 'auto')}${s.labels && s.labels.length ? ' · ' + esc(s.labels.join('/')) : ''} — ${esc((s.url || '').slice(0, 58))}</option>`)
       .join('');
     sel.value = '0';
     $('#pOpen').href = player.sources[0].url;
