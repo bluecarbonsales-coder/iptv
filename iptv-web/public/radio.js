@@ -252,21 +252,40 @@
       if (myTicket !== activeTicket) return;
       const isHls = station.hls || /\.m3u8(?:$|[?#])/i.test(resolved.url);
       if (isHls && window.Hls && window.Hls.isSupported()) {
-        hlsPlayer = new window.Hls({ enableWorker: true, maxBufferLength: 30, maxMaxBufferLength: 60 });
-        hlsPlayer.on(window.Hls.Events.ERROR, (event, data) => {
-          if (!data.fatal || myTicket !== activeTicket) return;
-          setStatus('This HLS station stopped responding. Try another station.', true);
-          destroyHls();
+        const instance = new window.Hls({ enableWorker: true, maxBufferLength: 30, maxMaxBufferLength: 60 });
+        hlsPlayer = instance;
+        await new Promise((resolve, reject) => {
+          let settled = false;
+          const timer = setTimeout(() => finish(new Error('Timed out waiting for the radio stream manifest')), 20000);
+          function finish(error) {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            if (error) reject(error);
+            else resolve();
+          }
+          instance.on(window.Hls.Events.MEDIA_ATTACHED, () => {
+            if (myTicket !== activeTicket) return finish(new Error('Playback cancelled'));
+            instance.loadSource('/hls?u=' + encodeURIComponent(resolved.url));
+          });
+          instance.on(window.Hls.Events.MANIFEST_PARSED, () => {
+            if (myTicket !== activeTicket) return finish(new Error('Playback cancelled'));
+            audio.play().then(() => finish(), finish);
+          });
+          instance.on(window.Hls.Events.ERROR, (event, data) => {
+            if (!data.fatal || myTicket !== activeTicket) return;
+            finish(new Error('HLS radio stream could not be opened'));
+            if (hlsPlayer === instance) destroyHls();
+          });
+          instance.attachMedia(audio);
         });
-        hlsPlayer.loadSource('/hls?u=' + encodeURIComponent(resolved.url));
-        hlsPlayer.attachMedia(audio);
       } else {
         const canNativeHls = isHls && audio.canPlayType('application/vnd.apple.mpegurl');
         if (resolved.url.startsWith('http:') && resolved.proxyUrl && !isHls) audio.src = resolved.proxyUrl;
         else audio.src = isHls ? (canNativeHls ? '/hls?u=' + encodeURIComponent(resolved.url) : resolved.url) : resolved.url;
+        audio.load();
+        await audio.play();
       }
-      audio.load();
-      await audio.play();
       if (myTicket !== activeTicket) { audio.pause(); return; }
       state.recent = [station.stationuuid, ...state.recent.filter((id) => id !== station.stationuuid)].slice(0, 100);
       saveJson('radio.recent', state.recent);
