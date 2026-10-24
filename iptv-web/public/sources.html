@@ -36,6 +36,18 @@
 </section>
 <div class="toolbar"><input id="filter" type="search" placeholder="Filter by provider name, domain, or API URL"><select id="stateFilter" style="max-width:180px"><option value="all">All providers</option><option value="enabled">Enabled only</option><option value="disabled">Disabled only</option><option value="errors">Providers with errors</option></select><button id="refresh">↻ Reload list</button></div>
 <div id="list" class="list"><div class="empty">Unlock management to load the source list.</div></div>
+<section class="panel">
+<h2 style="margin:0 0 12px">Management API reference</h2>
+<p class="muted">The same changes available in this panel can be made programmatically. Send your token in the <code>X-Source-Token</code> header. Requests that change configuration require authentication.</p>
+<table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;padding:8px;border-bottom:1px solid var(--line)">Method</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--line)">Endpoint</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--line)">Purpose</th></tr></thead><tbody>
+<tr><td style="padding:8px">GET / POST</td><td style="padding:8px"><code>/api/vod/sources</code></td><td style="padding:8px">List or add a VOD API</td></tr>
+<tr><td style="padding:8px">PATCH / DELETE</td><td style="padding:8px"><code>/api/vod/sources/:id</code></td><td style="padding:8px">Replace name, API URL, type, or enabled state; delete provider</td></tr>
+<tr><td style="padding:8px">GET / POST</td><td style="padding:8px"><code>/api/sources</code></td><td style="padding:8px">List or add an M3U/live playlist</td></tr>
+<tr><td style="padding:8px">PATCH / DELETE</td><td style="padding:8px"><code>/api/sources/:id</code></td><td style="padding:8px">Replace playlist name/URL, toggle, or delete</td></tr>
+<tr><td style="padding:8px">POST</td><td style="padding:8px"><code>/api/vod/import</code></td><td style="padding:8px">Import compatible JSON by <code>{url}</code> or <code>{config}</code></td></tr>
+</tbody></table>
+<p class="note">Example: <code>curl -H "X-Source-Token: $SOURCE_TOKEN" https://your-host/api/vod/sources</code>. The server validates new or replacement URLs before saving. Imported lists are merged; use the panel to remove entries individually.</p>
+</section>
 <p class="note" style="margin-top:22px">API compatibility does not establish ownership, permission to distribute, or licensing rights for any content. Use sources only when you are authorized to access and stream their media. Provider endpoints may log requests and may be unreliable.</p>
 </main>
 <script>
