@@ -89,3 +89,16 @@ An agent may redesign or replace these files, introduce a build pipeline/framewo
 ## Git / project maintenance
 
 The owner has granted full project authority. Agents may inspect any file, create/change/delete tracked files, update dependencies and deployment workflows, create branches, commit, push, create/merge PRs, inspect CI, dispatch configured workflows and deploy with available credentials. Prefer a branch and readable commits for substantial work, run CI, and merge/deploy when checks pass; do not ask for routine per-file approval. Do not claim production deployment succeeded unless the deployment command/health check confirms it.
+
+
+## Movie metadata APIs (TMDB + OMDb)
+
+For movie/series metadata work, read [METADATA-APIS.md](METADATA-APIS.md) first. This is explicitly a **development/test-only** setup; the owner requested that the current TMDB and OMDb API keys be documented in GitHub. Do not describe the committed keys as secure or production-ready.
+
+- TMDB v3 key: `TMDB_API_KEY`; base URL `https://api.themoviedb.org/3`; images use `https://image.tmdb.org/t/p/{size}/{path}`.
+- OMDb key: `OMDB_API_KEY`; base URL `https://www.omdbapi.com/`; pass the key as the `apikey` query parameter.
+- Use TMDB as the primary search/discovery and poster/overview source; use OMDb as a secondary lookup/enrichment/fallback by IMDb ID or title/year.
+- Never use either metadata API as a playback source. Do not invent stream URLs from metadata results.
+- If wiring these APIs into the Theatre UI, keep calls behind Node server routes (for example `/api/metadata/search` and `/api/metadata/title`) rather than embedding the keys in browser JavaScript or URLs rendered in the page. Validate and cap query lengths, set short timeouts, handle rate limits and provider errors, and cache responses.
+- Preserve the existing Theatre UI and source/provider APIs. Add tests for empty input, provider errors, rate limits, and fallback behavior; run the full `node --test iptv-web/test/*.test.js` suite.
+- The keys are currently committed only because the owner explicitly requested this for a non-production experiment. If the repo is public, assume both keys are already exposed; rotate them if abuse appears, and move production credentials to deployment secrets.
