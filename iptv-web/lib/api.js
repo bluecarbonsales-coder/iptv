@@ -8,6 +8,7 @@ const { readBody } = require('./util');
 const sourceLib = require('./sources');
 const vodLib = require('./vod');
 const archiveLib = require('./archive-vod');
+const { withLock } = require('./registry-lock');
 
 // Absolute origin as the browser sees it (proxy sets X-Forwarded-Proto).
 function baseUrl(req) {
@@ -34,6 +35,8 @@ async function mapLimit(items, limit, fn) {
 function createApi(catalog, refresh, dataDir) {
   const sourceDataDir = dataDir || require('path').join(__dirname, '..', 'data');
   const vodSearchCache = new Map();
+  const liveLockKey = 'live-sources:' + sourceDataDir;
+  const vodLockKey = 'vod-sources:' + sourceDataDir;
 
   function authorizeSourceWrite(req, res) {
     const sourceExpected = process.env.SOURCE_TOKEN || process.env.REFRESH_TOKEN || '';
@@ -69,17 +72,21 @@ function createApi(catalog, refresh, dataDir) {
       const url = String(body.url || '').trim();
       if (!name) return sendJson(req, res, 400, { error: 'source name is required' });
       if (!sourceLib.isHttpUrl(url)) return sendJson(req, res, 400, { error: 'URL must use http or https' });
-      const { sources } = sourceLib.loadSourcesSync(sourceDataDir);
-      if (sources.length >= sourceLib.MAX_SOURCES) return sendJson(req, res, 409, { error: `maximum ${sourceLib.MAX_SOURCES} sources reached` });
-      if (sources.some((s) => s.url === url)) return sendJson(req, res, 409, { error: 'this source URL already exists' });
+
       const candidate = { id: sourceLib.newId(), name, url, enabled: body.enabled !== false, createdAt: new Date().toISOString() };
       const items = await sourceLib.fetchSource(candidate);
       candidate.lastCount = sourceLib.buildChannels(candidate, items).length;
       candidate.lastStreamCount = items.length;
       candidate.lastUpdated = new Date().toISOString();
       candidate.lastError = null;
-      sources.push(candidate);
-      sourceLib.saveSources(sourceDataDir, sources);
+
+      await withLock(liveLockKey, () => {
+        const sources = sourceLib.loadSourcesSync(sourceDataDir).sources;
+        if (sources.length >= sourceLib.MAX_SOURCES) throw Object.assign(new Error('maximum ' + sourceLib.MAX_SOURCES + ' sources reached'), { statusCode: 409 });
+        if (sources.some((source) => source.url === url)) throw Object.assign(new Error('this source URL already exists'), { statusCode: 409 });
+        sources.push(candidate);
+        sourceLib.saveSources(sourceDataDir, sources);
+      });
       const stats = await refresh();
       sendJson(req, res, 201, { source: publicSource(candidate), stats });
     } catch (err) {
