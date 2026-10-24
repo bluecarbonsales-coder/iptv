@@ -111,6 +111,7 @@ app.delete('/api/agent/v1/vod/sources/:id', agent.vodDelete);
 app.get('/api/agent/v1/vod/search', agent.vodSearch);
 app.get('/api/agent/v1/vod/:sourceId/:vodId', agent.vodDetail);
 app.get('/api/agent/v1/archive/search', agent.archiveSearch);
+app.get('/api/agent/v1/commons/search', agent.commonsSearch);
 
 app.get('/healthz', api.health);
 app.get('/api/meta', api.meta);
