@@ -4,7 +4,8 @@
 //   PORT=3920 node server.js
 //
 // Routes:
-//   GET  /                     player UI
+//   GET  /                     service portal homepage
+//   GET  /watch.html           IPTV player UI
 //   GET  /api/meta             facets: countries, categories, qualities, counts
 //   GET  /api/channels         ?q=&country=&category=&minQuality=&nsfw=&page=&limit=&sort=
 //   GET  /api/channel/:id      full record incl. every stream URL
