@@ -261,3 +261,13 @@ select option { background: var(--bg-2); }
   .search { max-width: none; }
   .brand span { display: none; }
 }
+
+/* Persistent resource manager */
+#resourceManager .field { margin: 10px 0; }
+#resourceManager .field input { width: 100%; min-width: 0; }
+#resourceManager .pl-list li { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+#resourceManager .pl-info { min-width: 0; flex: 1 1 100%; }
+#resourceManager .pl-info strong, #resourceManager .pl-info small { display: block; overflow-wrap: anywhere; }
+#resourceManager .pl-info small { color: var(--muted); margin-top: 3px; }
+#resourceManager .link-btn { font-size: 12px; }
+#sourceStatus { overflow-wrap: anywhere; }
