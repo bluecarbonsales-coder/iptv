@@ -1,0 +1,118 @@
+name: CI and Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: Deploy to the configured VPS after tests pass
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax-check JavaScript
+        run: |
+          node --check iptv-web/server.js
+          for file in iptv-web/lib/*.js iptv-web/public/*.js iptv-web/public/js/*.js iptv-web/tools/*.js; do node --check "$file"; done
+      - name: Run tests
+        run: node --test iptv-web/test/*.test.js
+      - name: Build Docker image
+        run: docker build -t iptv-web:ci ./iptv-web
+
+  deploy:
+    name: Deploy to configured VPS
+    needs: validate
+    if: github.event_name == 'push' || inputs.deploy == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check deployment configuration
+        id: deploy-config
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_DIR: ${{ secrets.DEPLOY_DIR }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$DEPLOY_HOST" || -z "$DEPLOY_USER" || -z "$DEPLOY_SSH_KEY" || -z "$DEPLOY_KNOWN_HOSTS" || -z "$DEPLOY_DIR" ]]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Deployment skipped. Configure DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY, DEPLOY_KNOWN_HOSTS, and DEPLOY_DIR repository secrets."
+            exit 0
+          fi
+          if [[ ! "$DEPLOY_HOST" =~ ^[A-Za-z0-9.-]+$ ]]; then echo "DEPLOY_HOST has an invalid hostname"; exit 1; fi
+          if [[ ! "$DEPLOY_USER" =~ ^[A-Za-z0-9._-]+$ ]]; then echo "DEPLOY_USER has an invalid username"; exit 1; fi
+          if [[ ! "$DEPLOY_DIR" =~ ^/[A-Za-z0-9_./-]+$ || "$DEPLOY_DIR" == *"/../"* || "$DEPLOY_DIR" == */.. ]]; then
+            echo "DEPLOY_DIR must be an absolute simple directory path without traversal"; exit 1
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+      - name: Prepare SSH
+        if: steps.deploy-config.outputs.ready == 'true'
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+      - name: Package release
+        if: steps.deploy-config.outputs.ready == 'true'
+        run: tar --exclude='.env' --exclude='./.env' -czf "$RUNNER_TEMP/iptv-web-release.tgz" -C iptv-web .
+      - name: Copy and deploy
+        if: steps.deploy-config.outputs.ready == 'true'
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '9090' }}
+          DEPLOY_DIR: ${{ secrets.DEPLOY_DIR }}
+          GITHUB_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$DEPLOY_PORT" =~ ^[0-9]+$ ]] || (( DEPLOY_PORT < 1 || DEPLOY_PORT > 65535 )); then
+            echo "DEPLOY_PORT must be an integer from 1 to 65535"; exit 1
+          fi
+          REMOTE_ARCHIVE="/tmp/iptv-web-release-$GITHUB_SHA.tgz"
+          TARGET="$DEPLOY_USER@$DEPLOY_HOST"
+          scp -P "$DEPLOY_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes "$RUNNER_TEMP/iptv-web-release.tgz" "$TARGET:$REMOTE_ARCHIVE"
+          ssh -p "$DEPLOY_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes "$TARGET" "DEPLOY_DIR='$DEPLOY_DIR' REMOTE_ARCHIVE='$REMOTE_ARCHIVE' bash -s" <<'REMOTE'
+          set -Eeuo pipefail
+          mkdir -p "$DEPLOY_DIR"
+          tar --no-same-owner --no-same-permissions -xzf "$REMOTE_ARCHIVE" -C "$DEPLOY_DIR"
+          rm -f "$REMOTE_ARCHIVE"
+          cd "$DEPLOY_DIR"
+          docker compose up -d --build
+          healthy=0
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent http://127.0.0.1:3920/healthz; then
+              healthy=1
+              break
+            fi
+            sleep 3
+          done
+          if [[ "$healthy" != "1" ]]; then
+            docker compose ps
+            docker compose logs --tail=100 iptv-web
+            exit 1
+          fi
+          echo
+          echo "Deployment healthy."
+          REMOTE
