@@ -36,6 +36,7 @@ const { createMailApi } = require('./lib/mail-workspace');
 const { createMetadataApi } = require('./lib/metadata');
 const { createNavigationConfig } = require('./lib/navigation-config');
 const { createVisitorContext } = require('./lib/visitor-context');
+const { createHistoryStore } = require('./lib/watch-history');
 
 const PORT = parseInt(process.env.PORT, 10) || 3920;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -83,6 +84,7 @@ const automation = createAutomation({
 api = createApi(catalog, refreshNow, DATA_DIR, automation);
 const navigationConfig = createNavigationConfig(DATA_DIR);
 const visitorContext = createVisitorContext(DATA_DIR);
+const watchHistory = createHistoryStore(DATA_DIR);
 const portal = createPortalApi({ dataDir: DATA_DIR });
 const agent = createAgentApi({ dataDir: DATA_DIR, catalog, refresh: refreshNow, api, automation, navigationConfig, visitorContext, portal });
 const resourceAvailability = createResourceAvailability({ getServices: portal.getServices });
@@ -153,6 +155,16 @@ app.get('/api/navigation', (req, res) => {
 });
 let visitorContextWindowStart = Date.now();
 let visitorContextRequests = 0;
+app.get('/api/history/:visitorId', (req, res, params) => {
+  try { sendJson(req, res, 200, { records: watchHistory.get(params.visitorId) }); }
+  catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message || 'could not read history' }); }
+});
+app.post('/api/history/:visitorId', async (req, res, params) => {
+  try {
+    const body = JSON.parse(await require('./lib/util').readBody(req, 16384));
+    sendJson(req, res, 200, watchHistory.record(params.visitorId, body));
+  } catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message || 'could not save history' }); }
+});
 app.post('/api/visitor/context', async (req, res) => {
   const now = Date.now();
   if (now - visitorContextWindowStart >= 60000) {
