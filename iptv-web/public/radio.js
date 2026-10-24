@@ -319,17 +319,20 @@
   function bind() {
     let searchTimer = null;
     function setFilter(key, value) {
+      state.page = 1;
       state[key] = value;
       $('#quickGenres').querySelectorAll('button').forEach((button) => button.classList.toggle('active', button.dataset.tag === state.tag));
       loadStations(true);
     }
     $('#searchButton').addEventListener('click', () => {
+      state.page = 1;
       state.query = $('#radioQuery').value.trim();
       loadStations(true);
     });
     $('#radioQuery').addEventListener('input', () => {
       clearTimeout(searchTimer);
       searchTimer = setTimeout(() => {
+        state.page = 1;
         state.query = $('#radioQuery').value.trim();
         loadStations(true);
       }, 420);
@@ -342,6 +345,7 @@
       const button = event.target.closest('button[data-tag]');
       if (!button) return;
       const tag = button.dataset.tag;
+      state.page = 1;
       state.tag = state.tag === tag ? '' : tag;
       $('#tagFilter').value = state.tag;
       $('#quickGenres').querySelectorAll('button').forEach((item) => item.classList.toggle('active', item.dataset.tag === state.tag));
@@ -351,7 +355,7 @@
       state.onlyFavorites = !state.onlyFavorites;
       render();
     });
-    $('#reloadStations').addEventListener('click', () => loadStations(true));
+    $('#reloadStations').addEventListener('click', () => { state.page = 1; loadStations(true); });
     $('#radioPagination').addEventListener('click', (event) => { const button = event.target.closest('[data-page]'); if (!button || button.disabled) return; const target = Number(button.dataset.page); if (!Number.isInteger(target) || target < 1 || (target > state.page && state.nextOffset == null)) return; state.page = target; loadStations(true); window.scrollTo({ top: $('#stationHeading').getBoundingClientRect().top + window.scrollY - 90, behavior: 'smooth' }); });
     $('#stopRadio').addEventListener('click', stopRadio);
     audio.addEventListener('play', render);
