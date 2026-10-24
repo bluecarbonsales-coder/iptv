@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const { sendJson, readBody } = require('./util');
 const vodLib = require('./vod');
 const archiveLib = require('./archive-vod');
+const commonsLib = require('./commons-vod');
 const sourceLib = require('./sources');
 
 function matchesToken(given, expected) {
@@ -67,7 +68,8 @@ function createAgentApi({ dataDir, catalog, refresh, api, automation }) {
         'inspect health and provider status',
         'search live IPTV catalogue',
         'search Apple CMS / MacCMS VOD providers',
-        'discover openly licensed films through Internet Archive metadata',
+        'discover public-domain / CC films through Internet Archive',
+        'discover open-license video files through Wikimedia Commons',
         'import configured LibreTV/MoonTV/TVBox-compatible provider registries',
         'add, update, enable, disable, and delete providers',
         'run source checks and scheduled maintenance',
@@ -83,7 +85,7 @@ function createAgentApi({ dataDir, catalog, refresh, api, automation }) {
       sources: {
         live: 'iptv-org catalogue plus explicitly configured M3U/M3U8 resources',
         vod: 'Configured Apple CMS/MacCMS API endpoints',
-        publicDomain: 'Internet Archive metadata with public-domain or compatible CC license declarations',
+        publicDomain: 'Internet Archive and Wikimedia Commons media records filtered by their declared open-license metadata',
         importFormats: ['LibreTV SourceList JSON: sources[]', 'MoonTV config.json: api_site{}', 'TVBox-style JSON: sites[]'],
       },
       automation: automation.status(),
@@ -204,6 +206,7 @@ function createAgentApi({ dataDir, catalog, refresh, api, automation }) {
       '/api/agent/v1/capabilities': { get: { summary: 'Describe capabilities, limits and autonomy policy', responses: { '200': { description: 'Capabilities' } } } },
       '/api/agent/v1/status': { get: { summary: 'Get health, catalog and source status', responses: { '200': { description: 'Current service state' } } } },
       '/api/agent/v1/settings': { get: { summary: 'Read runtime automation settings', responses: { '200': { description: 'Settings' } } }, patch: { summary: 'Update runtime automation settings and trusted registry URLs', description: 'Available to the authenticated project agent. Cannot change secrets; URLs and intervals are validated.', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { autonomy: { type: 'string', enum: ['full', 'review', 'off'] }, automationEnabled: { type: 'boolean' }, autoSourceSyncHours: { type: 'number', minimum: 1, maximum: 720 }, refreshHours: { type: 'number', minimum: 1, maximum: 720 }, sourceListUrls: { type: 'array', maxItems: 32, items: { type: 'string', format: 'uri' } } } } } } }, responses: { '200': { description: 'Updated settings' } } } },
+      '/api/agent/v1/commons/search': { get: { summary: 'Search Wikimedia Commons for directly playable open-license videos', parameters: [{ name: 'q', in: 'query', schema: { type: 'string' } }, { name: 'type', in: 'query', schema: { type: 'string', enum: ['all', 'movies', 'anime'] } }], responses: { '200': { description: 'Open-license Commons video results with license metadata' } } } },
       '/api/agent/v1/audit': { get: { summary: 'Read recent agent and automation actions', parameters: [{ name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 200 } }], responses: { '200': { description: 'Audit entries' } } } },
       '/api/agent/v1/tasks/run': { post: { summary: 'Run a maintenance task', description: 'Available to the authenticated project agent. Allowed tasks: maintain_sources, sync_source_lists, check_vod_providers, refresh_live_catalog.', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['task'], properties: { task: { type: 'string', enum: ['maintain_sources', 'sync_source_lists', 'check_vod_providers', 'refresh_live_catalog'] } } } } } }, responses: { '200': { description: 'Task result' }, '423': { description: 'Writes blocked by autonomy policy' } } } },
       '/api/agent/v1/live/sources': { get: { summary: 'List configured M3U resources', responses: { '200': { description: 'Resource list' } } }, post: { summary: 'Add and validate a live M3U/M3U8 resource', description: 'Available to the authenticated project agent. Accepts {name,url,enabled?}.', responses: { '201': { description: 'Resource added' } } } },
@@ -234,6 +237,15 @@ function createAgentApi({ dataDir, catalog, refresh, api, automation }) {
     vodDelete: gate('agent.vod.delete', true, api.deleteVodSource),
     vodSearch: gate('agent.vod.search', false, api.vodSearch),
     vodDetail: gate('agent.vod.detail', false, api.vodDetail),
+    commonsSearch: gate('agent.commons.search', false, async (req, res, params, query) => {
+      try {
+        const type = ['all', 'movies', 'anime'].includes(query.type) ? query.type : 'all';
+        const items = await commonsLib.search(query.q || '', type, 25);
+        sendJson(req, res, 200, { total: items.length, items });
+      } catch (err) {
+        sendJson(req, res, err.statusCode || 502, { error: err.message || 'Commons search failed' });
+      }
+    }),
     archiveSearch: gate('agent.archive.search', false, async (req, res, params, query) => {
       try {
         const type = ['all', 'movies', 'series', 'anime'].includes(query.type) ? query.type : 'all';
