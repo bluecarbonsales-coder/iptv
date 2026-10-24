@@ -42,22 +42,17 @@ function createApi(catalog, refresh, dataDir) {
   const withLiveLock = (fn) => withFileLock(sourceLib.sourcesPath(sourceDataDir) + '.lock', () => withLock(liveLockKey, fn));
 
   function authorizeSourceWrite(req, res) {
-    const sourceExpected = process.env.SOURCE_TOKEN || process.env.REFRESH_TOKEN || '';
-    const agentExpected = process.env.AGENT_API_TOKEN || '';
-    const givenSource = req.headers['x-source-token'];
-    const givenAgent = req.headers['x-agent-token'];
-    const tokenMatches = (given, expected) => {
-      if (typeof given !== 'string' || !expected) return false;
-      const a = Buffer.from(given);
-      const b = Buffer.from(expected);
-      return a.length === b.length && require('crypto').timingSafeEqual(a, b);
-    };
-    if (tokenMatches(givenSource, sourceExpected) || tokenMatches(givenAgent, agentExpected)) return true;
-    if (!sourceExpected && !agentExpected) {
-      sendJson(req, res, 503, { error: 'source management is disabled until SOURCE_TOKEN, REFRESH_TOKEN, or AGENT_API_TOKEN is configured' });
+    const expected = process.env.AGENT_API_TOKEN || '';
+    const given = req.headers['x-agent-token'];
+    const tokenMatches = typeof given === 'string' && expected &&
+      Buffer.from(given).length === Buffer.from(expected).length &&
+      require('crypto').timingSafeEqual(Buffer.from(given), Buffer.from(expected));
+    if (tokenMatches) return true;
+    if (!expected) {
+      sendJson(req, res, 503, { error: 'source registry writes are disabled until AGENT_API_TOKEN is configured' });
       return false;
     }
-    sendJson(req, res, 403, { error: 'source management token required' });
+    sendJson(req, res, 403, { error: 'source registry writes are restricted to the authenticated Hermes agent API' });
     return false;
   }
 
