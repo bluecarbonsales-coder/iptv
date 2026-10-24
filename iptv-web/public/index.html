@@ -1,224 +1,131 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>IPTV Web — watch free live TV from iptv-org</title>
-    <meta name="description" content="Browse 10,000+ free live TV channels from the iptv-org project and watch them right in your browser." />
-    <meta name="theme-color" content="#0b0d12" />
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%233b82f6'/%3E%3Cpath d='M12 9.5v13l11-6.5z' fill='white'/%3E%3C/svg%3E" />
-    <link rel="stylesheet" href="/app.css" />
-  </head>
-  <body>
-    <header class="topbar">
-      <div class="brand" title="IPTV Web">
-        <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true">
-          <rect width="32" height="32" rx="7" fill="#3b82f6" />
-          <path d="M12 9.5v13l11-6.5z" fill="#fff" />
-        </svg>
-        <span>IPTV<b>Web</b></span>
-      </div>
-
-      <form class="search" id="searchForm" autocomplete="off">
-        <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14" /></svg>
-        <input id="q" type="search" placeholder="Search 10,000+ channels…  (press /)" aria-label="Search channels" />
-        <button type="button" class="icon-btn" id="clearSearch" title="Clear" hidden>✕</button>
-      </form>
-
-      <nav class="tabs" id="tabs">
-        <button class="tab active" data-view="all" data-i18n="tabAll">All</button>
-        <button class="tab" data-view="favorites" data-i18n="tabFavorites">Favourites</button>
-        <button class="tab" data-view="recent" data-i18n="tabRecent">Recent</button>
-        <button class="tab" data-view="movies" data-i18n="tabMovies">Movies</button>
-        <button class="tab" data-view="series" data-i18n="tabSeries">Series</button>
-        <button class="tab" data-view="anime" data-i18n="tabAnime">Anime</button>
-        <button class="tab" data-view="vod" data-i18n="tabVod">VOD</button>
-        <button class="tab" data-view="playlists" data-i18n="tabPlaylists">Playlists</button>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#080b12">
+  <meta name="description" content="A private-ready home page for your self-hosted apps, favorite websites, and IPTV player.">
+  <title>Home · Service Portal</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%237c9cff'/%3E%3Cpath d='M8 16l8-8 8 8v8H8z' fill='%23080b12'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/portal.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="brand" href="/" aria-label="Service Portal home">
+        <span class="brand-mark">N</span>
+        <span>Service <em>Portal</em></span>
+      </a>
+      <nav class="navlinks" aria-label="Main navigation">
+        <a class="navlink active" href="/" aria-current="page">Home</a>
+        <a class="navlink" href="/watch.html">Live TV &amp; VOD</a>
+        <a class="navlink" href="https://nafisainternational.com" target="_blank" rel="noopener noreferrer">Nafisa International ↗</a>
       </nav>
-
-      <div class="topbar-actions">
-        <button class="icon-btn" id="btnLang" title="Language / 语言">EN</button>
-        <button class="icon-btn" id="btnFilters" title="Filters" aria-label="Filters">
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M3 5h18v2H3zm3 6h12v2H6zm3 6h6v2H9z" /></svg>
-        </button>
-        <a class="icon-btn" id="btnExport" title="Export current view as M3U" href="/api/export.m3u" download>
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 3v10.6l3.3-3.3 1.4 1.4L12 17.4 7.3 11.7l1.4-1.4L12 13.6V3zM5 19h14v2H5z" /></svg>
-        </a>
-      </div>
-    </header>
-
-    <div class="layout">
-      <aside class="sidebar" id="sidebar">
-        <div class="side-block" id="channelFilters">
-          <div class="side-head"><span data-i18n="filters">Filters</span><button class="link-btn" id="resetFilters" data-i18n="reset">Reset</button></div>
-
-          <label class="field">
-            <span data-i18n="country">Country</span>
-            <input id="countrySearch" class="mini" type="text" placeholder="Type to find…" />
-            <select id="country" size="0"><option value="" data-i18n="allCountries">All countries</option></select>
-          </label>
-
-          <label class="field">
-            <span data-i18n="sort">Sort by</span>
-            <select id="sort">
-              <option value="name" data-i18n="sortName">Name (A–Z)</option>
-              <option value="quality" data-i18n="sortQuality">Best quality</option>
-              <option value="streams" data-i18n="sortStreams">Most sources</option>
-            </select>
-          </label>
-
-          <label class="field">
-            <span data-i18n="minQuality">Minimum quality</span>
-            <select id="minQuality">
-              <option value="0" data-i18n="anyQuality">Any</option>
-              <option value="480">480p+</option>
-              <option value="720">720p+</option>
-              <option value="1080">1080p+</option>
-            </select>
-          </label>
-
-          <div class="field">
-            <span data-i18n="categories">Categories</span>
-            <div class="chips" id="cats"></div>
-          </div>
-
-          <label class="check"><input type="checkbox" id="optLogo" /> <span data-i18n="onlyLogo">Only channels with a logo</span></label>
-          <label class="check"><input type="checkbox" id="optSafe" /> <span data-i18n="hideAdult">Hide adult channels</span></label>
-          <p class="hint" data-i18n="adultNote">Every channel the iptv-org API still carries a stream for is listed, including adult ones.</p>
-        </div>
-
-        <div class="side-block" id="playlistSide">
-          <div class="side-head"><span data-i18n="myPlaylists">My playlists</span></div>
-          <p class="hint" data-i18n="playlistHint">Load any M3U playlist URL (or a local file) and watch it here.</p>
-          <input id="plUrl" class="mini" type="url" placeholder="https://example.com/list.m3u" />
-          <div class="row">
-            <button class="btn" id="plAdd" data-i18n="addUrl">Add URL</button>
-            <label class="btn ghost" for="plFile" data-i18n="openFile">Open file…</label>
-            <input id="plFile" type="file" accept=".m3u,.m3u8,text/plain" hidden />
-          </div>
-          <ul class="pl-list" id="plList"></ul>
-        </div>
-
-
-        <div class="side-block" id="resourceManager">
-          <div class="side-head"><span>Resource manager</span><button class="link-btn" id="sourceReload" type="button">Refresh</button></div>
-          <p class="hint">Add persistent M3U/M3U8 sources. They are merged into the catalogue on refresh.</p>
-          <label class="field"><span>Management token</span><input id="sourceToken" class="mini" type="password" autocomplete="current-password" placeholder="SOURCE_TOKEN or REFRESH_TOKEN" /></label>
-          <label class="field"><span>Resource name</span><input id="sourceName" class="mini" type="text" maxlength="80" placeholder="My playlist" /></label>
-          <label class="field"><span>Playlist URL</span><input id="sourceUrl" class="mini" type="url" placeholder="https://example.com/playlist.m3u" /></label>
-          <button class="btn" id="sourceAdd" type="button">Add resource</button>
-          <p class="hint" id="sourceStatus" role="status" aria-live="polite"></p>
-          <ul class="pl-list" id="sourceList"></ul>
-        </div>
-
-        <div class="side-block" id="vodManager" hidden>
-          <div class="side-head"><span>Movies, series &amp; anime resources</span><button class="link-btn" id="vodReload" type="button">Refresh</button></div>
-          <p class="hint">A maintained TVboxorg provider directory is synced automatically in the background. Add an authorized Apple CMS / MacCMS API directly, or import a LibreTV, MoonTV, or compatible TVBox config. API probes check compatibility—not copyright or redistribution rights.</p>
-          <label class="field"><span>Management token</span><input id="vodToken" class="mini" type="password" autocomplete="current-password" placeholder="SOURCE_TOKEN or REFRESH_TOKEN" /></label>
-          <label class="field"><span>Import provider-list / config JSON URL</span><input id="vodListUrl" class="mini" type="url" placeholder="https://example.org/source-list.json or config.json" /></label>
-          <button class="btn ghost" id="vodImport" type="button">Import provider list URL</button>
-          <label class="field"><span>Or upload a downloaded JSON config</span><input id="vodListFile" class="mini" type="file" accept=".json,application/json" /></label>
-          <p class="hint">Supports LibreTV SourceList JSON (sources), MoonTV config.json (api_site), and TVBox-style sites arrays containing Apple CMS/MacCMS APIs. Imported providers are not independently verified.</p>
-          <label class="field"><span>Provider name</span><input id="vodName" class="mini" type="text" maxlength="80" placeholder="My authorized catalog" /></label>
-          <label class="field"><span>Content section</span><select id="vodKind" class="mini"><option value="all">All VOD</option><option value="movies">Movies</option><option value="series">Series / TV</option><option value="anime">Anime</option></select></label>
-          <label class="field"><span>Apple CMS / MacCMS API URL</span><input id="vodApi" class="mini" type="url" placeholder="https://example.org/api.php/provide/vod" /></label>
-          <button class="btn" id="vodAdd" type="button">Add VOD resource</button>
-          <p class="hint" id="vodStatus" role="status" aria-live="polite"></p>
-          <ul class="pl-list" id="vodList"></ul>
-        </div>
-
-        <div class="side-block">
-          <div class="side-head"><span data-i18n="playback">Playback</span></div>
-          <label class="check"><input type="checkbox" id="optProxy" checked /> <span data-i18n="useProxy">Relay through this server (fixes CORS &amp; blocked streams)</span></label>
-          <p class="hint" id="proxyNote"></p>
-        </div>
-
-        <div class="side-block side-meta" id="metaBlock"></div>
-      </aside>
-
-      <main class="main" id="main">
-        <div class="mobile-section-nav">
-          <label class="field"><span class="sr-only">Section</span><select id="mobileView" aria-label="Browse section">
-            <option value="all">Live channels</option>
-            <option value="movies">Movies</option>
-            <option value="series">Series / TV</option>
-            <option value="anime">Anime</option>
-            <option value="vod">All VOD</option>
-            <option value="favorites">Favourites</option>
-            <option value="recent">Recent</option>
-            <option value="playlists">Playlists</option>
-          </select></label>
-        </div>
-        <div class="resultbar">
-          <div id="resultCount" class="muted">…</div>
-          <div class="active-filters" id="activeFilters"></div>
-        </div>
-        <div class="grid" id="grid"></div>
-        <div class="empty" id="empty" hidden></div>
-        <div class="loadmore"><button class="btn" id="loadMore" hidden data-i18n="loadMore">Load more</button></div>
-      </main>
-    </div>
-
-    <!-- player -->
-    <div class="player" id="player" hidden>
-      <div class="player-shell">
-        <div class="player-head">
-          <button class="icon-btn" id="pClose" title="Close (Esc)">✕</button>
-          <div class="p-title">
-            <img id="pLogo" class="p-logo" alt="" hidden />
-            <div>
-              <h2 id="pName">—</h2>
-              <div class="p-sub" id="pSub"></div>
-            </div>
-          </div>
-          <div class="p-actions">
-            <button class="icon-btn" id="pFav" title="Favourite">☆</button>
-            <button class="icon-btn" id="pReload" title="Reload stream">⟳</button>
-            <button class="icon-btn" id="pCopy" title="Copy stream URL">⧉</button>
-            <a class="icon-btn" id="pOpen" target="_blank" rel="noopener" title="Open stream in a new tab">↗</a>
-          </div>
-        </div>
-
-        <div class="video-wrap" id="videoWrap">
-          <video id="video" controls playsinline autoplay></video>
-          <div class="video-overlay" id="videoOverlay">
-            <div class="spinner" id="spinner"></div>
-            <div class="vmsg" id="vmsg"></div>
-            <button class="btn" id="vRetry" hidden data-i18n="retry">Retry</button>
-            <button class="btn" id="vNext" hidden data-i18n="nextSource">Try next source</button>
-          </div>
-        </div>
-
-        <div class="player-foot">
-          <label class="inline">
-            <span data-i18n="source">Source</span>
-            <select id="pSource"></select>
-          </label>
-          <label class="inline">
-            <span data-i18n="quality">Quality</span>
-            <select id="pQuality"><option value="-1">Auto</option></select>
-          </label>
-          <label class="inline check"><input type="checkbox" id="pProxy" checked /> <span data-i18n="relay">Relay</span></label>
-          <div class="p-labels" id="pLabels"></div>
-          <div class="p-status" id="pStatus"></div>
-        </div>
+      <div class="top-actions">
+        <span class="small-state"><span class="state-dot"></span> <span id="pageStatus">Loading services…</span></span>
+        <button class="btn subtle" id="btnManage" type="button">Manage links</button>
+        <button class="btn primary" id="btnAdd" type="button" hidden>＋ Add service</button>
+        <button class="btn subtle" id="btnLock" type="button" hidden>Lock</button>
       </div>
     </div>
+  </header>
 
-    <div class="toast" id="toast" hidden></div>
-    <div class="scrim" id="scrim" hidden></div>
+  <main class="wrap">
+    <section class="hero">
+      <div class="hero-grid">
+        <div>
+          <div class="eyebrow">Your digital home base</div>
+          <h1>Everything you use.<br><span>One place to start.</span></h1>
+          <p class="hero-copy">A single launchpad for your self-hosted services, work tools and favorite websites. Add any HTTP or HTTPS link, organize it by category, and keep the list on your own server.</p>
+        </div>
+        <aside class="hero-side" aria-label="Service directory summary">
+          <div class="stat-row">
+            <div><div class="stat" id="heroStat">--</div><div class="stat-note">services in your directory</div></div>
+            <div class="stat-icon" aria-hidden="true">↗</div>
+          </div>
+        </aside>
+      </div>
+    </section>
 
-    <footer class="foot">
-      <span data-i18n="footerSource">Channel data from the open</span>
-      <a href="https://github.com/iptv-org/iptv" target="_blank" rel="noopener">iptv-org/iptv</a>
-      <span>·</span>
-      <a href="https://github.com/iptv-org/api" target="_blank" rel="noopener">iptv-org/api</a>
-      <span data-i18n="footerNote">· streams are hosted by third parties; this site only links to them.</span>
+    <section aria-label="Find services">
+      <div class="toolbar">
+        <label class="search-wrap">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" stroke="currentColor" stroke-width="1.7"/><path d="m16 16 4.2 4.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          <input class="search" id="search" type="search" placeholder="Search services, categories, or domains…" aria-label="Search services">
+        </label>
+      </div>
+      <div class="category-row" id="categoryList" aria-label="Filter by category"></div>
+    </section>
+
+    <section aria-labelledby="servicesHeading">
+      <div class="section-head">
+        <div><h2 id="servicesHeading">Your services</h2><p><span id="visibleCount">0</span> shown · <span id="serviceCount">0</span> total</p></div>
+      </div>
+      <div id="serviceGrid" class="card-grid" aria-live="polite">
+        <div class="empty">Loading your service links…</div>
+      </div>
+    </section>
+
+    <section id="unlockPanel" class="unlock-panel" hidden aria-label="Unlock link management">
+      <label class="field" for="manageToken">Management token
+        <input id="manageToken" type="password" autocomplete="current-password" placeholder="Enter a server management token">
+      </label>
+      <button class="btn primary" id="unlockButton" type="submit" form="unlockForm">Unlock</button>
+      <button class="btn" type="button" id="hideUnlock" onclick="document.getElementById('unlockPanel').hidden=true">Cancel</button>
+      <form id="unlockForm" hidden></form>
+      <p class="status" id="manageStatus" role="status" aria-live="polite" style="grid-column:1/-1;margin:0"></p>
+    </section>
+
+    <p class="manage-note" id="manageNote"><strong>Personalize this page.</strong> Select “Manage links” and enter the server’s existing management token to add, edit, reorder, or remove shortcuts. The links are stored in the app’s persistent data volume; the token stays in this browser tab’s memory.</p>
+    <div id="manageActions" hidden></div>
+
+    <footer class="footer">
+      <span>Service Portal · independent of the IPTV player or reverse-proxy software.</span>
+      <span><a href="/watch.html">Open IPTV Web</a> · <a href="https://github.com/bluecarbonsales-coder/iptv" target="_blank" rel="noopener noreferrer">Project repository ↗</a></span>
     </footer>
+  </main>
 
-    <script src="/vendor/hls.min.js"></script>
-    <script src="/js/m3u.js"></script>
-    <script src="/js/i18n.js"></script>
-    <script src="/app.js"></script>
-  </body>
+  <dialog id="serviceDialog" aria-labelledby="serviceDialogTitle">
+    <div class="dialog-head">
+      <h2 id="serviceDialogTitle">Add a service</h2>
+      <button class="icon-action" id="closeEditor" type="button" aria-label="Close editor">×</button>
+    </div>
+    <div class="dialog-body">
+      <form id="serviceForm">
+        <div class="form-grid">
+          <label class="field">Service name
+            <input id="fieldName" name="name" maxlength="80" required placeholder="e.g. Homelab dashboard">
+          </label>
+          <label class="field">Icon or emoji
+            <input id="fieldIcon" name="icon" maxlength="24" placeholder="e.g. 🏠">
+          </label>
+          <label class="field form-full">Website URL
+            <input id="fieldUrl" name="url" type="text" maxlength="2048" required placeholder="https://service.example.com or /watch.html">
+          </label>
+          <label class="field">Category
+            <input id="fieldCategory" name="category" maxlength="32" list="categoryOptions" placeholder="Self-hosted">
+            <datalist id="categoryOptions"><option>Self-hosted</option><option>Work</option><option>Media</option><option>Developer</option><option>AI &amp; tools</option><option>Reference</option></datalist>
+          </label>
+          <label class="field">Sort order
+            <input id="fieldOrder" name="order" type="number" min="-10000" max="10000" step="1" placeholder="1000">
+          </label>
+          <label class="field form-full">Description
+            <textarea id="fieldDescription" name="description" maxlength="180" placeholder="A short note about this service"></textarea>
+          </label>
+          <label class="field form-full" style="flex-direction:row;align-items:center;gap:10px">
+            <input id="fieldFeatured" name="featured" type="checkbox" style="width:auto">
+            Mark as a featured shortcut (metadata for future layouts)
+          </label>
+        </div>
+        <p class="status" id="formStatus" role="status" aria-live="polite"></p>
+        <div class="dialog-actions">
+          <button class="btn" id="cancelEditor" type="button">Cancel</button>
+          <button class="btn primary" id="saveService" type="submit">Save service</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <script src="/portal.js" defer></script>
+</body>
 </html>
