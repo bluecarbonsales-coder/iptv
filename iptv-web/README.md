@@ -54,6 +54,9 @@ play fine through it.
   details and episode selection for Apple CMS / MacCMS-compatible VOD APIs.
 - **Persistent VOD providers** — add, enable/disable and remove named providers. Provider settings
   live in the Docker data volume; provider APIs are probed before being saved.
+- **Provider-list import** — import a JSON list URL in LibreTV SourceList format (`sources`), MoonTV
+  `config.json` format (`api_site`), or a TVBox-style `sites` array containing compatible Apple CMS APIs.
+  Imported provider URLs are configuration only and are not guaranteed to host authorized or working video.
 - **M3U export** — `/api/export.m3u` mirrors the current filters, and can emit either the
   original stream URLs or relay URLs (`&proxy=1`) for use in VLC/Kodi.
 - **Bilingual UI** — English / 简体中文.
@@ -71,6 +74,7 @@ play fine through it.
 | `GET /api/vod/:sourceId/:vodId` | resolve details and episodes for a VOD title |
 | `GET /api/vod/sources` | list VOD providers (requires `X-Source-Token`) |
 | `POST /api/vod/sources` | validate and add Apple CMS / MacCMS provider (requires `X-Source-Token`) |
+| `POST /api/vod/import` | import providers from an authorized LibreTV/MoonTV/TVBox-compatible JSON list URL (requires `X-Source-Token`) |
 | `PATCH /api/vod/sources/:id` | rename, re-categorize, or enable/disable a VOD provider (requires `X-Source-Token`) |
 | `DELETE /api/vod/sources/:id` | remove VOD provider (requires `X-Source-Token`) |
 | `GET /api/sources` | list persistent resources (requires `X-Source-Token`) |
@@ -93,8 +97,11 @@ Configure a strong random token in the deployment environment before exposing th
 VOD provider configuration is stored in `data/vod-sources.json` on the persistent volume. The adapter
 supports the common Apple CMS / MacCMS JSON API (`ac=videolist`, `wd`, `pg`, and `ids` queries) used by
 LibreTV/MoonTV-style deployments. Select a provider category when adding it so movies, series, and
-anime are routed to the right section. No third-party movie endpoints or source lists are bundled;
-add only services you are authorized to use and verify the licensing/streaming rights of their content.
+anime are routed to the right section. In the VOD resource manager, you can either add a single API
+or import a JSON configuration URL. The importer understands LibreTV SourceList JSON (`sources`),
+MoonTV `config.json` (`api_site`), and compatible TVBox-style `sites` arrays. Importing adds provider
+endpoints only; endpoints are not independently verified by a source list, and the importer does not
+verify content licensing or streaming rights. Add only catalogs you are authorized to use.
 
 ## Layout
 
