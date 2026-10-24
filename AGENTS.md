@@ -118,14 +118,42 @@ Store the token in your service/agent secret manager instead of committing it or
 
 Every agent API request is logged to `/data/agent-audit.jsonl` with time, action, result, and duration. The API returns recent entries at `GET /api/agent/v1/audit`. It intentionally avoids writing provider URLs or tokens to the log. Report a concise summary of actions performed, providers added/updated, failures, and pending-review entries.
 
-## 7. Project-wide code changes and deployment
+## 7. Project-wide authority: code, UI, tests, dependencies, and deployment
 
-The agent is authorized to change any project file needed to accomplish the owner's task. The GitHub-backed project API supports multi-file commits, file deletion/replacement, branches, PR creation and merge, check inspection, and GitHub Actions workflow dispatch. Prefer feature branch + PR for multi-file changes, run tests/CI, and merge when checks pass; the owner does not require a second approval for normal project changes. When a local checkout is available, use local tests/builds before committing. Add or update tests, run:
+This is the owner's project. A trusted local agent has full authority to inspect, add, edit, rename, and delete any project file needed for the requested work: frontend UI/HTML/CSS/JavaScript, backend APIs, data adapters, tests, dependencies/build tooling, documentation, environment templates, Docker files, and every `.github/workflows/*` workflow. Do not impose a repository-path allowlist, require approval for ordinary file changes, or stop at the source-management API. Use the local filesystem and shell tools normally available to the agent. The HTTP project API is an additional option, not a replacement for the local checkout.
+
+### Bootstrap the local working tree on the deployment server
+
+The release directory produced by CI is a deployment package, not the Git working tree. On the deployment host, use the helper shipped in the release to clone the private repository into a writable checkout. Set the real paths for this host:
+
+```bash
+export IPTV_DEPLOY_DIR=/path/to/the/current/deployment-directory
+export IPTV_ENV_FILE="$IPTV_DEPLOY_DIR/.env"
+export IPTV_WORKSPACE_DIR="$HOME/src/iptv"
+bash "$IPTV_DEPLOY_DIR/tools/bootstrap-agent-workspace.sh"
+cd "$IPTV_WORKSPACE_DIR"
+```
+
+The deployment `.env` must contain `GITHUB_REPO_TOKEN`; the bootstrap helper uses it without embedding the token in the Git remote or saving it to `.git-credentials`. It configures a per-checkout credential helper so the local agent can fetch and push. The fine-grained token needs Contents read/write, Workflows read/write, Pull requests read/write, and Actions read/write permissions for this repository. Keep that token in the host's protected deployment `.env`, not in code or prompts.
+
+After bootstrapping, the agent can work in a **normal local Git checkout**. Change every area of the repository, run commands, install dependencies when appropriate, run tests, commit and push changes. Pushes to `main` run CI and the deployment workflow without an additional human approval. Use a branch/PR when it improves quality or when branch protection requires it; a PR is not a mandatory approval gate for normal autonomous work.
+
+### Validation and deployment
+
+Run at least these project checks, adding tests/build/lint/security audits appropriate to the change:
 
 ```bash
 node --check iptv-web/server.js
-for file in iptv-web/lib/*.js iptv-web/public/*.js iptv-web/public/js/*.js; do node --check "$file"; done
+for file in iptv-web/lib/*.js iptv-web/public/*.js iptv-web/public/js/*.js iptv-web/tools/*.js; do node --check "$file"; done
+for file in iptv-web/tools/*.sh iptv-web/deploy/*.sh; do bash -n "$file"; done
 node --test iptv-web/test/*.test.js
+docker build -t iptv-web:agent-check ./iptv-web
 ```
 
-Commit clear, focused changes and push them to the configured repository. Inspect CI after committing. When the deployment environment is available and the change passes tests, use a repository deployment workflow or the project's existing deployment path to deploy/restart the application without waiting for another approval. Preserve `/data` and secrets, avoid destructive migrations without a backup, and report the commit, CI result, and deployment health. Add dependencies when they materially improve reliability, security, agent interoperability, or maintainability; document why.
+The host-side local deploy helper validates the source, builds before replacing the running container, reads the real deployment `.env`, reuses the current Compose project name to preserve its named volume, and checks health afterward:
+
+```bash
+IPTV_ENV_FILE="$IPTV_DEPLOY_DIR/.env" bash iptv-web/tools/deploy-local.sh
+```
+
+Prefer committing/pushing to `main` and letting the repository's CI/deploy workflow roll out a checked revision. Use the local deploy helper when explicitly testing the local working tree against the running host. Do not delete or recreate persistent `/data` volumes during deployment. A deployment failure must be reported with logs and the result of the health check. The dedicated project API at `/api/agent/v1/project/*` can also edit any repository path, create commits/branches/PRs, merge PRs, inspect CI, and dispatch deployment workflows; configure `GITHUB_REPO_TOKEN` in the deployment `.env` to enable it.
