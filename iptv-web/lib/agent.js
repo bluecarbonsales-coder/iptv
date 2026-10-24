@@ -75,7 +75,7 @@ function createAgentApi({ dataDir, catalog, refresh, api, automation }) {
         'read an audit history of agent/automation actions',
       ],
       autonomy: {
-        mode: process.env.AGENT_AUTONOMY || 'review',
+        mode: automation.status().autonomy,
         writeEnabled: true,
         allowedRegistryUrls: automation.status().configuredRegistryCount,
         warning: 'Provider directories are untrusted input. Only configure registries you trust. Imported API endpoints are probed before automatic activation in full mode; copyright ownership cannot be inferred from feed availability.',
@@ -142,6 +142,33 @@ function createAgentApi({ dataDir, catalog, refresh, api, automation }) {
     });
   };
 
+  const settingsView = (req, res) => {
+    const current = automation.getSettings();
+    sendJson(req, res, 200, {
+      ...current,
+      sourceListUrls: (current.sourceListUrls || []).map(safeUrlSummary),
+      mutableFields: ['autonomy', 'automationEnabled', 'autoSourceSyncHours', 'refreshHours', 'sourceListUrls'],
+      note: 'AGENT_API_TOKEN and other secrets are deployment-only and cannot be changed through this endpoint.',
+    });
+  };
+
+  const settingsUpdate = async (req, res) => {
+    try {
+      const body = JSON.parse(await readBody(req, 65536));
+      const allowed = new Set(['autonomy', 'automationEnabled', 'autoSourceSyncHours', 'refreshHours', 'sourceListUrls']);
+      const unknown = Object.keys(body).filter((key) => !allowed.has(key));
+      if (unknown.length) return sendJson(req, res, 400, { error: 'unknown or immutable setting fields', fields: unknown });
+      const updated = await automation.updateSettings(body, 'agent');
+      sendJson(req, res, 200, {
+        ok: true,
+        settings: { ...updated, sourceListUrls: updated.sourceListUrls.map(safeUrlSummary) },
+        automation: automation.status(),
+      });
+    } catch (err) {
+      sendJson(req, res, err.statusCode || 400, { error: err.message || 'settings update failed' });
+    }
+  };
+
   const auditLog = (req, res, params, query) => {
     const limit = Math.max(1, Math.min(200, parseInt(query.limit, 10) || 50));
     sendJson(req, res, 200, { entries: automation.readAudit(limit) });
@@ -176,6 +203,7 @@ function createAgentApi({ dataDir, catalog, refresh, api, automation }) {
     paths: {
       '/api/agent/v1/capabilities': { get: { summary: 'Describe capabilities, limits and autonomy policy', responses: { '200': { description: 'Capabilities' } } } },
       '/api/agent/v1/status': { get: { summary: 'Get health, catalog and source status', responses: { '200': { description: 'Current service state' } } } },
+      '/api/agent/v1/settings': { get: { summary: 'Read runtime automation settings', responses: { '200': { description: 'Settings' } } }, patch: { summary: 'Update runtime automation settings and trusted registry URLs', description: 'Available to the authenticated project agent. Cannot change secrets; URLs and intervals are validated.', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { autonomy: { type: 'string', enum: ['full', 'review', 'off'] }, automationEnabled: { type: 'boolean' }, autoSourceSyncHours: { type: 'number', minimum: 1, maximum: 720 }, refreshHours: { type: 'number', minimum: 1, maximum: 720 }, sourceListUrls: { type: 'array', maxItems: 32, items: { type: 'string', format: 'uri' } } } } } } }, responses: { '200': { description: 'Updated settings' } } } },
       '/api/agent/v1/audit': { get: { summary: 'Read recent agent and automation actions', parameters: [{ name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 200 } }], responses: { '200': { description: 'Audit entries' } } } },
       '/api/agent/v1/tasks/run': { post: { summary: 'Run a maintenance task', description: 'Available to the authenticated project agent. Allowed tasks: maintain_sources, sync_source_lists, check_vod_providers, refresh_live_catalog.', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['task'], properties: { task: { type: 'string', enum: ['maintain_sources', 'sync_source_lists', 'check_vod_providers', 'refresh_live_catalog'] } } } } } }, responses: { '200': { description: 'Task result' }, '423': { description: 'Writes blocked by autonomy policy' } } } },
       '/api/agent/v1/live/sources': { get: { summary: 'List configured M3U resources', responses: { '200': { description: 'Resource list' } } }, post: { summary: 'Add and validate a live M3U/M3U8 resource', description: 'Available to the authenticated project agent. Accepts {name,url,enabled?}.', responses: { '201': { description: 'Resource added' } } } },
@@ -190,6 +218,8 @@ function createAgentApi({ dataDir, catalog, refresh, api, automation }) {
   return {
     capabilities: gate('agent.capabilities', false, capabilities),
     status: gate('agent.status', false, status),
+    settingsView: gate('agent.settings.read', false, settingsView),
+    settingsUpdate: gate('agent.settings.update', true, settingsUpdate),
     auditLog: gate('agent.audit.read', false, auditLog),
     runTask: gate('agent.task.run', true, runTask),
     openApi: gate('agent.openapi.read', false, openApi),
