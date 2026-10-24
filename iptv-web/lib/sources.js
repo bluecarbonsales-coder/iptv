@@ -57,7 +57,11 @@ function loadSourcesSync(dataDir) {
 }
 
 function parseRegistrySources(config) {
-  const items = config && Array.isArray(config.liveSources) ? config.liveSources : [];
+  const items = [
+    ...(config && Array.isArray(config.liveSources) ? config.liveSources : []),
+    // TVBox directories use lives[] for M3U/plain-text broadcast lists.
+    ...(config && Array.isArray(config.lives) ? config.lives : []),
+  ];
   const result = new Map();
   for (const item of items) {
     if (!item || typeof item.url !== 'string') continue;
@@ -98,13 +102,39 @@ function isHttpUrl(u) {
   }
 }
 
-async function fetchSource(src) {
-  const { response } = await upstreamFetch(src.url, { timeoutMs: 30000, extraHeaders: { Accept: '*/*' } });
+function normalizePlaylistItems(items) {
+  const out = [];
+  const seen = new Set();
+  for (const item of items || []) {
+    if (!item || !item.url) continue;
+    let url = String(item.url).trim();
+    let name = String(item.name || '').trim();
+    // Accept common plain-text live lists like "Channel Name,https://stream.example/live.m3u8".
+    const comma = /^(.*?),\\s*(https?:\\/\\/\\S+)$/i.exec(url);
+    if (comma) {
+      if (!name || name === url || name === url.split('/').pop()) name = comma[1].trim();
+      url = comma[2].trim();
+    }
+    let parsed;
+    try { parsed = new URL(url); } catch { continue; }
+    if (!['http:', 'https:'].includes(parsed.protocol)) continue;
+    if (seen.has(url)) continue;
+    seen.add(url);
+    out.push({ ...item, name: name || url.split('/').pop() || url, url });
+  }
+  return out;
+}
+
+async function fetchSource(src, opts = {}) {
+  const { response } = await upstreamFetch(src.url, {
+    timeoutMs: opts.timeoutMs || 30000,
+    extraHeaders: { Accept: '*/*' },
+  });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const text = await bodyToString(response);
   if (isHlsManifest(text)) throw new Error('URL is a single HLS stream, not a playlist');
-  const items = parseM3U(text);
-  if (!items.length) throw new Error('no channels found in playlist');
+  const items = normalizePlaylistItems(parseM3U(text));
+  if (!items.length) throw new Error('no valid HTTP(S) channels found in playlist');
   return items;
 }
 
@@ -243,6 +273,7 @@ module.exports = {
   mergeStatuses,
   newId,
   parseRegistrySources,
+  normalizePlaylistItems,
   isHttpUrl,
   fetchSource,
   buildChannels,
