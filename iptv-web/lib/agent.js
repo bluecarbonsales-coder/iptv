@@ -327,102 +327,34 @@ function createAgentApi({ dataDir, catalog, refresh, api, automation }) {
       },
     },
     paths: {
-      '/api/agent/v1/capabilities': {
-        get: { summary: 'Describe capabilities, limits, and autonomy policy', responses: { '200': { description: 'Capabilities' } } },
-      },
-      '/api/agent/v1/status': {
-        get: { summary: 'Get live catalog, resource, provider, and automation status', responses: { '200': { description: 'Current service state' } } },
-      },
-      '/api/agent/v1/settings': {
-        get: { summary: 'Read runtime automation settings', responses: { '200': { description: 'Settings' } } },
-        patch: {
-          summary: 'Update source registries, autonomy mode and automation schedules',
-          requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: {
-            autonomy: { type: 'string', enum: ['full', 'review', 'off'] },
-            automationEnabled: { type: 'boolean' },
-            autoSourceSyncHours: { type: 'number', minimum: 1, maximum: 720 },
-            refreshHours: { type: 'number', minimum: 1, maximum: 720 },
-            sourceListUrls: { type: 'array', maxItems: 32, items: { type: 'string', format: 'uri' } },
-          } } } } },
-          responses: { '200': { description: 'Settings updated' } },
-        },
-      },
-      '/api/agent/v1/audit': {
-        get: { summary: 'Read recent agent and automation events', parameters: [{ name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 200 } }], responses: { '200': { description: 'Audit entries' } } },
-      },
-      '/api/agent/v1/tasks/run': {
-        post: { summary: 'Run a source-maintenance task', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['task'], properties: { task: { type: 'string', enum: ['maintain_sources', 'sync_source_lists', 'check_vod_providers', 'refresh_live_catalog'] } } } } } }, responses: { '200': { description: 'Task result' } } },
-      },
-      '/api/agent/v1/live/sources': {
-        get: { summary: 'List live resources', responses: { '200': { description: 'Resource list' } } },
-        post: { summary: 'Add and validate a live M3U/M3U8 source', responses: { '201': { description: 'Source added' } } },
-      },
-      '/api/agent/v1/live/sources/{id}': {
-        patch: { summary: 'Update a live resource', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Source updated' } } },
-        delete: { summary: 'Delete a live resource', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Source deleted' } } },
-      },
-      '/api/agent/v1/vod/sources': {
-        get: { summary: 'List VOD providers', responses: { '200': { description: 'Provider list' } } },
-        post: { summary: 'Add and probe a VOD provider', responses: { '201': { description: 'Provider added' } } },
-      },
-      '/api/agent/v1/vod/sources/{id}': {
-        patch: { summary: 'Update a VOD provider', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Provider updated' } } },
-        delete: { summary: 'Delete a VOD provider', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Provider deleted' } } },
-      },
-      '/api/agent/v1/vod/import': {
-        post: { summary: 'Import compatible live and VOD registry sources from JSON', responses: { '201': { description: 'Import report' } } },
-      },
-      '/api/agent/v1/vod/search': {
-        get: { summary: 'Search configured VOD, Internet Archive and Wikimedia Commons catalogs', parameters: [{ name: 'q', in: 'query', schema: { type: 'string' } }, { name: 'type', in: 'query', schema: { type: 'string', enum: ['all', 'movies', 'series', 'anime'] } }], responses: { '200': { description: 'Search results' } } },
-      },
-      '/api/agent/v1/archive/search': {
-        get: { summary: 'Search Internet Archive public-domain/CC candidates', parameters: [{ name: 'q', in: 'query', schema: { type: 'string' } }, { name: 'type', in: 'query', schema: { type: 'string' } }], responses: { '200': { description: 'Archive results' } } },
-      },
-      '/api/agent/v1/commons/search': {
-        get: { summary: 'Search Wikimedia Commons open-license video', parameters: [{ name: 'q', in: 'query', schema: { type: 'string' } }, { name: 'type', in: 'query', schema: { type: 'string', enum: ['all', 'movies', 'anime'] } }], responses: { '200': { description: 'Commons results' } } },
-      },
-      '/api/agent/v1/project/status': {
-        get: { summary: 'Inspect GitHub repository configuration, permissions and workflows', responses: { '200': { description: 'Repository status' }, '503': { description: 'GitHub token not configured' } } },
-      },
-      '/api/agent/v1/project/tree': {
-        get: { summary: 'List repository files and folders', parameters: [{ name: 'path', in: 'query', schema: { type: 'string' } }, { name: 'ref', in: 'query', schema: { type: 'string' } }, { name: 'recursive', in: 'query', schema: { type: 'boolean' } }, { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 100000 } }], responses: { '200': { description: 'Git tree' } } },
-      },
-      '/api/agent/v1/project/file': {
-        get: { summary: 'Read any tracked repository file', parameters: [{ name: 'path', in: 'query', required: true, schema: { type: 'string' } }, { name: 'ref', in: 'query', schema: { type: 'string' } }, { name: 'encoding', in: 'query', schema: { type: 'string', enum: ['utf8', 'base64'] } }], responses: { '200': { description: 'File content and SHA' } } },
-      },
-      '/api/agent/v1/project/commit': {
-        post: {
-          summary: 'Commit multi-file edits or deletions to a repository branch',
-          description: 'The authenticated project agent may change any tracked file, including UI assets, backend code, tests, documentation, dependencies and workflow files. It can create a feature branch and PR in the same operation.',
-          requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['message', 'changes'], properties: {
-            message: { type: 'string' }, branch: { type: 'string' }, baseBranch: { type: 'string' },
-            createPullRequest: { type: 'boolean' }, pullRequestTitle: { type: 'string' }, pullRequestBody: { type: 'string' }, draft: { type: 'boolean' },
-            changes: { type: 'array', minItems: 1, items: { type: 'object', required: ['path'], properties: {
-              path: { type: 'string' }, action: { type: 'string', enum: ['upsert', 'delete'] },
-              content: { type: 'string' }, mode: { type: 'string', enum: ['100644', '100755', '120000'] },
-            } } },
-          } } } } },
-          responses: { '201': { description: 'Commit and optional PR details' } },
-        },
-      },
-      '/api/agent/v1/project/branch': {
-        post: { summary: 'Create or reuse a branch', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['name'], properties: { name: { type: 'string' }, base: { type: 'string' } } } } } }, responses: { '201': { description: 'Branch result' } } },
-      },
-      '/api/agent/v1/project/pr': {
-        post: { summary: 'Create a pull request', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['head', 'title'], properties: { head: { type: 'string' }, base: { type: 'string' }, title: { type: 'string' }, body: { type: 'string' }, draft: { type: 'boolean' } } } } } }, responses: { '201': { description: 'Pull request created' } } },
-      },
-      '/api/agent/v1/project/pr/{number}/merge': {
-        post: { summary: 'Merge a pull request after validation', parameters: [{ name: 'number', in: 'path', required: true, schema: { type: 'integer', minimum: 1 } }], requestBody: { content: { 'application/json': { schema: { type: 'object', properties: { method: { type: 'string', enum: ['merge', 'squash', 'rebase'] }, commitTitle: { type: 'string' }, commitMessage: { type: 'string' } } } } } }, responses: { '200': { description: 'PR merged' }, '409': { description: 'Merge unavailable or checks failed' } } },
-      },
-      '/api/agent/v1/project/dispatch': {
-        post: { summary: 'Dispatch a configured GitHub Actions or deployment workflow', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['workflow'], properties: { workflow: { type: 'string' }, ref: { type: 'string' }, inputs: { type: 'object', additionalProperties: { type: 'string' } } } } } } }, responses: { '202': { description: 'Workflow dispatched' } } },
-      },
-      '/api/agent/v1/project/actions': {
-        get: { summary: 'Inspect CI and deployment workflow runs', parameters: [{ name: 'branch', in: 'query', schema: { type: 'string' } }, { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 50 } }], responses: { '200': { description: 'Workflow runs' } } },
-      },
-      '/api/agent/v1/project/checks/{sha}': {
-        get: { summary: 'Inspect commit checks', parameters: [{ name: 'sha', in: 'path', required: true, schema: { type: 'string', pattern: '^[a-fA-F0-9]{7,64}$' } }], responses: { '200': { description: 'Commit checks' } },
-      },
+      "/api/agent/v1/capabilities": { get: { summary: "Describe capabilities, limits and autonomy policy", responses: { '200': { description: "GET /api/agent/v1/capabilities" }, '201': { description: 'Operation completed' } } } },
+      "/api/agent/v1/status": { get: { summary: "Get live catalog, resource, provider and automation status", responses: { '200': { description: "GET /api/agent/v1/status" }, '201': { description: 'Operation completed' } } } },
+      "/api/agent/v1/settings": { get: { summary: "Read runtime automation settings", responses: { '200': { description: "GET /api/agent/v1/settings" }, '201': { description: 'Operation completed' } } } },
+      "/api/agent/v1/settings": { patch: { summary: "Update runtime schedules, autonomy and source registry URLs", responses: { '200': { description: "PATCH /api/agent/v1/settings" }, '201': { description: 'Operation completed' } } } },
+      "/api/agent/v1/audit": { get: { summary: "Read agent and automation audit entries", responses: { '200': { description: "GET /api/agent/v1/audit" }, '201': { description: 'Operation completed' } } } },
+      "/api/agent/v1/tasks/run": { post: { summary: "Run a source maintenance or catalog refresh task", responses: { '200': { description: "POST /api/agent/v1/tasks/run" }, '201': { description: 'Operation completed' } } } },
+      "/api/agent/v1/live/sources": { get: { summary: "List live resources", responses: { '200': { description: "GET /api/agent/v1/live/sources" }, '201': { description: 'Operation completed' } } } },
+      "/api/agent/v1/live/sources": { post: { summary: "Add and validate a live M3U/M3U8 source", responses: { '200': { description: "POST /api/agent/v1/live/sources" }, '201': { description: 'Operation completed' } } } },
+      "/api/agent/v1/live/sources/{id}": { patch: { summary: "Update a live resource", responses: { '200': { description: "PATCH /api/agent/v1/live/sources/{id}" }, '201': { description: 'Operation completed' } } } },
+      "/api/agent/v1/live/sources/{id}": { delete: { summary: "Delete a live resource", responses: { '200': { description: "DELETE /api/agent/v1/live/sources/{id}" }, '201': { description: 'Operation completed' } } } },
+      "/api/agent/v1/vod/sources": { get: { summary: "List VOD providers", responses: { '200': { description: "GET /api/agent/v1/vod/sources" }, '201': { description: 'Operation completed' } } } },
+      "/api/agent/v1/vod/sources": { post: { summary: "Add and probe a VOD provider", responses: { '200': { description: "POST /api/agent/v1/vod/sources" }, '201': { description: 'Operation completed' } } } },
+      "/api/agent/v1/vod/sources/{id}": { patch: { summary: "Update a VOD provider", responses: { '200': { description: "PATCH /api/agent/v1/vod/sources/{id}" }, '201': { description: 'Operation completed' } } } },
+      "/api/agent/v1/vod/sources/{id}": { delete: { summary: "Delete a VOD provider", responses: { '200': { description: "DELETE /api/agent/v1/vod/sources/{id}" }, '201': { description: 'Operation completed' } } } },
+      "/api/agent/v1/vod/import": { post: { summary: "Import compatible live and VOD sources from a JSON registry", responses: { '200': { description: "POST /api/agent/v1/vod/import" }, '201': { description: 'Operation completed' } } } },
+      "/api/agent/v1/vod/search": { get: { summary: "Search configured VOD and built-in public-license catalogs", responses: { '200': { description: "GET /api/agent/v1/vod/search" }, '201': { description: 'Operation completed' } } } },
+      "/api/agent/v1/archive/search": { get: { summary: "Search Internet Archive open-license candidates", responses: { '200': { description: "GET /api/agent/v1/archive/search" }, '201': { description: 'Operation completed' } } } },
+      "/api/agent/v1/commons/search": { get: { summary: "Search Wikimedia Commons open-license video", responses: { '200': { description: "GET /api/agent/v1/commons/search" }, '201': { description: 'Operation completed' } } } },
+      "/api/agent/v1/project/status": { get: { summary: "Inspect repository permissions and workflow configuration", responses: { '200': { description: "GET /api/agent/v1/project/status" }, '201': { description: 'Operation completed' } } } },
+      "/api/agent/v1/project/tree": { get: { summary: "List repository files and folders", responses: { '200': { description: "GET /api/agent/v1/project/tree" }, '201': { description: 'Operation completed' } } } },
+      "/api/agent/v1/project/file": { get: { summary: "Read any tracked repository file", responses: { '200': { description: "GET /api/agent/v1/project/file" }, '201': { description: 'Operation completed' } } } },
+      "/api/agent/v1/project/commit": { post: { summary: "Create multi-file edits/deletions across the entire repository; optionally open a PR", responses: { '200': { description: "POST /api/agent/v1/project/commit" }, '201': { description: 'Operation completed' } } } },
+      "/api/agent/v1/project/branch": { post: { summary: "Create a project branch", responses: { '200': { description: "POST /api/agent/v1/project/branch" }, '201': { description: 'Operation completed' } } } },
+      "/api/agent/v1/project/pr": { post: { summary: "Create a pull request", responses: { '200': { description: "POST /api/agent/v1/project/pr" }, '201': { description: 'Operation completed' } } } },
+      "/api/agent/v1/project/pr/{number}/merge": { post: { summary: "Merge a pull request after validation", responses: { '200': { description: "POST /api/agent/v1/project/pr/{number}/merge" }, '201': { description: 'Operation completed' } } } },
+      "/api/agent/v1/project/dispatch": { post: { summary: "Trigger a configured GitHub Actions or deployment workflow", responses: { '200': { description: "POST /api/agent/v1/project/dispatch" }, '201': { description: 'Operation completed' } } } },
+      "/api/agent/v1/project/actions": { get: { summary: "Inspect CI and deployment runs", responses: { '200': { description: "GET /api/agent/v1/project/actions" }, '201': { description: 'Operation completed' } } } },
+      "/api/agent/v1/project/checks/{sha}": { get: { summary: "Inspect commit checks", responses: { '200': { description: "GET /api/agent/v1/project/checks/{sha}" }, '201': { description: 'Operation completed' } } } },
     },
   });
 
