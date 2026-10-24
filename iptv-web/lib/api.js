@@ -4,6 +4,8 @@ const { sendJson, escapeXml } = require('./util');
 const { Catalog } = require('./catalog');
 const { upstreamFetch, bodyToString } = require('./fetch-upstream');
 const { parseM3U, isHlsManifest } = require('./m3u');
+const { readBody } = require('./util');
+const sourceLib = require('./sources');
 
 // Absolute origin as the browser sees it (proxy sets X-Forwarded-Proto).
 function baseUrl(req) {
@@ -12,7 +14,83 @@ function baseUrl(req) {
   return `${proto}://${host}`;
 }
 
-function createApi(catalog, refresh) {
+function createApi(catalog, refresh, dataDir) {
+  const sourceDataDir = dataDir || require('path').join(__dirname, '..', 'data');
+
+  const sourceList = (req, res) => {
+    const { sources } = sourceLib.loadSourcesSync(sourceDataDir);
+    sendJson(req, res, 200, { sources: sources.map(publicSource) });
+  };
+
+  const addSource = async (req, res) => {
+    try {
+      const body = JSON.parse(await readBody(req, 16384));
+      const name = String(body.name || '').trim().slice(0, 80);
+      const url = String(body.url || '').trim();
+      if (!name) return sendJson(req, res, 400, { error: 'source name is required' });
+      if (!sourceLib.isHttpUrl(url)) return sendJson(req, res, 400, { error: 'URL must use http or https' });
+      const { sources } = sourceLib.loadSourcesSync(sourceDataDir);
+      if (sources.length >= sourceLib.MAX_SOURCES) return sendJson(req, res, 409, { error: `maximum ${sourceLib.MAX_SOURCES} sources reached` });
+      if (sources.some((s) => s.url === url)) return sendJson(req, res, 409, { error: 'this source URL already exists' });
+      const candidate = { id: sourceLib.newId(), name, url, enabled: body.enabled !== false, createdAt: new Date().toISOString() };
+      const items = await sourceLib.fetchSource(candidate);
+      candidate.lastCount = sourceLib.buildChannels(candidate, items).length;
+      candidate.lastStreamCount = items.length;
+      candidate.lastUpdated = new Date().toISOString();
+      candidate.lastError = null;
+      sources.push(candidate);
+      sourceLib.saveSources(sourceDataDir, sources);
+      const stats = await refresh();
+      sendJson(req, res, 201, { source: publicSource(candidate), stats });
+    } catch (err) {
+      sendJson(req, res, err.statusCode || 400, { error: err.message || 'could not add source' });
+    }
+  };
+
+  const updateSource = async (req, res, params) => {
+    try {
+      const body = JSON.parse(await readBody(req, 16384));
+      const { sources } = sourceLib.loadSourcesSync(sourceDataDir);
+      const src = sources.find((s) => s.id === params.id);
+      if (!src) return sendJson(req, res, 404, { error: 'source not found' });
+      if (body.name !== undefined) {
+        const name = String(body.name).trim().slice(0, 80);
+        if (!name) return sendJson(req, res, 400, { error: 'source name cannot be empty' });
+        src.name = name;
+      }
+      if (body.url !== undefined) {
+        const url = String(body.url).trim();
+        if (!sourceLib.isHttpUrl(url)) return sendJson(req, res, 400, { error: 'URL must use http or https' });
+        if (sources.some((s) => s.id !== src.id && s.url === url)) return sendJson(req, res, 409, { error: 'this source URL already exists' });
+        const candidate = { ...src, url };
+        await sourceLib.fetchSource(candidate);
+        src.url = url;
+      }
+      if (body.enabled !== undefined) src.enabled = body.enabled === true;
+      sourceLib.saveSources(sourceDataDir, sources);
+      const stats = await refresh();
+      sendJson(req, res, 200, { source: publicSource(src), stats });
+    } catch (err) {
+      sendJson(req, res, err.statusCode || 400, { error: err.message || 'could not update source' });
+    }
+  };
+
+  const deleteSource = async (req, res, params) => {
+    const { sources } = sourceLib.loadSourcesSync(sourceDataDir);
+    const next = sources.filter((s) => s.id !== params.id);
+    if (next.length === sources.length) return sendJson(req, res, 404, { error: 'source not found' });
+    sourceLib.saveSources(sourceDataDir, next);
+    try {
+      const stats = await refresh();
+      sendJson(req, res, 200, { ok: true, stats });
+    } catch (err) {
+      sendJson(req, res, 500, { error: err.message || 'source deleted but catalogue refresh failed' });
+    }
+  };
+
+  function publicSource(s) {
+    return { id: s.id, name: s.name, url: s.url, enabled: s.enabled !== false, count: s.lastCount || 0, streams: s.lastStreamCount || 0, updated: s.lastUpdated || null, error: s.lastError || null };
+  }
   const meta = (req, res) => {
     sendJson(req, res, 200, Object.assign({}, catalog.meta, { ready: catalog.ready }));
   };
@@ -140,7 +218,7 @@ function createApi(catalog, refresh) {
     });
   };
 
-  return { meta, channels, channel, refreshNow, playlist, playlistProxied, exportM3u, health };
+  return { meta, channels, channel, refreshNow, playlist, playlistProxied, exportM3u, health, sourceList, addSource, updateSource, deleteSource };
 }
 
 module.exports = { createApi };
