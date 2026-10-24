@@ -5,6 +5,7 @@ const vodLib = require('./vod');
 const archiveLib = require('./archive-vod');
 const commonsLib = require('./commons-vod');
 const sourceLib = require('./sources');
+const { createGitHubProject } = require('./github-project');
 
 function matchesToken(given, expected) {
   if (typeof given !== 'string' || typeof expected !== 'string' || !expected) return false;
@@ -19,6 +20,7 @@ function safeUrlSummary(raw) {
   } catch { return '[invalid URL]'; }
 }
 function createAgentApi({ dataDir, catalog, refresh, api, automation }) {
+  const project = createGitHubProject();
   function authenticate(req, res) {
     const expected = process.env.AGENT_API_TOKEN;
     if (!expected) {
@@ -75,6 +77,9 @@ function createAgentApi({ dataDir, catalog, refresh, api, automation }) {
         'run source checks and scheduled maintenance',
         'refresh the live IPTV catalogue',
         'read an audit history of agent/automation actions',
+        'read and change any tracked repository file through GitHub',
+        'create branches, commits, pull requests, merge changes, inspect checks, and dispatch GitHub Actions workflows',
+        'trigger deployment workflows when configured in the repository',
       ],
       autonomy: {
         mode: automation.status().autonomy,
@@ -87,6 +92,13 @@ function createAgentApi({ dataDir, catalog, refresh, api, automation }) {
         vod: 'Configured Apple CMS/MacCMS API endpoints',
         publicDomain: 'Internet Archive and Wikimedia Commons media records filtered by their declared open-license metadata',
         importFormats: ['LibreTV SourceList JSON: sources[]', 'MoonTV config.json: api_site{}', 'TVBox-style JSON: sites[]'],
+      },
+      project: {
+        repository: project.repository,
+        configured: project.configured(),
+        fullRepositoryEditing: true,
+        capabilities: ['status', 'tree', 'file read', 'multi-file commits to any branch', 'branch creation', 'pull requests', 'merge pull requests', 'workflow dispatch', 'CI check inspection'],
+        configurationHint: project.configured() ? null : 'Set GITHUB_REPO_TOKEN with repository contents, pull-request, and Actions write permissions to activate code/deployment operations.',
       },
       automation: automation.status(),
       limits: {
@@ -171,6 +183,118 @@ function createAgentApi({ dataDir, catalog, refresh, api, automation }) {
     }
   };
 
+  const projectStatus = async (req, res) => {
+    try {
+      sendJson(req, res, 200, { ...await project.status(), configured: true, fullRepositoryEditing: true });
+    } catch (err) {
+      sendJson(req, res, err.statusCode || 502, { error: err.message || 'could not inspect project repository', configured: project.configured(), repository: project.repository });
+    }
+  };
+  const projectTree = async (req, res, params, query) => {
+    try {
+      sendJson(req, res, 200, await project.tree({
+        path: query.path || '',
+        ref: query.ref || project.defaultBranch,
+        recursive: query.recursive !== 'false',
+        limit: query.limit,
+      }));
+    } catch (err) {
+      sendJson(req, res, err.statusCode || 502, { error: err.message || 'could not list repository files' });
+    }
+  };
+  const projectFile = async (req, res, params, query) => {
+    try {
+      const result = await project.file({
+        path: query.path,
+        ref: query.ref || project.defaultBranch,
+        base64: query.encoding === 'base64',
+      });
+      sendJson(req, res, 200, result);
+    } catch (err) {
+      sendJson(req, res, err.statusCode || 502, { error: err.message || 'could not read repository file' });
+    }
+  };
+  const projectCommit = async (req, res) => {
+    try {
+      const body = JSON.parse(await readBody(req, 32 * 1024 * 1024));
+      let branch = body.branch;
+      if (body.createPullRequest && !branch) branch = 'agent/autonomous-' + new Date().toISOString().replace(/[^0-9TZ]/g, '-');
+      const result = await project.commitChanges({ ...body, branch });
+      let pullRequest = null;
+      if (body.createPullRequest) {
+        const base = body.baseBranch || project.defaultBranch;
+        pullRequest = await project.pullRequest({
+          head: result.branch,
+          base,
+          title: body.pullRequestTitle || body.message || 'Autonomous project update',
+          body: body.pullRequestBody || ('Automated change by the authenticated IPTV Web project agent.\n\nCommit: ' + result.commitUrl),
+          draft: !!body.draft,
+        });
+      }
+      automation.audit({
+        actor: 'agent',
+        action: 'project.commit',
+        status: 'ok',
+        summary: 'Committed ' + result.changedFiles.length + ' file change(s) to ' + result.branch + ' (' + result.commit.slice(0, 12) + ')',
+      });
+      sendJson(req, res, 201, { ok: true, ...result, pullRequest });
+    } catch (err) {
+      automation.audit({ actor: 'agent', action: 'project.commit', status: 'error', summary: String(err.message || err).slice(0, 300) });
+      sendJson(req, res, err.statusCode || 400, { error: err.message || 'repository commit failed' });
+    }
+  };
+  const projectBranch = async (req, res) => {
+    try {
+      const body = JSON.parse(await readBody(req, 16384));
+      sendJson(req, res, 201, await project.createBranch({ name: body.name, base: body.base || project.defaultBranch }));
+    } catch (err) {
+      sendJson(req, res, err.statusCode || 400, { error: err.message || 'branch creation failed' });
+    }
+  };
+  const projectPullRequest = async (req, res) => {
+    try {
+      const body = JSON.parse(await readBody(req, 65536));
+      sendJson(req, res, 201, await project.pullRequest(body));
+    } catch (err) {
+      sendJson(req, res, err.statusCode || 400, { error: err.message || 'pull request creation failed' });
+    }
+  };
+  const projectMerge = async (req, res, params) => {
+    try {
+      const body = JSON.parse(await readBody(req, 65536).catch(() => '{}'));
+      const result = await project.mergePullRequest({ ...body, number: params.number });
+      automation.audit({ actor: 'agent', action: 'project.merge', status: result.merged ? 'ok' : 'error', summary: 'Pull request #' + params.number + ': ' + (result.message || (result.merged ? 'merged' : 'not merged')) });
+      sendJson(req, res, result.merged ? 200 : 409, result);
+    } catch (err) {
+      sendJson(req, res, err.statusCode || 400, { error: err.message || 'pull request merge failed' });
+    }
+  };
+  const projectDispatch = async (req, res) => {
+    try {
+      const body = JSON.parse(await readBody(req, 65536));
+      const result = await project.dispatchWorkflow(body);
+      automation.audit({ actor: 'agent', action: 'project.workflow_dispatch', status: 'ok', summary: 'Dispatched ' + String(body.workflow).slice(0, 120) + ' on ' + String(body.ref || project.defaultBranch).slice(0, 120) });
+      sendJson(req, res, 202, result);
+    } catch (err) {
+      automation.audit({ actor: 'agent', action: 'project.workflow_dispatch', status: 'error', summary: String(err.message || err).slice(0, 300) });
+      sendJson(req, res, err.statusCode || 400, { error: err.message || 'workflow dispatch failed' });
+    }
+  };
+  const projectActions = async (req, res, params, query) => {
+    try {
+      sendJson(req, res, 200, await project.actions({ branch: query.branch || project.defaultBranch, limit: query.limit }));
+    } catch (err) {
+      sendJson(req, res, err.statusCode || 502, { error: err.message || 'could not list workflow runs' });
+    }
+  };
+  const projectChecks = async (req, res, params) => {
+    try {
+      sendJson(req, res, 200, await project.commitStatus(params.sha));
+    } catch (err) {
+      sendJson(req, res, err.statusCode || 502, { error: err.message || 'could not inspect commit checks' });
+    }
+  };
+
   const auditLog = (req, res, params, query) => {
     const limit = Math.max(1, Math.min(200, parseInt(query.limit, 10) || 50));
     sendJson(req, res, 200, { entries: automation.readAudit(limit) });
@@ -220,6 +344,16 @@ function createAgentApi({ dataDir, catalog, refresh, api, automation }) {
 
   return {
     capabilities: gate('agent.capabilities', false, capabilities),
+    projectStatus: gate('agent.project.status', false, projectStatus),
+    projectTree: gate('agent.project.tree', false, projectTree),
+    projectFile: gate('agent.project.file', false, projectFile),
+    projectCommit: gate('agent.project.commit', true, projectCommit),
+    projectBranch: gate('agent.project.branch', true, projectBranch),
+    projectPullRequest: gate('agent.project.pr', true, projectPullRequest),
+    projectMerge: gate('agent.project.merge', true, projectMerge),
+    projectDispatch: gate('agent.project.workflow_dispatch', true, projectDispatch),
+    projectActions: gate('agent.project.actions', false, projectActions),
+    projectChecks: gate('agent.project.checks', false, projectChecks),
     status: gate('agent.status', false, status),
     settingsView: gate('agent.settings.read', false, settingsView),
     settingsUpdate: gate('agent.settings.update', true, settingsUpdate),
