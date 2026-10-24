@@ -265,12 +265,14 @@
       const fav = favSet.has(it.id);
       const poster = imgUrl(it.logo);
       const subtitle = [it.year, it.remarks, it.sourceName].filter(Boolean).join(' · ');
+      const recordLink = it.pageUrl ? `<a class="vod-record" href="${esc(it.pageUrl)}" data-vod-page target="_blank" rel="noopener noreferrer">View source / license ↗</a>` : '';
       return `<article class="card vod-card" data-id="${esc(it.id)}" tabindex="0" title="${esc(it.overview || it.name)}">
         <div class="thumb vod-thumb">${poster ? `<img loading="lazy" src="${esc(poster)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'ini',textContent:'${esc(initials(it.name))}'}))">` : `<div class="ini">${esc(initials(it.name))}</div>`}</div>
         <div class="meta">
           <div class="nm" title="${esc(it.name)}">${esc(it.name)}</div>
           <div class="sub">${subtitle ? `<span>${esc(subtitle)}</span>` : ''}<span class="badge">${esc(it.kind || 'VOD')}</span></div>
           ${it.overview ? `<div class="vod-overview">${esc(it.overview)}</div>` : ''}
+          ${recordLink}
         </div>
         <button class="fav${fav ? ' on' : ''}" data-fav="${esc(it.id)}" title="${t('tabFavorites')}">${fav ? '★' : '☆'}</button>
       </article>`;
@@ -698,6 +700,7 @@
 
   /* ------------------------------------------------------------------ wiring */
   function onGridClick(e) {
+    if (e.target.closest('[data-vod-page]')) return;
     const favBtn = e.target.closest('[data-fav]');
     if (favBtn) {
       e.stopPropagation();
