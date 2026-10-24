@@ -32,6 +32,7 @@ const { createAgentApi } = require('./lib/agent');
 const { createPortalApi } = require('./lib/portal');
 const { createResourceAvailability } = require('./lib/resource-availability');
 const { createRadioApi } = require('./lib/radio');
+const { createMailApi } = require('./lib/mail-workspace');
 
 const PORT = parseInt(process.env.PORT, 10) || 3920;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -81,6 +82,7 @@ const agent = createAgentApi({ dataDir: DATA_DIR, catalog, refresh: refreshNow, 
 const portal = createPortalApi({ dataDir: DATA_DIR });
 const resourceAvailability = createResourceAvailability({ getServices: portal.getServices });
 const radio = createRadioApi();
+const mail = createMailApi({ dataDir: DATA_DIR });
 const staticHandler = serveStatic(PUBLIC_DIR);
 
 // POST /api/refresh drags 18 MB from iptv-org: allow it freely from the host itself,
@@ -137,6 +139,38 @@ app.get('/api/portal/services', portal.list);
 app.post('/api/portal/services', portal.add);
 app.patch('/api/portal/services/:id', portal.update);
 app.delete('/api/portal/services/:id', portal.remove);
+
+// Authenticated Mail Workspace API (IMAP/SMTP, contacts, and agent drafting).
+app.get('/api/mail/session', mail.session);
+app.post('/api/mail/login', mail.login);
+app.post('/api/mail/logout', mail.logout);
+app.get('/api/mail/accounts', mail.accountsList);
+app.post('/api/mail/accounts', mail.accountsAdd);
+app.post('/api/mail/accounts/bulk-password', mail.accountsBulkPassword);
+app.delete('/api/mail/accounts/:id', mail.accountsDelete);
+app.post('/api/mail/accounts/:id/test', mail.accountTest);
+app.get('/api/mail/folders', mail.folders);
+app.get('/api/mail/messages', mail.messages);
+app.get('/api/mail/message', mail.message);
+app.post('/api/mail/send', mail.send);
+app.get('/api/mail/drafts', mail.draftsList);
+app.post('/api/mail/drafts', mail.draftsCreate);
+app.delete('/api/mail/drafts/:id', mail.draftsDelete);
+app.post('/api/mail/drafts/:id/send', mail.draftsSend);
+app.get('/api/mail/contacts', mail.contactsList);
+app.post('/api/mail/contacts', mail.contactsAdd);
+app.patch('/api/mail/contacts/:id', mail.contactsUpdate);
+app.delete('/api/mail/contacts/:id', mail.contactsDelete);
+app.get('/api/mail/audit', mail.auditList);
+app.get('/api/agent/v1/mail/openapi.json', mail.agentOpenApi);
+app.get('/api/agent/v1/mail/accounts', mail.agentAccounts);
+app.get('/api/agent/v1/mail/folders', mail.agentFolders);
+app.get('/api/agent/v1/mail/messages', mail.agentMessages);
+app.get('/api/agent/v1/mail/message', mail.agentMessage);
+app.get('/api/agent/v1/mail/contacts', mail.agentContacts);
+app.get('/api/agent/v1/mail/drafts', mail.agentDrafts);
+app.post('/api/agent/v1/mail/drafts', mail.agentDraftCreate);
+app.post('/api/agent/v1/mail/drafts/:id/send', mail.agentDraftSend);
 
 // Public Radio Browser directory and UUID-based stream relay (no arbitrary URL proxy).
 app.get('/api/radio/stations', radio.stations);

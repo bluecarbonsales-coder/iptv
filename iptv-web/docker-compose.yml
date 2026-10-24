@@ -18,6 +18,13 @@ services:
       SOURCE_TOKEN: "${SOURCE_TOKEN:-}"
       # Agent endpoints remain disabled until a strong AGENT_API_TOKEN is set.
       AGENT_API_TOKEN: "${AGENT_API_TOKEN:-}"
+      # Mail Workspace secrets: set these in the server .env, never in source control.
+      EMAIL_WORKSPACE_PASSWORD: "${EMAIL_WORKSPACE_PASSWORD:-}"
+      EMAIL_SESSION_SECRET: "${EMAIL_SESSION_SECRET:-}"
+      EMAIL_CREDENTIALS_KEY: "${EMAIL_CREDENTIALS_KEY:-}"
+      EMAIL_ALLOWED_MAIL_HOSTS: "${EMAIL_ALLOWED_MAIL_HOSTS:-mail.nafisainternational.com}"
+      MAIL_COOKIE_SECURE: "${MAIL_COOKIE_SECURE:-1}"
+      EMAIL_AGENT_SEND_MODE: "${EMAIL_AGENT_SEND_MODE:-approval}"
       # GitHub App/PAT with repository contents, pull-request, and Actions permissions for autonomous code changes.
       GITHUB_REPO_TOKEN: "${GITHUB_REPO_TOKEN:-}"
       GITHUB_REPOSITORY: "${GITHUB_REPOSITORY:-bluecarbonsales-coder/iptv}"

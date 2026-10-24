@@ -289,3 +289,18 @@ Channel/stream/logo metadata comes from the [iptv-org API](https://github.com/ip
 also works from networks where GitHub Pages is unreachable.
 
 **This app usually hosts no video.** Live streams and configured VOD providers are third-party endpoints; the relay forwards bytes on demand. Internet Archive content is streamed from Archive.org and shown only when its metadata declares public-domain or supported CC licensing. Metadata labels can be wrong or incomplete; users must check the underlying record and local rules. Provider directories (including LibreTV/MoonTV/TVBox-style config) do not, by themselves, grant rights to the videos they point to.
+
+
+## Mail Workspace
+
+Open /mail.html to use the web email client. It reuses the existing Mailcow host mail.nafisainternational.com; it does not provision mailboxes. The eight supplied accounts are prelisted with @mail.nafisainternational.com identities and the admin role aliases.
+
+Configure these values in the deployment environment and rebuild/restart: EMAIL_WORKSPACE_PASSWORD (separate web login password), EMAIL_SESSION_SECRET (random session HMAC key, at least 32 characters), EMAIL_CREDENTIALS_KEY (exactly 64 hex characters from openssl rand -hex 32), EMAIL_ALLOWED_MAIL_HOSTS=mail.nafisainternational.com, MAIL_COOKIE_SECURE=1 for HTTPS, and EMAIL_AGENT_SEND_MODE=approval by default. Losing the encryption key means mailbox credentials must be entered again.
+
+Mailbox credentials are encrypted at rest with AES-256-GCM in /data/mail-workspace.json and never returned by APIs. Enter mailbox passwords in the authenticated HTTPS settings page; do not embed them in source control, prompts, logs or browser local storage. Use a unique workspace password. Rotate any shared mailbox password exposed outside its intended context.
+
+Features: IMAP TLS 993, SMTP STARTTLS 587 or TLS 465, folder/message view, compose and send, alias-aware From addresses, drafts, address-book CRUD and audit events. Message HTML is not executed; attachments are listed but not downloaded in this initial UI.
+
+Agents use AGENT_API_TOKEN Bearer or X-Agent-Token authentication with GET /api/agent/v1/mail/openapi.json, /accounts, /folders, /messages, /message, /contacts and /drafts plus POST /drafts and /drafts/:id/send. Agent-created drafts require owner approval by default. Set EMAIL_AGENT_SEND_MODE=direct only if trusted agents should send unattended. Allowed mail hosts are restricted by EMAIL_ALLOWED_MAIL_HOSTS.
+
+CI passing does not prove the live VPS has these environment values, that SMTP/IMAP connections work, or that this change is deployed.

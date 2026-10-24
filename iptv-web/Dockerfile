@@ -1,8 +1,9 @@
 FROM node:22-alpine
 
-# No build step and no npm dependencies: the app is plain Node stdlib + static assets,
-# so the image builds offline and starts in milliseconds.
+# Install reviewed IMAP, SMTP and MIME packages for the Mail Workspace.
 WORKDIR /app
+COPY package.json ./
+RUN npm install --omit=dev --no-audit --no-fund
 ENV NODE_ENV=production \
     PORT=3920 \
     HOST=0.0.0.0 \
