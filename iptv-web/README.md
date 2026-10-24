@@ -56,8 +56,13 @@ play fine through it.
   live in the Docker data volume; provider APIs are probed before being saved.
 - **Provider-list import** — import a hosted JSON list URL or upload a downloaded JSON file in LibreTV
   SourceList format (`sources`), MoonTV `config.json` format (`api_site`), or a TVBox-style `sites` array
-  containing compatible Apple CMS APIs. Imported provider URLs are configuration only and are not
-  guaranteed to host authorized or working video.
+  containing compatible Apple CMS APIs. Imported providers are probed before they are saved; the probe
+  does not determine whether the content is licensed for redistribution.
+- **Public-domain / CC movie search** — a built-in Internet Archive adapter searches item metadata and
+  serves a playable MP4/WebM/Ogg file only when the Archive record declares public-domain or supported
+  Creative Commons licensing. Each result links back to its Archive rights/metadata page.
+- **Agent-first management** — documented OpenAPI endpoints for Hermes and other agents, token auth,
+  health/maintenance tasks, automatic trusted-registry synchronization, provider probes, and an audit log.
 - **M3U export** — `/api/export.m3u` mirrors the current filters, and can emit either the
   original stream URLs or relay URLs (`&proxy=1`) for use in VLC/Kodi.
 - **Bilingual UI** — English / 简体中文.
@@ -71,7 +76,7 @@ play fine through it.
 | `GET /api/channels` | `q`, `country`, `category`, `minQuality`, `hasLogo`, `nsfw`, `ids`, `sort`, `page`, `limit` |
 | `GET /api/channel/:id` | one channel with every stream URL, quality, referrer, user-agent, labels |
 | `GET /api/playlist?u=` | import an external M3U (server-side fetch + parse) |
-| `GET /api/vod?type=&q=` | search configured VOD APIs for `all`, `movies`, `series`, or `anime` |
+| `GET /api/vod?type=&q=` | search configured VOD APIs and the built-in Internet Archive adapter for `all`, `movies`, `series`, or `anime` |
 | `GET /api/vod/:sourceId/:vodId` | resolve details and episodes for a VOD title |
 | `GET /api/vod/sources` | list VOD providers (requires `X-Source-Token`) |
 | `POST /api/vod/sources` | validate and add Apple CMS / MacCMS provider (requires `X-Source-Token`) |
@@ -87,6 +92,18 @@ play fine through it.
 | `POST /api/refresh` | re-download the iptv-org API and rebuild the catalogue |
 | `GET /hls?u=&r=&ua=` | HLS manifest + segment relay (see above) |
 | `GET /img?u=` | channel-logo relay with a disk cache |
+| `GET /api/agent/v1/openapi.json` | OpenAPI schema for agent control |
+| `GET /api/agent/v1/capabilities` | capabilities, autonomy policy, source limits |
+| `GET /api/agent/v1/status` | live catalog, source/provider health, automation status |
+| `GET /api/agent/v1/audit?limit=50` | recent automation/agent audit events |
+| `POST /api/agent/v1/tasks/run` | run `maintain_sources`, `sync_source_lists`, `check_vod_providers`, or `refresh_live_catalog` |
+| `GET/POST /api/agent/v1/live/sources` | list/add live M3U resources |
+| `PATCH/DELETE /api/agent/v1/live/sources/:id` | update or remove live resources |
+| `GET/POST /api/agent/v1/vod/sources` | list/add VOD providers |
+| `PATCH/DELETE /api/agent/v1/vod/sources/:id` | update or remove VOD providers |
+| `POST /api/agent/v1/vod/import` | import a trusted provider directory by URL or JSON config |
+| `GET /api/agent/v1/vod/search?type=&q=` | machine-oriented VOD + licensed-archive search |
+| `GET /api/agent/v1/archive/search?type=&q=` | search the built-in Internet Archive adapter |
 | `GET /healthz` | counts, timestamp, uptime |
 
 `POST /api/refresh` is accepted from the host itself without a token; anything arriving
@@ -94,6 +111,19 @@ through the reverse proxy must send `X-Refresh-Token` matching `REFRESH_TOKEN`. 
 requests require `X-Source-Token`, matching `SOURCE_TOKEN` or (if unset) `REFRESH_TOKEN`.
 Enter that token in the Resource manager panel; it is held in the current browser tab only.
 Configure a strong random token in the deployment environment before exposing the UI publicly.
+
+## Agent operation and automation
+
+See the repository-root [`AGENTS.md`](../AGENTS.md) for exact Hermes workflows and API examples. The agent API requires a long random `AGENT_API_TOKEN` sent as `X-Agent-Token` or a Bearer token. It is disabled when the token is unset. Keep the service behind Cloudflare Access/private ingress; do not expose the loopback application port directly.
+
+Configure `iptv-web/.env` from [`.env.example`](.env.example). Important settings:
+
+- `AGENT_AUTONOMY=full`: lets the authenticated agent add, update, enable/disable, and remove providers without human clicks. Use `review` to block agent writes and import scheduled discoveries as disabled. `off` stops scheduled registry discovery.
+- `AGENT_AUTOMATION_ENABLED=1`: schedules a maintenance cycle shortly after startup and every `AUTO_SOURCE_SYNC_HOURS` (default 12 hours).
+- `VOD_SOURCE_LIST_URLS`: optional comma/newline-separated JSON registry URLs you explicitly trust. The job polls these directories, probes candidate APIs, adds new providers, and updates endpoints for providers previously imported from that same directory.
+- The agent can trigger `maintain_sources`, `sync_source_lists`, `check_vod_providers`, and `refresh_live_catalog` through `POST /api/agent/v1/tasks/run`. Actions are recorded in `/data/agent-audit.jsonl`, readable from `GET /api/agent/v1/audit`.
+
+Automatic discovery is intentionally limited to the registry URLs you configure; the service doesn't trust arbitrary internet lists on its own. Provider/API probes establish compatibility and availability only, not content rights. Review the source directory and licensing of any catalog you use. The native Internet Archive search filters by declared public-domain/compatible CC metadata, but this is not a legal guarantee.
 
 VOD provider configuration is stored in `data/vod-sources.json` on the persistent volume. The adapter
 supports the common Apple CMS / MacCMS JSON API (`ac=videolist`, `wd`, `pg`, and `ids` queries) used by
@@ -116,7 +146,10 @@ lib/img.js           logo relay + disk LRU cache
 lib/catalog.js       in-memory catalogue, filtering, ranked search
 lib/refresh.js       download iptv-org API -> data/catalog.json (+ meta.json, .gz)
 lib/sources.js        persistent M3U source registry and catalogue merger
-lib/vod.js            Apple CMS / MacCMS VOD provider adapter
+lib/vod.js            Apple CMS / MacCMS provider adapter + provider-list importer
+lib/archive-vod.js     Internet Archive public-domain / CC movie adapter
+lib/automation.js     scheduled provider discovery, health checks, and audit
+lib/agent.js          Hermes/agent API, OpenAPI schema, token and autonomy gate
 lib/m3u.js           M3U parser (server); public/js/m3u.js is the browser twin
 lib/static.js        static serving with etag + gzip
 public/              index.html, app.css, app.js, js/i18n.js, vendor/hls.min.js
@@ -153,7 +186,4 @@ Channel/stream/logo metadata comes from the [iptv-org API](https://github.com/ip
 `lib/refresh.js` tries iptv-org directly and falls back to GitHub raw proxies so a refresh
 also works from networks where GitHub Pages is unreachable.
 
-**This app hosts no video.** Every stream is a third-party URL listed by iptv-org; the relay
-only forwards bytes on demand. Availability, legality and geo-restrictions are the origin
-broadcaster's business — many listed streams are unofficial re-broadcasts and some
-jurisdictions restrict watching them. Use accordingly.
+**This app usually hosts no video.** Live streams and configured VOD providers are third-party endpoints; the relay forwards bytes on demand. Internet Archive content is streamed from Archive.org and shown only when its metadata declares public-domain or supported CC licensing. Metadata labels can be wrong or incomplete; users must check the underlying record and local rules. Provider directories (including LibreTV/MoonTV/TVBox-style config) do not, by themselves, grant rights to the videos they point to.
