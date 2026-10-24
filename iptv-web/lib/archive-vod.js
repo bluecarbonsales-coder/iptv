@@ -78,7 +78,7 @@ async function search(query = '', type = 'all', limit = 30) {
   if (type === 'series') return [];
   const params = new URLSearchParams();
   const term = escapeLucene(query);
-  const rights = '(licenseurl:* OR rights:"Public Domain")';
+  const rights = '(licenseurl:http*publicdomain* OR licenseurl:http*zero* OR licenseurl:http*licenses/by* OR rights:"Public Domain")';
   const textFilter = term ? ' AND (title:"' + term + '" OR subject:"' + term + '")' : '';
   params.set('q', 'mediatype:movies AND ' + rights + textFilter);
   for (const field of ['identifier', 'title', 'year', 'date', 'description', 'creator', 'licenseurl', 'rights', 'subject']) params.append('fl[]', field);
