@@ -34,6 +34,8 @@ const { createResourceAvailability } = require('./lib/resource-availability');
 const { createRadioApi } = require('./lib/radio');
 const { createMailApi } = require('./lib/mail-workspace');
 const { createMetadataApi } = require('./lib/metadata');
+const { createNavigationConfig } = require('./lib/navigation-config');
+const { createVisitorContext } = require('./lib/visitor-context');
 
 const PORT = parseInt(process.env.PORT, 10) || 3920;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -79,12 +81,14 @@ const automation = createAutomation({
   onProvidersChanged: () => api && api.clearVodCache(),
 });
 api = createApi(catalog, refreshNow, DATA_DIR, automation);
-const agent = createAgentApi({ dataDir: DATA_DIR, catalog, refresh: refreshNow, api, automation });
+const agent = createAgentApi({ dataDir: DATA_DIR, catalog, refresh: refreshNow, api, automation, navigationConfig, visitorContext });
 const portal = createPortalApi({ dataDir: DATA_DIR });
 const resourceAvailability = createResourceAvailability({ getServices: portal.getServices });
 const radio = createRadioApi();
 const mail = createMailApi({ dataDir: DATA_DIR });
 const metadata = createMetadataApi();
+const navigationConfig = createNavigationConfig(DATA_DIR);
+const visitorContext = createVisitorContext(DATA_DIR);
 const staticHandler = serveStatic(PUBLIC_DIR);
 
 // POST /api/refresh drags 18 MB from iptv-org: allow it freely from the host itself,
@@ -115,6 +119,9 @@ app.post('/api/agent/v1/project/pr/:number/merge', agent.projectMerge);
 app.post('/api/agent/v1/project/dispatch', agent.projectDispatch);
 app.get('/api/agent/v1/project/actions', agent.projectActions);
 app.get('/api/agent/v1/project/checks/:sha', agent.projectChecks);
+app.get('/api/agent/v1/navigation', agent.navigationGet);
+app.put('/api/agent/v1/navigation', agent.navigationReplace);
+app.get('/api/agent/v1/discovery/visitor-trends', agent.visitorTrends);
 app.get('/api/agent/v1/capabilities', agent.capabilities);
 app.get('/api/agent/v1/status', agent.status);
 app.get('/api/agent/v1/settings', agent.settingsView);
@@ -136,6 +143,16 @@ app.get('/api/agent/v1/archive/search', agent.archiveSearch);
 app.get('/api/agent/v1/commons/search', agent.commonsSearch);
 
 // Persistent home-page links; only reads are public, all mutations require an existing management token.
+app.get('/api/navigation', (req, res) => {
+  try { sendJson(req, res, 200, navigationConfig.read()); }
+  catch (err) { sendJson(req, res, 500, { error: 'navigation config unavailable' }); }
+});
+app.post('/api/visitor/context', async (req, res) => {
+  try {
+    const body = JSON.parse(await require('./lib/util').readBody(req, 4096));
+    sendJson(req, res, 200, visitorContext.record(body));
+  } catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message || 'visitor context was not recorded' }); }
+});
 app.get('/api/portal/availability', resourceAvailability.handler);
 app.get('/api/portal/services', portal.list);
 app.post('/api/portal/services', portal.add);
