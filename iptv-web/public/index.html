@@ -113,7 +113,11 @@
 
         <div class="side-block" id="vodManager" hidden>
           <div class="side-head"><span>Movies, series &amp; anime resources</span><button class="link-btn" id="vodReload" type="button">Refresh</button></div>
-          <p class="hint">Add an authorized Apple CMS / MacCMS VOD API (the format used by LibreTV/MoonTV-style projects). No unverified feeds are bundled.</p>
+          <p class="hint">Add an authorized Apple CMS / MacCMS VOD API, or import a configuration list from LibreTV, MoonTV, or compatible TVBox projects. These files describe provider endpoints; they do not certify streaming rights.</p>
+          <label class="field"><span>Management token</span><input id="vodToken" class="mini" type="password" autocomplete="current-password" placeholder="SOURCE_TOKEN or REFRESH_TOKEN" /></label>
+          <label class="field"><span>Import provider-list / config JSON URL</span><input id="vodListUrl" class="mini" type="url" placeholder="https://example.org/source-list.json or config.json" /></label>
+          <button class="btn ghost" id="vodImport" type="button">Import provider list</button>
+          <p class="hint">Supports LibreTV SourceList JSON (sources), MoonTV config.json (api_site), and TVBox-style sites arrays containing Apple CMS/MacCMS APIs. Imported providers are not independently verified.</p>
           <label class="field"><span>Provider name</span><input id="vodName" class="mini" type="text" maxlength="80" placeholder="My authorized catalog" /></label>
           <label class="field"><span>Content section</span><select id="vodKind" class="mini"><option value="all">All VOD</option><option value="movies">Movies</option><option value="series">Series / TV</option><option value="anime">Anime</option></select></label>
           <label class="field"><span>Apple CMS / MacCMS API URL</span><input id="vodApi" class="mini" type="url" placeholder="https://example.org/api.php/provide/vod" /></label>
