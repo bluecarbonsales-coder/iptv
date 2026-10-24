@@ -4,6 +4,7 @@
   const state = {
     query: '', countrycode: '', language: '', tag: '', order: 'clickcount',
     offset: 0, limit: 48, stations: [], favorites: loadJson('radio.favorites', []),
+    favoriteStations: loadJson('radio.favoriteStations', []),
     recent: loadJson('radio.recent', []), onlyFavorites: false, activeUuid: '', isLoading: false,
   };
   const grid = $('#stationGrid');
@@ -102,9 +103,12 @@
     return card;
   }
   function render() {
-    const items = state.onlyFavorites
-      ? state.stations.filter((station) => isFavorite(station.stationuuid))
-      : state.stations;
+    const favoriteMap = new Map();
+    if (state.onlyFavorites) {
+      state.favoriteStations.forEach((station) => { if (isFavorite(station.stationuuid)) favoriteMap.set(station.stationuuid, station); });
+      state.stations.forEach((station) => { if (isFavorite(station.stationuuid)) favoriteMap.set(station.stationuuid, station); });
+    }
+    const items = state.onlyFavorites ? [...favoriteMap.values()] : state.stations;
     grid.replaceChildren();
     if (!items.length) {
       const empty = document.createElement('div');
@@ -128,8 +132,8 @@
     updateFavorites();
   }
   async function loadStations(reset) {
-    if (state.isLoading) return;
-    if (reset) { state.offset = 0; state.stations = []; }
+    if (state.isLoading && !reset) return;
+    if (reset) { state.offset = 0; state.nextOffset = null; state.stations = []; }
     state.isLoading = true;
     const currentSequence = ++loadSequence;
     render();
@@ -188,9 +192,15 @@
     }
   }
   function toggleFavorite(station) {
-    if (isFavorite(station.stationuuid)) state.favorites = state.favorites.filter((id) => id !== station.stationuuid);
-    else state.favorites = [station.stationuuid, ...state.favorites].slice(0, 500);
+    if (isFavorite(station.stationuuid)) {
+      state.favorites = state.favorites.filter((id) => id !== station.stationuuid);
+      state.favoriteStations = state.favoriteStations.filter((item) => item.stationuuid !== station.stationuuid);
+    } else {
+      state.favorites = [station.stationuuid, ...state.favorites].slice(0, 500);
+      state.favoriteStations = [station, ...state.favoriteStations.filter((item) => item.stationuuid !== station.stationuuid)].slice(0, 500);
+    }
     saveJson('radio.favorites', state.favorites);
+    saveJson('radio.favoriteStations', state.favoriteStations);
     updateFavorites();
     render();
   }
