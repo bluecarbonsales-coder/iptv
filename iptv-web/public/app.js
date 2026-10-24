@@ -31,7 +31,7 @@
     hasLogo: false,
     hideAdult: false,
     page: 1,
-    limit: 60,
+    limit: 50,
     total: 0,
     pages: 1,
     items: [],
@@ -171,7 +171,7 @@
     if (state.loading) return;
     state.loading = true;
     if (reset) {
-      state.page = 1;
+      if (!state.keepPage) state.page = 1;
       grid.innerHTML = '';
       emptyBox.hidden = true;
     }
@@ -185,17 +185,17 @@
       const pageItems = (data.items || []).concat(extraVod);
       state.total = data.total + extraVod.length;
       state.pages = data.pages;
-      if (reset) state.items = pageItems;
-      else state.items = state.items.concat(data.items);
-      renderCards(pageItems, !reset);
+      state.items = pageItems;
+      renderCards(pageItems, false);
       renderResultBar();
-      loadMoreBtn.hidden = state.view === 'playlists' || state.page >= data.pages || !data.total;
+      renderPagination(data.pages || 1);
     } catch (err) {
       $('#resultCount').textContent = '';
       emptyBox.hidden = false;
       emptyBox.textContent = 'Could not load channels: ' + err.message;
     } finally {
       state.loading = false;
+      state.keepPage = false;
     }
   }
 
@@ -203,7 +203,7 @@
     if (state.loading) return;
     state.loading = true;
     if (reset) {
-      state.page = 1;
+      if (!state.keepPage) state.page = 1;
       grid.innerHTML = '';
       emptyBox.hidden = true;
     }
@@ -219,12 +219,13 @@
       for (const item of items) stored.set(item.id, item);
       state.vodItems = Array.from(stored.values()).slice(-500);
       LS.set('iptvweb.vod.items', state.vodItems);
-      state.total = data.total || 0;
-      state.pages = data.pages || 1;
-      state.page = 1;
+      state.total = data.total || items.length;
       state.items = items;
-      renderCards(items, false);
-      $('#resultCount').innerHTML = `<b>${state.total.toLocaleString()}</b> ${state.view === 'anime' ? 'anime titles' : state.view === 'series' ? 'series' : state.view === 'movies' ? 'movies' : 'VOD titles'}`;
+      state.pages = Math.max(1, Math.ceil(items.length / 50));
+      state.page = Math.min(state.page, state.pages);
+      renderCards(items.slice((state.page - 1) * 50, state.page * 50), false);
+      renderPagination(state.pages);
+      $('#resultCount').innerHTML = `<b>${state.total.toLocaleString()}</b> ${state.view === 'anime' ? 'anime titles' : state.view === 'series' ? 'series' : state.view === 'movies' ? 'movies' : 'VOD titles'} · page ${state.page} of ${state.pages}`;
       const good = (data.providers || []).filter((provider) => provider.ok).length;
       const failures = (data.errors || []).length;
       const badges = [];
@@ -244,7 +245,20 @@
       emptyBox.textContent = 'Could not load VOD resources: ' + err.message;
     } finally {
       state.loading = false;
+      state.keepPage = false;
     }
+  }
+
+  function renderPagination(pages) {
+    const el = $('#channelPagination');
+    if (!el) return;
+    if (pages <= 1) { el.innerHTML = ''; return; }
+    const start = Math.max(1, Math.min(state.page - 2, pages - 4));
+    const end = Math.min(pages, start + 4);
+    let html = `<button data-page="${state.page - 1}" ${state.page === 1 ? 'disabled' : ''}>‹</button>`;
+    for (let p = start; p <= end; p++) html += `<button data-page="${p}" class="${p === state.page ? 'active' : ''}" aria-current="${p === state.page ? 'page' : 'false'}">${p}</button>`;
+    html += `<button data-page="${state.page + 1}" ${state.page === pages ? 'disabled' : ''}>›</button>`;
+    el.innerHTML = html;
   }
 
   function renderResultBar() {
@@ -811,10 +825,17 @@
       play(player.index);
     });
 
-    loadMoreBtn.onclick = () => {
-      state.page++;
-      load(false);
-    };
+    $('#channelPagination').addEventListener('click', (event) => {
+      const button = event.target.closest('[data-page]');
+      if (!button || button.disabled || state.loading) return;
+      const target = Number(button.dataset.page);
+      if (!Number.isInteger(target) || target < 1 || target > state.pages) return;
+      state.page = target;
+      state.keepPage = true;
+      load(true);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+    loadMoreBtn.hidden = true;
 
     const sentinel = document.createElement('div');
     sentinel.style.height = '1px';
