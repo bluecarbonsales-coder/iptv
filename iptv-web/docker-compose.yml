@@ -14,6 +14,8 @@ services:
       REFRESH_HOURS: "12"
       # Required for POST /api/refresh coming from outside the host.
       REFRESH_TOKEN: "${REFRESH_TOKEN:-}"
+      # Separate token for the persistent resource manager (falls back to REFRESH_TOKEN if unset).
+      SOURCE_TOKEN: "${SOURCE_TOKEN:-}"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3920/healthz"]
       interval: 60s
