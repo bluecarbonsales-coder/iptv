@@ -299,6 +299,7 @@
       $('#manageStatus').className = 'status';
     });
     $('#unlockForm').addEventListener('submit', (event) => { event.preventDefault(); unlock(); });
+    $('#hideUnlock').addEventListener('click', () => { $('#unlockPanel').hidden = true; });
     $('#btnLock').addEventListener('click', lock);
     $('#btnAdd').addEventListener('click', () => openEditor());
     $('#serviceForm').addEventListener('submit', (event) => { event.preventDefault(); saveService(); });
