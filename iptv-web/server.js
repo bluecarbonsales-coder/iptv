@@ -33,6 +33,7 @@ const { createPortalApi } = require('./lib/portal');
 const { createResourceAvailability } = require('./lib/resource-availability');
 const { createRadioApi } = require('./lib/radio');
 const { createMailApi } = require('./lib/mail-workspace');
+const { createMediaDiscovery } = require('./lib/media-discovery');
 
 const PORT = parseInt(process.env.PORT, 10) || 3920;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -83,6 +84,7 @@ const portal = createPortalApi({ dataDir: DATA_DIR });
 const resourceAvailability = createResourceAvailability({ getServices: portal.getServices });
 const radio = createRadioApi();
 const mail = createMailApi({ dataDir: DATA_DIR });
+const mediaDiscovery = createMediaDiscovery({ dataDir: DATA_DIR });
 const staticHandler = serveStatic(PUBLIC_DIR);
 
 // POST /api/refresh drags 18 MB from iptv-org: allow it freely from the host itself,
@@ -139,6 +141,13 @@ app.get('/api/portal/services', portal.list);
 app.post('/api/portal/services', portal.add);
 app.patch('/api/portal/services/:id', portal.update);
 app.delete('/api/portal/services/:id', portal.remove);
+
+// Media discovery: Jackett search + public-domain archive results + persistent saved links.
+app.get('/api/media/search', mediaDiscovery.search);
+app.get('/api/media/links', mediaDiscovery.list);
+app.post('/api/media/links', mediaDiscovery.add);
+app.patch('/api/media/links/:id', mediaDiscovery.update);
+app.delete('/api/media/links/:id', mediaDiscovery.remove);
 
 // Authenticated Mail Workspace API (IMAP/SMTP, contacts, and agent drafting).
 app.get('/api/mail/session', mail.session);
