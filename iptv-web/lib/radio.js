@@ -57,7 +57,11 @@ function safeHttpUrl(raw) {
 }
 
 function getRemoteKey(req) {
-  const remote = String(req.socket && req.socket.remoteAddress || 'unknown');
+  // The app is intended to sit behind a private reverse proxy; prefer its client-IP headers
+  // so one proxy connection does not throttle every listener as the same visitor.
+  const forwarded = String(req.headers && (req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for']) || '');
+  const candidate = forwarded.split(',').map((part) => part.trim()).filter(Boolean);
+  const remote = candidate.length ? candidate[candidate.length - 1] : String(req.socket && req.socket.remoteAddress || 'unknown');
   return remote.startsWith('::ffff:') ? remote.slice(7) : remote;
 }
 
@@ -98,7 +102,7 @@ function createRadioApi(options = {}) {
         const hosts = await Promise.all((addresses || []).map(async (address) => {
           try { return await resolvePtr(address); } catch { return []; }
         }));
-        discovered = hosts.flat().map((host) => String(host).replace(/\\.$/, ''))
+        discovered = hosts.flat().map((host) => { const value = String(host); return value.endsWith('.') ? value.slice(0, -1) : value; })
           .filter((host, index, list) => host.endsWith('.api.radio-browser.info') && list.indexOf(host) === index)
           .map((host) => 'https://' + host);
       } catch {}
@@ -147,7 +151,7 @@ function createRadioApi(options = {}) {
       return true;
     }
     bucket.count += 1;
-    return bucket.count <= 90;
+    return bucket.count <= 180;
   }
 
   async function apiJson(apiPath, opts = {}) {
@@ -278,7 +282,8 @@ function createRadioApi(options = {}) {
       sendJson(req, res, 200, {
         stationuuid: uuid.toLowerCase(),
         url: stream.toString(),
-        proxyUrl: stream.protocol === 'http:' ? '/api/radio/stream/' + ticket : null,
+        // The browser prefers direct HTTPS and uses this random-ticket relay only if needed.
+        proxyUrl: '/api/radio/stream/' + ticket,
       });
     } catch (err) {
       sendJson(req, res, err.statusCode || 502, { error: err.message || 'Could not resolve this radio station' });
