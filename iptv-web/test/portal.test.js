@@ -43,6 +43,7 @@ test('management token comparison checks exact values and defaults are extensibl
   assert.equal(matchesToken('short', 'long-random-secret'), false);
   assert.equal(matchesToken(undefined, 'long-random-secret'), false);
   assert.ok(DEFAULT_SERVICES.some((service) => service.url === '/watch.html'));
+  assert.ok(DEFAULT_SERVICES.some((service) => service.id === 'theatre' && service.url === '/movies.html'));
   assert.ok(DEFAULT_SERVICES.some((service) => service.id === 'public-radio' && service.url === '/radio.html'));
   assert.ok(DEFAULT_SERVICES.some((service) => service.id === 'seedhub' && service.category === 'Media resources'));
   assert.ok(DEFAULT_SERVICES.some((service) => service.id === 'streambert' && service.url === 'https://github.com/truelockmc/streambert'));
@@ -63,9 +64,10 @@ test('existing portal data is migrated once with SeedHub and Streambert while pr
     const ids = services.map((item) => item.id);
     assert.ok(ids.includes('custom-service'));
     assert.ok(ids.includes('public-radio'));
+    assert.ok(ids.includes('theatre'));
     assert.ok(ids.includes('seedhub'));
     assert.ok(ids.includes('streambert'));
-    assert.equal(JSON.parse(fs.readFileSync(path.join(dataDir, 'portal-services.json'), 'utf8')).version, 2);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(dataDir, 'portal-services.json'), 'utf8')).version, 3);
 
     // User removals should persist once the one-time migration has completed.
     const saved = JSON.parse(fs.readFileSync(path.join(dataDir, 'portal-services.json'), 'utf8'));
