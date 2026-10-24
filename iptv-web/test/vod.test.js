@@ -93,3 +93,10 @@ test('imports MoonTV api_site and compatible TVBox sites structures', () => {
 test('rejects config documents without compatible VOD APIs', () => {
   assert.throws(() => vod.parseSourceList({ foo: [] }), /No supported VOD APIs found/);
 });
+
+test('prefers the working Apple CMS list action discovered during probing', () => {
+  assert.equal(vod.preferredListAction({ listAction: 'list' }), 'list');
+  assert.equal(vod.preferredListAction({ listAction: 'videolist' }), 'videolist');
+  assert.equal(vod.preferredListAction({}), 'videolist');
+  assert.equal(vod.preferredListAction(null), 'videolist');
+});
