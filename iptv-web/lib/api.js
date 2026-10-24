@@ -398,7 +398,7 @@ function createApi(catalog, refresh, dataDir) {
       providers: providerSummary,
       errors,
     };
-    if (sources.length && errors.length === 0) {
+    if ((sources.length || archiveOk) && errors.length === 0) {
       vodSearchCache.set(cacheKey, { time: Date.now(), payload });
       if (vodSearchCache.size > 100) vodSearchCache.delete(vodSearchCache.keys().next().value);
     }
