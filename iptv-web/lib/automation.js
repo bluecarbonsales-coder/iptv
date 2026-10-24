@@ -207,6 +207,7 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
             const probe = await vod.probeSource(record);
             record.lastChecked = new Date().toISOString();
             record.lastItemCount = probe.count;
+            record.listAction = probe.action;
           } catch (err) {
             report.rejected++;
             report.errors.push({ provider: candidate.name, error: String(err.message || err).slice(0, 180) });
@@ -374,7 +375,7 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
           id: source.id,
           status: 'ok',
           count: probe.count,
-          statusFields: { lastChecked: new Date().toISOString(), lastError: null, lastItemCount: probe.count },
+          statusFields: { lastChecked: new Date().toISOString(), lastError: null, lastItemCount: probe.count, listAction: probe.action },
         };
       } catch (err) {
         failed++;
