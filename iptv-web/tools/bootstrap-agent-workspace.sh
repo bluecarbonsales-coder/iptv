@@ -67,6 +67,10 @@ ASKPASS_SCRIPT
   trap - EXIT
 fi
 
+if [[ -z "$ENV_FILE" ]] && command -v gh >/dev/null 2>&1; then
+  gh auth setup-git >/dev/null
+fi
+
 if [[ -n "$ENV_FILE" ]]; then
   HELPER="$WORKSPACE/.git/iptv-git-credential-helper.sh"
   cat > "$HELPER" <<'CREDENTIAL_HELPER'
@@ -96,7 +100,9 @@ done < "$ENV_FILE"
 printf 'username=x-access-token\npassword=%s\n\n' "$TOKEN"
 CREDENTIAL_HELPER
   chmod 700 "$HELPER"
-  git -C "$WORKSPACE" config --local credential.helper "!$HELPER $ENV_FILE"
+  printf -v HELPER_QUOTED '%q' "$HELPER"
+  printf -v ENV_FILE_QUOTED '%q' "$ENV_FILE"
+  git -C "$WORKSPACE" config --local credential.helper "!$HELPER_QUOTED $ENV_FILE_QUOTED"
 fi
 git -C "$WORKSPACE" config --local user.name "${GIT_AUTHOR_NAME:-IPTV Project Agent}"
 git -C "$WORKSPACE" config --local user.email "${GIT_AUTHOR_EMAIL:-iptv-project-agent@users.noreply.github.com}"
