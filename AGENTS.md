@@ -71,12 +71,16 @@ You may also send an uploaded JSON object as `{"config":{...},"sourceName":"loca
 
 ### Search and inspect
 
+The built-in Internet Archive and Wikimedia Commons adapters find open-license media candidates and return item-level links/declared licenses. They are not substitutes for checking each original record or rights requirements.
+
 - `GET /api/agent/v1/vod/search?type=movies&q=...`
 - `GET /api/agent/v1/vod/search?type=anime&q=...`
 - `GET /api/agent/v1/vod/sources`
 - `GET /api/agent/v1/live/sources`
 - `GET /api/agent/v1/vod/:sourceId/:vodId` (source IDs are returned by search results)
 - `GET /api/agent/v1/archive/search?type=movies&q=...`
+- `GET /api/agent/v1/commons/search?type=anime&q=...`
+- `GET /api/agent/v1/settings` and `PATCH /api/agent/v1/settings` for the scheduled interval, registry URL list, and background autonomy mode.
 
 Source mutations use `POST`, `PATCH`, and `DELETE` under `/api/agent/v1/live/sources` and `/api/agent/v1/vod/sources`. Use the IDs returned by the API; avoid duplicate providers. Validate input and inspect the response body, not only the HTTP status.
 
@@ -93,11 +97,27 @@ For recurring source discovery, configure `sourceListUrls` through the API or `V
 - For other catalogs, confirm the provider's license/rights and the user's authorization before use. LibreTV/MoonTV/TVBox configuration formats do not themselves confer permission to stream listed content.
 - Never bypass DRM, subscription/paywall access controls, or provider authentication requirements.
 
-## 5. Reviewability and audit
+## 5. Hermes CLI
+
+For convenient one-command operations from the repository checkout, use `iptv-web/tools/agentctl.js`. It needs `IPTV_BASE_URL` and `AGENT_API_TOKEN` in Hermes' process environment. Examples:
+
+```bash
+node iptv-web/tools/agentctl.js capabilities
+node iptv-web/tools/agentctl.js status
+node iptv-web/tools/agentctl.js settings
+node iptv-web/tools/agentctl.js task maintain_sources
+node iptv-web/tools/agentctl.js vod-search movies science fiction
+node iptv-web/tools/agentctl.js commons-search public domain animation
+node iptv-web/tools/agentctl.js settings-patch '{"sourceListUrls":["https://registry.example/sources.json"],"autoSourceSyncHours":12,"autonomy":"full"}'
+```
+
+Store the token in your service/agent secret manager instead of committing it or including it in a prompt. The CLI does not need a new dependency and returns machine-readable JSON.
+
+## 6. Reviewability and audit
 
 Every agent API request is logged to `/data/agent-audit.jsonl` with time, action, result, and duration. The API returns recent entries at `GET /api/agent/v1/audit`. It intentionally avoids writing provider URLs or tokens to the log. Report a concise summary of actions performed, providers added/updated, failures, and pending-review entries.
 
-## 6. Project-wide code changes and deployment
+## 7. Project-wide code changes and deployment
 
 The agent is authorized to change any project file needed to accomplish the owner's task. Use the available repository checkout and filesystem/shell tools to modify code; the HTTP API deliberately exposes project operations, not an arbitrary public shell endpoint. Add or update tests, run:
 
