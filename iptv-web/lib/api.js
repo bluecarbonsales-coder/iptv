@@ -162,17 +162,22 @@ function createApi(catalog, refresh, dataDir) {
       const apiUrl = vodLib.normalizeApiUrl(body.api);
       const kind = vodLib.KINDS.has(body.kind) ? body.kind : 'all';
       if (!name) return sendJson(req, res, 400, { error: 'provider name is required' });
-      const registry = vodLib.loadSourcesSync(sourceDataDir);
-      if (registry.sources.length >= vodLib.MAX_VOD_SOURCES) return sendJson(req, res, 409, { error: 'VOD provider limit reached' });
-      if (registry.sources.some((s) => s.api === apiUrl)) return sendJson(req, res, 409, { error: 'this API URL already exists' });
-      const source = { id: vodLib.newId(), name, api: apiUrl, kind, enabled: body.enabled !== false, addedAt: new Date().toISOString(), lastChecked: null, lastError: null };
-      const result = await vodLib.probeSource(source);
+      const source = {
+        id: vodLib.newId(), name, api: apiUrl, kind, enabled: body.enabled !== false,
+        addedAt: new Date().toISOString(), lastChecked: null, lastError: null,
+      };
+      const probe = await vodLib.probeSource(source);
       source.lastChecked = new Date().toISOString();
-      source.lastError = null;
-      registry.sources.push(source);
-      vodLib.saveSources(sourceDataDir, registry.sources);
+      source.lastItemCount = probe.count;
+      await withLock(vodLockKey, () => {
+        const current = vodLib.loadSourcesSync(sourceDataDir).sources;
+        if (current.length >= vodLib.MAX_VOD_SOURCES) throw Object.assign(new Error('VOD provider limit reached'), { statusCode: 409 });
+        if (current.some((item) => item.api === apiUrl)) throw Object.assign(new Error('this API URL already exists'), { statusCode: 409 });
+        current.push(source);
+        vodLib.saveSources(sourceDataDir, current);
+      });
       vodSearchCache.clear();
-      sendJson(req, res, 201, { source: vodLib.publicSource(source), probe: result });
+      sendJson(req, res, 201, { source: vodLib.publicSource(source), probe });
     } catch (err) {
       sendJson(req, res, err.statusCode || 400, { error: err.message || 'could not add VOD provider' });
     }
@@ -331,44 +336,64 @@ function createApi(catalog, refresh, dataDir) {
     if (!authorizeSourceWrite(req, res)) return;
     try {
       const body = JSON.parse(await readBody(req, 16384));
-      const registry = vodLib.loadSourcesSync(sourceDataDir);
-      const source = registry.sources.find((s) => s.id === params.id);
-      if (!source) return sendJson(req, res, 404, { error: 'VOD provider not found' });
+      const initial = vodLib.loadSourcesSync(sourceDataDir).sources.find((item) => item.id === params.id);
+      if (!initial) return sendJson(req, res, 404, { error: 'VOD provider not found' });
+      const patch = {};
       if (body.name !== undefined) {
         const name = String(body.name).trim().slice(0, 80);
         if (!name) return sendJson(req, res, 400, { error: 'provider name cannot be empty' });
-        source.name = name;
+        patch.name = name;
       }
       if (body.kind !== undefined) {
         if (!vodLib.KINDS.has(body.kind)) return sendJson(req, res, 400, { error: 'kind must be all, movies, series, or anime' });
-        source.kind = body.kind;
+        patch.kind = body.kind;
       }
       if (body.api !== undefined) {
         const apiUrl = vodLib.normalizeApiUrl(body.api);
-        if (registry.sources.some((s) => s.id !== source.id && s.api === apiUrl)) return sendJson(req, res, 409, { error: 'this API URL already exists' });
-        const candidate = { ...source, api: apiUrl };
-        await vodLib.probeSource(candidate);
-        source.api = apiUrl;
-        source.lastChecked = new Date().toISOString();
-        source.lastError = null;
+        if (apiUrl !== initial.api) {
+          const candidate = { ...initial, api: apiUrl };
+          const probe = await vodLib.probeSource(candidate);
+          patch.api = apiUrl;
+          patch.lastChecked = new Date().toISOString();
+          patch.lastItemCount = probe.count;
+          patch.lastError = null;
+        }
       }
-      if (body.enabled !== undefined) source.enabled = body.enabled === true;
-      vodLib.saveSources(sourceDataDir, registry.sources);
+      if (body.enabled !== undefined) patch.enabled = body.enabled === true;
+      const updated = await withLock(vodLockKey, () => {
+        const current = vodLib.loadSourcesSync(sourceDataDir).sources;
+        const source = current.find((item) => item.id === params.id);
+        if (!source) throw Object.assign(new Error('VOD provider not found'), { statusCode: 404 });
+        if (patch.api && current.some((item) => item.id !== params.id && item.api === patch.api)) {
+          throw Object.assign(new Error('this API URL already exists'), { statusCode: 409 });
+        }
+        Object.assign(source, patch);
+        vodLib.saveSources(sourceDataDir, current);
+        return { ...source };
+      });
       vodSearchCache.clear();
-      sendJson(req, res, 200, { source: vodLib.publicSource(source) });
+      sendJson(req, res, 200, { source: vodLib.publicSource(updated) });
     } catch (err) {
       sendJson(req, res, err.statusCode || 400, { error: err.message || 'could not update VOD provider' });
     }
   };
 
-  const deleteVodSource = (req, res, params) => {
+  const deleteVodSource = async (req, res, params) => {
     if (!authorizeSourceWrite(req, res)) return;
-    const registry = vodLib.loadSourcesSync(sourceDataDir);
-    const sources = registry.sources.filter((s) => s.id !== params.id);
-    if (sources.length === registry.sources.length) return sendJson(req, res, 404, { error: 'VOD provider not found' });
-    vodLib.saveSources(sourceDataDir, sources);
-    vodSearchCache.clear();
-    sendJson(req, res, 200, { ok: true });
+    try {
+      const removed = await withLock(vodLockKey, () => {
+        const current = vodLib.loadSourcesSync(sourceDataDir).sources;
+        const next = current.filter((item) => item.id !== params.id);
+        if (next.length === current.length) return false;
+        vodLib.saveSources(sourceDataDir, next);
+        return true;
+      });
+      if (!removed) return sendJson(req, res, 404, { error: 'VOD provider not found' });
+      vodSearchCache.clear();
+      sendJson(req, res, 200, { ok: true });
+    } catch (err) {
+      sendJson(req, res, 500, { error: err.message || 'could not delete VOD provider' });
+    }
   };
 
   const vodSearch = async (req, res, params, query) => {
