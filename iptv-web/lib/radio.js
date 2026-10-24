@@ -63,7 +63,10 @@ function getRemoteKey(req) {
 
 function createRadioApi(options = {}) {
   const resolveSrv = options.resolveSrv || dns.resolveSrv.bind(dns);
+  const resolve4 = options.resolve4 || dns.resolve4.bind(dns);
+  const resolvePtr = options.resolvePtr || dns.resolvePtr.bind(dns);
   const fetchUpstream = options.upstreamFetch || upstreamFetch;
+  const validateUrl = options.assertSafeUrl || assertSafeUrl;
   const readBody = options.bodyToString || bodyToString;
   const pipeStream = options.pipeBody || pipeBody;
   const minRequestIntervalMs = Number.isFinite(options.minRequestIntervalMs) ? options.minRequestIntervalMs : 350;
@@ -89,6 +92,17 @@ function createRadioApi(options = {}) {
         .filter((host, index, list) => host.endsWith('.api.radio-browser.info') && list.indexOf(host) === index)
         .map((host) => 'https://' + host);
     } catch {}
+    if (!discovered.length) {
+      try {
+        const addresses = await resolve4('all.api.radio-browser.info');
+        const hosts = await Promise.all((addresses || []).map(async (address) => {
+          try { return await resolvePtr(address); } catch { return []; }
+        }));
+        discovered = hosts.flat().map((host) => String(host).replace(/\\.$/, ''))
+          .filter((host, index, list) => host.endsWith('.api.radio-browser.info') && list.indexOf(host) === index)
+          .map((host) => 'https://' + host);
+      } catch {}
+    }
     if (!discovered.length) discovered = [FALLBACK_MIRROR];
     cachedMirrors = discovered.slice(0, 12);
     mirrorsExpires = Date.now() + 10 * 60 * 1000;
@@ -257,7 +271,7 @@ function createRadioApi(options = {}) {
       const result = await apiJson('/json/url/' + encodeURIComponent(uuid));
       const stream = safeHttpUrl(result && result.url);
       if (!stream) return sendJson(req, res, 502, { error: 'This station has no usable HTTP(S) stream URL' });
-      await assertSafeUrl(stream.toString());
+      await validateUrl(stream.toString());
       expireTickets();
       const ticket = crypto.randomBytes(24).toString('base64url');
       tickets.set(ticket, { url: stream.toString(), expires: Date.now() + HTTP_TICKET_TTL });
