@@ -17,6 +17,7 @@ function baseUrl(req) {
 
 function createApi(catalog, refresh, dataDir) {
   const sourceDataDir = dataDir || require('path').join(__dirname, '..', 'data');
+  const vodSearchCache = new Map();
 
   function authorizeSourceWrite(req, res) {
     const expected = process.env.SOURCE_TOKEN || process.env.REFRESH_TOKEN;
@@ -135,6 +136,7 @@ function createApi(catalog, refresh, dataDir) {
       source.lastError = null;
       registry.sources.push(source);
       vodLib.saveSources(sourceDataDir, registry.sources);
+      vodSearchCache.clear();
       sendJson(req, res, 201, { source: vodLib.publicSource(source), probe: result });
     } catch (err) {
       sendJson(req, res, err.statusCode || 400, { error: err.message || 'could not add VOD provider' });
@@ -168,6 +170,7 @@ function createApi(catalog, refresh, dataDir) {
       }
       if (body.enabled !== undefined) source.enabled = body.enabled === true;
       vodLib.saveSources(sourceDataDir, registry.sources);
+      vodSearchCache.clear();
       sendJson(req, res, 200, { source: vodLib.publicSource(source) });
     } catch (err) {
       sendJson(req, res, err.statusCode || 400, { error: err.message || 'could not update VOD provider' });
@@ -180,12 +183,16 @@ function createApi(catalog, refresh, dataDir) {
     const sources = registry.sources.filter((s) => s.id !== params.id);
     if (sources.length === registry.sources.length) return sendJson(req, res, 404, { error: 'VOD provider not found' });
     vodLib.saveSources(sourceDataDir, sources);
+    vodSearchCache.clear();
     sendJson(req, res, 200, { ok: true });
   };
 
   const vodSearch = async (req, res, params, query) => {
     const kind = vodLib.KINDS.has(query.type) ? query.type : 'all';
     const term = String(query.q || '').trim().slice(0, 120);
+    const cacheKey = kind + '\u0000' + term.toLowerCase();
+    const cached = vodSearchCache.get(cacheKey);
+    if (cached && Date.now() - cached.time < 45000) return sendJson(req, res, 200, cached.payload);
     const registry = vodLib.loadSourcesSync(sourceDataDir);
     const sources = registry.sources.filter((s) => s.enabled !== false && (kind === 'all' || s.kind === kind || s.kind === 'all'));
     if (!sources.length) return sendJson(req, res, 200, { type: kind, total: 0, pages: 1, items: [], providers: [], hint: 'Add an authorized Apple CMS / MacCMS VOD API in VOD resources.' });
@@ -226,7 +233,7 @@ function createApi(catalog, refresh, dataDir) {
       seen.add(key);
       return true;
     });
-    sendJson(req, res, 200, {
+    const payload = {
       type: kind,
       total: unique.length,
       page: 1,
@@ -235,7 +242,12 @@ function createApi(catalog, refresh, dataDir) {
       items: unique.slice(0, 240),
       providers: sources.map((s, i) => ({ name: s.name, ok: results[i].status === 'fulfilled' })),
       errors,
-    });
+    };
+    if (sources.length && errors.length === 0) {
+      vodSearchCache.set(cacheKey, { time: Date.now(), payload });
+      if (vodSearchCache.size > 100) vodSearchCache.delete(vodSearchCache.keys().next().value);
+    }
+    sendJson(req, res, 200, payload);
   };
 
   const vodDetail = async (req, res, params) => {
