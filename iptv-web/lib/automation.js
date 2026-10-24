@@ -342,30 +342,53 @@ function createAutomation({ dataDir, catalog = null, refresh, log = () => {}, on
   }
 
   async function checkProviders(actor = 'automation') {
-    const registry = vod.loadSourcesSync(dataDir);
-    const enabled = registry.sources.filter((source) => source.enabled !== false);
+    const snapshot = vod.loadSourcesSync(dataDir).sources;
+    const enabled = snapshot.filter((source) => source.enabled !== false);
     let ok = 0;
     let failed = 0;
     const results = await mapLimit(enabled, 3, async (source) => {
       try {
         const probe = await vod.probeSource(source);
-        source.lastChecked = new Date().toISOString();
-        source.lastError = null;
-        source.lastItemCount = probe.count;
         ok++;
-        return { id: source.id, status: 'ok', count: probe.count };
+        return {
+          id: source.id,
+          status: 'ok',
+          count: probe.count,
+          statusFields: { lastChecked: new Date().toISOString(), lastError: null, lastItemCount: probe.count },
+        };
       } catch (err) {
-        source.lastChecked = new Date().toISOString();
-        source.lastError = String(err.message || err).slice(0, 300);
         failed++;
-        return { id: source.id, status: 'error', error: source.lastError };
+        const error = String(err.message || err).slice(0, 300);
+        return {
+          id: source.id,
+          status: 'error',
+          error,
+          statusFields: { lastChecked: new Date().toISOString(), lastError: error },
+        };
       }
     });
-    if (enabled.length) vod.saveSources(dataDir, registry.sources);
+    if (enabled.length) {
+      await withLock('vod-sources:' + dataDir, () => {
+        const current = vod.loadSourcesSync(dataDir).sources;
+        const statuses = new Map(results.filter((entry) => entry.status === 'fulfilled').map((entry) => [entry.value.id, entry.value.statusFields]));
+        for (const source of current) {
+          const fields = statuses.get(source.id);
+          if (fields) Object.assign(source, fields);
+        }
+        vod.saveSources(dataDir, current);
+      });
+    }
     lastProviderCheck = { at: new Date().toISOString(), total: enabled.length, ok, failed };
     audit(dataDir, { actor, action: 'provider.health_check', status: failed ? 'partial' : 'ok',
       summary: 'Checked ' + enabled.length + ' providers; healthy ' + ok + '; failed ' + failed });
-    return { checked: enabled.length, ok, failed, results: results.map((entry) => entry.value || { status: 'error', error: String(entry.reason && entry.reason.message || 'check failed') }) };
+    return {
+      checked: enabled.length,
+      ok,
+      failed,
+      results: results.map((entry) => entry.status === 'fulfilled' ? ({
+        id: entry.value.id, status: entry.value.status, count: entry.value.count, error: entry.value.error,
+      }) : ({ status: 'error', error: String(entry.reason && entry.reason.message || 'check failed') })),
+    };
   }
 
   async function refreshLiveIfDue(actor = 'automation') {
