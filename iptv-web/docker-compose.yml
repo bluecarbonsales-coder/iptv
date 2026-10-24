@@ -16,6 +16,14 @@ services:
       REFRESH_TOKEN: "${REFRESH_TOKEN:-}"
       # Separate token for the persistent resource manager (falls back to REFRESH_TOKEN if unset).
       SOURCE_TOKEN: "${SOURCE_TOKEN:-}"
+      # Agent endpoints remain disabled until a strong AGENT_API_TOKEN is set.
+      AGENT_API_TOKEN: "${AGENT_API_TOKEN:-}"
+      # "full" permits an authenticated agent to add/update/remove providers. Use "review" to block agent writes.
+      AGENT_AUTONOMY: "${AGENT_AUTONOMY:-full}"
+      AGENT_AUTOMATION_ENABLED: "${AGENT_AUTOMATION_ENABLED:-1}"
+      AUTO_SOURCE_SYNC_HOURS: "${AUTO_SOURCE_SYNC_HOURS:-12}"
+      # Comma/newline-separated trusted registry JSON URLs. Blank by default; do not use random untrusted lists.
+      VOD_SOURCE_LIST_URLS: "${VOD_SOURCE_LIST_URLS:-}"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3920/healthz"]
       interval: 60s
