@@ -12,11 +12,16 @@ function normalizeCode(value, max = 32) {
 
 function normalizeContext(input) {
   if (!input || input.consent !== true) throw Object.assign(new Error('explicit consent is required'), { statusCode: 400 });
-  const country = normalizeCode(input.country, 2);
+  // Validate the original value before normalization: truncating "JPN" to "jp"
+  // would otherwise turn an invalid three-letter code into a valid-looking country.
+  const countryInput = String(input.country || '').trim();
+  if (!/^[a-zA-Z]{2}$/.test(countryInput)) {
+    throw Object.assign(new Error('country must be an ISO-style two-letter code'), { statusCode: 400 });
+  }
+  const country = countryInput.toLowerCase();
   const region = normalizeCode(input.region, 40);
   const language = normalizeCode(input.language, 16);
   const category = normalizeCode(input.category, 24);
-  if (!/^[a-z]{2}$/.test(country)) throw Object.assign(new Error('country must be an ISO-style two-letter code'), { statusCode: 400 });
   if (!language || !ALLOWED_CATEGORIES.has(category)) throw Object.assign(new Error('language and a supported category are required'), { statusCode: 400 });
   return { country, region, language, category };
 }
