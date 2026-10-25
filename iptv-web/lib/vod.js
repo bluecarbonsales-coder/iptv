@@ -34,28 +34,30 @@ function ensureDefaultSources(dataDir) {
   // replacing user-managed records, so existing installations receive new sources too.
   let changed = false;
   const now = new Date().toISOString();
-  const existing = new Set(registry.sources.map((source) => {
-    try { return normalizeApiUrl(source.api); } catch { return String(source.api || ''); }
-  }));
-  const seeded = DEFAULT_SOURCES.slice(0, MAX_VOD_SOURCES).filter((source) => {
-    try { return !existing.has(normalizeApiUrl(source.api)); } catch { return false; }
-  }).map((source) => ({
-    id: newId(),
-    name: source.name,
-    api: normalizeApiUrl(source.api),
-    detail: null,
-    kind: source.kind || 'all',
-    enabled: true,
-    addedAt: now,
-    lastChecked: null,
-    lastError: null,
-    lastItemCount: null,
-    listAction: 'videolist',
-    importedFrom: 'operator-provided initial list',
-  }));
-  const additions = seeded.slice(0, Math.max(0, MAX_VOD_SOURCES - registry.sources.length));
-  registry.sources.push(...additions);
-  if (additions.length) changed = true;
+  if (registry.defaultsSeeded !== true) {
+    const existing = new Set(registry.sources.map((source) => {
+      try { return normalizeApiUrl(source.api); } catch { return String(source.api || ''); }
+    }));
+    const seeded = DEFAULT_SOURCES.slice(0, MAX_VOD_SOURCES).filter((source) => {
+      try { return !existing.has(normalizeApiUrl(source.api)); } catch { return false; }
+    }).map((source) => ({
+      id: newId(),
+      name: source.name,
+      api: normalizeApiUrl(source.api),
+      detail: null,
+      kind: source.kind || 'all',
+      enabled: true,
+      addedAt: now,
+      lastChecked: null,
+      lastError: null,
+      lastItemCount: null,
+      listAction: 'videolist',
+      importedFrom: 'operator-provided initial list',
+    }));
+    const additions = seeded.slice(0, Math.max(0, MAX_VOD_SOURCES - registry.sources.length));
+    registry.sources.push(...additions);
+    if (additions.length) changed = true;
+  }
 
   for (const source of registry.sources) {
     if (source.enabled !== true) {
