@@ -214,8 +214,7 @@ module.exports = Object.freeze([
     "api": "https://post.m.smzdm.com/p/a95eg4qo/",
     "kind": "all",
     "enabled": true
-  }
-,
+  },
   {
     "name": "樱花资源",
     "api": "https://m3u8.apiyhzy.com/api.php/provide/vod",
