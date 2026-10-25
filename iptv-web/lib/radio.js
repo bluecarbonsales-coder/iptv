@@ -245,15 +245,17 @@ function createRadioApi(options = {}) {
         lastcheckok: true,
         custom: true,
       }));
+      const customOnPage = customMatches.slice(offset, offset + limit);
+      const remoteOffset = Math.max(0, offset - customMatches.length);
+      const remoteLimit = Math.max(0, limit - customOnPage.length);
       let remote = [];
-      let remoteNextOffset = null;
-      if (config.directoryEnabled) {
+      if (config.directoryEnabled && remoteLimit > 0) {
         const query = new URLSearchParams({
           hidebroken: 'true',
           order,
           reverse,
-          limit: String(limit),
-          offset: String(offset),
+          limit: String(remoteLimit),
+          offset: String(remoteOffset),
         });
         if (params.get('q')) query.set('name', safeString(params.get('q'), 120));
         if (/^[A-Z]{2}$/.test(countrycode)) query.set('countrycode', countrycode);
@@ -265,23 +267,14 @@ function createRadioApi(options = {}) {
         });
         if (!Array.isArray(data)) throw new Error('Unexpected radio directory response');
         remote = data.map(normalizeStation).filter(Boolean);
-        remoteNextOffset = remote.length === limit ? offset + remote.length : null;
       }
-      let stations;
-      let nextOffset;
-      if (offset === 0) {
-        stations = customMatches.slice(0, limit);
-        stations.push(...remote.slice(0, Math.max(0, limit - stations.length)));
-        nextOffset = remoteNextOffset;
-        if (remote.length === 0 && !config.directoryEnabled) {
-          nextOffset = customMatches.length > limit ? limit : null;
-        }
-      } else if (config.directoryEnabled) {
-        stations = remote;
-        nextOffset = remoteNextOffset;
-      } else {
-        stations = customMatches.slice(offset, offset + limit);
-        nextOffset = offset + stations.length < customMatches.length ? offset + stations.length : null;
+      const stations = customOnPage.concat(remote);
+      let nextOffset = null;
+      if (config.directoryEnabled) {
+        if (stations.length === limit) nextOffset = offset + stations.length;
+        else if (customMatches.length > offset + customOnPage.length) nextOffset = offset + customOnPage.length;
+      } else if (customMatches.length > offset + customOnPage.length) {
+        nextOffset = offset + customOnPage.length;
       }
       sendJson(req, res, 200, {
         stations, limit, offset, nextOffset,
