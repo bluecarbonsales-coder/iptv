@@ -124,7 +124,6 @@ function isShortForm(item = {}) {
   const category = text([item.category, item.type_name, item.typeName, item.vod_class, item.type].filter(Boolean).join(' '));
   const title = text([item.name, item.vod_name, item.title].filter(Boolean).join(' '));
   const remarks = text([item.remarks, item.vod_remarks, item.state].filter(Boolean).join(' '));
-  const categoryText = category.toLowerCase();
   const titleText = title.toLowerCase();
   const remarksText = remarks.toLowerCase();
   // Provider lists frequently mix a movie catalogue with trailers, promos and
