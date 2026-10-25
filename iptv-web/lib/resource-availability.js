@@ -66,6 +66,7 @@ function createResourceAvailability(options = {}) {
   const refreshMs = Number.isFinite(options.refreshMs) ? Math.max(15_000, options.refreshMs) : DEFAULT_REFRESH_MS;
   const timeoutMs = Number.isFinite(options.timeoutMs) ? Math.max(500, options.timeoutMs) : REQUEST_TIMEOUT_MS;
   const concurrency = Number.isFinite(options.concurrency) ? Math.max(1, Math.min(12, options.concurrency)) : 8;
+  const maxChecks = Number.isFinite(options.maxChecks) ? Math.max(1, Math.min(1500, Math.round(options.maxChecks))) : MAX_CHECKS;
   const statuses = new Map();
   let scanStartedAt = 0;
   let scanCompletedAt = 0;
@@ -133,7 +134,7 @@ function createResourceAvailability(options = {}) {
 
   async function runScan() {
     const listed = await getServices();
-    const services = (Array.isArray(listed) ? listed : []).slice(0, MAX_CHECKS);
+    const services = (Array.isArray(listed) ? listed : []).slice(0, maxChecks);
     const currentIds = new Set(services.map((service) => String(service.id)));
     for (const id of statuses.keys()) if (!currentIds.has(id)) statuses.delete(id);
 
