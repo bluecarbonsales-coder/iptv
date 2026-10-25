@@ -177,7 +177,7 @@
       state.stations = incoming;
       state.nextOffset = result.nextOffset;
       state.offset = result.nextOffset == null ? state.offset : result.nextOffset;
-      setStatus(incoming.length ? 'Directory supplied by Radio Browser. Availability may vary by station and region.' : 'No matches in this result page.');
+      setStatus(incoming.length ? ('Source: ' + (result.source || 'Radio Browser') + '. Availability may vary by station and region.') : 'No matches in this result page.');
     } catch (error) {
       setStatus(error.message + ' Check again in a moment.', true);
       if (!state.stations.length) {
