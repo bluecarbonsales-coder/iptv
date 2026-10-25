@@ -318,7 +318,6 @@
     $('#nowSub').textContent = 'Choose a station to start listening';
   }
   function bind() {
-    let searchTimer = null;
     function setFilter(key, value) {
       state.page = 1;
       state[key] = value;
