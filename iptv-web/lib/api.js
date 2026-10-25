@@ -411,7 +411,7 @@ function createApi(catalog, refresh, dataDir) {
       })) : [];
     const savedItems = mediaLibrary.allItems(sourceDataDir).filter(item =>
       (type === 'all' || item.kind === type || (type === 'movies' && item.kind === 'video')) &&
-      (!q || words.every(word => normalizeSearch([item.name, item.overview, item.year, item.category, item.sourceName].join(' ')).includes(word)))
+      (!q || words.every(word => normalizeSearch([item.name, item.overview, item.year, item.category, item.sourceName, ...(Array.isArray(item.episodes) ? item.episodes.map(episode => episode.title || '') : [])].join(' ')).includes(word)))
     );
     const combined = [...channelItems, ...savedItems].sort((a, b) => a.name.localeCompare(b.name));
     const limit = Math.max(1, Math.min(100, Number.parseInt(query.limit, 10) || 50));
