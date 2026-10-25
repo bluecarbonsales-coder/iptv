@@ -133,7 +133,7 @@
         select.type = 'button';
         select.addEventListener('click', () => {
           let requestPath = endpoint.path;
-          for (const match of [...requestPath.matchAll(/\\{([^}]+)\\}/g)]) {
+          for (const match of [...requestPath.matchAll(/\{([^}]+)\}/g)]) {
             const parameter = match[1];
             const defaultValue = parameter === 'type' ? 'radio' : parameter === 'visitorId' ? 'demo-visitor' : parameter === 'sourceId' ? 'archive' : parameter === 'number' ? '1' : '';
             const value = window.prompt('Enter ' + parameter + ' for this endpoint:', defaultValue);
