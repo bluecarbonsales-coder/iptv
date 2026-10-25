@@ -142,7 +142,7 @@ function disabledLegacyAgent(req, res) {
   });
 }
 
-// Agent-native API: header-authenticated, machine-readable, audited, and autonomy-gated.
+// Legacy token-authenticated agent API endpoints return HTTP 410; use Settings and /api/v1.
 app.get('/api/agent/v1/openapi.json', disabledLegacyAgent);
 app.get('/api/agent/v1/project/status', disabledLegacyAgent);
 app.get('/api/agent/v1/project/tree', disabledLegacyAgent);
@@ -181,7 +181,7 @@ app.get('/api/agent/v1/vod/:sourceId/:vodId', disabledLegacyAgent);
 app.get('/api/agent/v1/archive/search', disabledLegacyAgent);
 app.get('/api/agent/v1/commons/search', disabledLegacyAgent);
 
-// Persistent home-page links; only reads are public, all mutations require an existing management token.
+// Persistent home-page links. Read-only directory data is public; changes use the shared admin login.
 app.get('/api/navigation', (req, res) => {
   try { const config = navigationConfig.read(); sendJson(req, res, 200, { ...config, items: config.items.filter((item) => item.enabled !== false) }); }
   catch (err) { sendJson(req, res, 500, { error: 'navigation config unavailable' }); }
@@ -213,9 +213,9 @@ app.post('/api/visitor/context', async (req, res) => {
 });
 app.get('/api/portal/availability', resourceAvailability.handler);
 app.get('/api/portal/services', portal.list);
-app.post('/api/portal/services', portal.add);
-app.patch('/api/portal/services/:id', portal.update);
-app.delete('/api/portal/services/:id', portal.remove);
+app.post('/api/portal/services', adminRoute(portal.add));
+app.patch('/api/portal/services/:id', adminRoute(portal.update));
+app.delete('/api/portal/services/:id', adminRoute(portal.remove));
 
 // Authenticated Mail Workspace API (IMAP/SMTP, contacts, and agent drafting).
 app.get('/api/mail/session', mail.session);
@@ -351,7 +351,7 @@ app.get('/img', img.handler);
 
 /*
  * Unified platform API: use /api/v1 for one entry point.
- * Old routes remain available so existing pages and integrations keep working.
+ * Legacy playback routes remain for existing pages; token-only management routes are disabled.
  */
 app.get('/api/v1', (req, res) => sendJson(req, res, 200, platformApiDocs.describeApi()));
 app.get('/api/v1/openapi.json', (req, res) => sendJson(req, res, 200, platformApiDocs.buildOpenApi()));
