@@ -4,7 +4,7 @@
   "private": true,
   "description": "Self-hosted IPTV portal with secure IMAP/SMTP Mail Workspace",
   "engines": {
-    "node": ">=22"
+    "node": ">=24 <25"
   },
   "scripts": {
     "test": "node --test test/*.test.js",
