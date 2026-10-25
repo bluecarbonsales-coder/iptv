@@ -4,6 +4,8 @@
 // click-counter resolution, and a UUID-ticketed HTTP-stream relay for HTTPS pages.
 const dns = require('dns').promises;
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const { upstreamFetch, bodyToString, pipeBody } = require('./fetch-upstream');
 const { assertSafeUrl, sendJson, clampInt } = require('./util');
 
@@ -79,6 +81,31 @@ function createRadioApi(options = {}) {
   let mirrorsExpires = 0;
   let nextApiRequestAt = 0;
   const responseCache = new Map();
+  const cacheFile = options.dataDir ? path.join(options.dataDir, 'radio-index-cache.json') : '';
+  function loadDiskCache() {
+    if (!cacheFile) return;
+    try {
+      const parsed = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+      const now = Date.now();
+      for (const [key, item] of Object.entries(parsed.entries || {})) {
+        if (item && Number(item.expires) > now && item.value !== undefined) responseCache.set(key, item);
+      }
+    } catch {}
+  }
+  let persistTimer = null;
+  function persistDiskCache() {
+    if (!cacheFile) return;
+    try {
+      fs.mkdirSync(path.dirname(cacheFile), { recursive: true });
+      const entries = {};
+      const now = Date.now();
+      for (const [key, item] of responseCache) if (item.expires > now) entries[key] = item;
+      const temp = cacheFile + '.tmp';
+      fs.writeFileSync(temp, JSON.stringify({ version: 1, updatedAt: new Date().toISOString(), entries }), { mode: 0o600 });
+      fs.renameSync(temp, cacheFile);
+    } catch {}
+  }
+  loadDiskCache();
   const tickets = new Map();
   const rateBuckets = new Map();
   let activeStreams = 0;
@@ -132,6 +159,11 @@ function createRadioApi(options = {}) {
 
   function cacheSet(key, value, ttlMs) {
     responseCache.set(key, { value, expires: Date.now() + ttlMs });
+    if (cacheFile) {
+      clearTimeout(persistTimer);
+      persistTimer = setTimeout(persistDiskCache, 80);
+      if (typeof persistTimer.unref === 'function') persistTimer.unref();
+    }
     if (responseCache.size > 350) {
       const now = Date.now();
       for (const [key, item] of responseCache) if (item.expires <= now) responseCache.delete(key);
@@ -156,7 +188,7 @@ function createRadioApi(options = {}) {
 
   async function apiJson(apiPath, opts = {}) {
     const cacheKey = opts.cacheKey || '';
-    const cached = cacheKey ? cacheGet(cacheKey) : undefined;
+    const cached = cacheKey && !opts.force ? cacheGet(cacheKey) : undefined;
     if (cached !== undefined) return cached;
 
     const attempted = new Set();
@@ -227,10 +259,11 @@ function createRadioApi(options = {}) {
       if (tag) query.set('tag', tag);
       if (codec) query.set('codec', codec);
       const cacheKey = 'stations:' + query.toString();
-      const data = await apiJson('/json/stations/search?' + query.toString(), { cacheKey, ttlMs: 45_000 });
+      const force = params.get('refresh') === '1';
+      const data = await apiJson('/json/stations/search?' + query.toString(), { cacheKey, ttlMs: 7 * 24 * 60 * 60 * 1000, force });
       if (!Array.isArray(data)) throw new Error('Unexpected radio directory response');
       const normalized = data.map(normalizeStation).filter(Boolean);
-      sendJson(req, res, 200, { stations: normalized, limit, offset, nextOffset: normalized.length === limit ? offset + normalized.length : null, source: 'Radio Browser' });
+      sendJson(req, res, 200, { stations: normalized, limit, offset, nextOffset: normalized.length === limit ? offset + normalized.length : null, source: 'Radio Browser', indexed: !force, indexTtlDays: 7 });
     } catch (err) {
       sendJson(req, res, err.statusCode || 502, { error: err.message || 'Could not load radio stations' });
     }
@@ -247,7 +280,7 @@ function createRadioApi(options = {}) {
     }[kind];
     if (!config) return sendJson(req, res, 400, { error: 'type must be countries, languages, or tags' });
     try {
-      const raw = await apiJson(config.path, { cacheKey: 'options:' + kind, ttlMs: config.ttlMs });
+      const raw = await apiJson(config.path, { cacheKey: 'options:' + kind, ttlMs: 30 * 24 * 60 * 60 * 1000 });
       if (!Array.isArray(raw)) throw new Error('Unexpected radio directory response');
       const values = raw.map((entry) => ({
         name: safeString(entry && entry.name, 80),
