@@ -1,7 +1,12 @@
 (() => {
   'use strict';
   const $ = (selector) => document.querySelector(selector);
-  const state = { auth: '', active: 'radio' };
+  const state = {
+    auth: '', active: 'radio',
+    sources: { radio: [], iptv: [], theatre: [] },
+    proxyHealth: new Map(),
+    directHealth: new Map(),
+  };
   const routes = {
     radio: '/admin/api/radio/sources',
     iptv: '/admin/api/iptv/sources',
@@ -13,6 +18,116 @@
     el.textContent = message || '';
     el.classList.toggle('error', !!error);
   };
+
+  function sourceHealthKey(section, source) { return section + ':' + String(source.id); }
+  function sourceHealthText(section, source) {
+    const key = sourceHealthKey(section, source);
+    const proxy = state.proxyHealth.get(key);
+    const direct = state.directHealth.get(key);
+    const proxyText = !proxy ? 'Proxy: checking…'
+      : 'Proxy: ' + proxy.status + (Number.isFinite(proxy.latencyMs) ? ' · ' + proxy.latencyMs + ' ms' : '');
+    const directText = !direct ? 'Current network: checking…'
+      : direct.status === 'n/a' ? 'Current network: no direct URL'
+        : 'Current network: ' + direct.status + (Number.isFinite(direct.latencyMs) ? ' · ' + direct.latencyMs + ' ms' : '');
+    return proxyText + '  |  ' + directText;
+  }
+  function renderAllSourceLists() {
+    for (const section of Object.keys(routes)) renderList(section, state.sources[section] || []);
+  }
+  function renderSourceHealthSummary(scanning = false) {
+    const all = Object.keys(routes).flatMap((section) => (state.sources[section] || []).map((source) => ({ section, source })));
+    const proxy = all.map(({ section, source }) => state.proxyHealth.get(sourceHealthKey(section, source))).filter(Boolean);
+    const proxyAvailable = proxy.filter((item) => item.available === true || item.status === 'local').length;
+    const proxyUnavailable = proxy.filter((item) => item.available === false).length;
+    const direct = Array.from(state.directHealth.values()).filter((item) => item.status !== 'n/a');
+    const directAvailable = direct.filter((item) => item.available === true).length;
+    const directUnavailable = direct.filter((item) => item.available === false).length;
+    $('#sourceHealthSummary').textContent =
+      'Configured sources: ' + all.length +
+      ' · Server proxy: ' + proxyAvailable + ' available / ' + proxyUnavailable + ' unavailable' +
+      (scanning ? ' · checking…' : '') +
+      ' · Current network: ' + directAvailable + ' reachable / ' + directUnavailable + ' unreachable (' + direct.length + ' checked)';
+  }
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  async function probeCurrentNetwork(entry) {
+    const { section, source } = entry;
+    const key = sourceHealthKey(section, source);
+    let url = source.url || source.api || '';
+    if (!url && section === 'radio' && source.id === 'radio-browser') url = 'https://de1.api.radio-browser.info/json/stats';
+    try {
+      const parsed = new URL(url, location.href);
+      if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('unsupported URL');
+      const controller = new AbortController();
+      const started = performance.now();
+      const timer = setTimeout(() => controller.abort(), 2500);
+      try {
+        const response = await fetch(parsed.href, {
+          method: 'GET', mode: 'no-cors', credentials: 'omit', cache: 'no-store',
+          redirect: 'follow', signal: controller.signal,
+        });
+        state.directHealth.set(key, {
+          status: response.type === 'opaque' ? 'reachable' : (response.ok ? 'online' : 'HTTP ' + response.status),
+          available: response.type === 'opaque' ? true : response.ok,
+          latencyMs: Math.max(0, Math.round(performance.now() - started)),
+        });
+      } catch (error) {
+        state.directHealth.set(key, {
+          status: controller.signal.aborted ? 'timeout' : 'unreachable',
+          available: false,
+          latencyMs: Math.max(0, Math.round(performance.now() - started)),
+          reason: error.message,
+        });
+      } finally {
+        clearTimeout(timer);
+        controller.abort();
+      }
+    } catch {
+      state.directHealth.set(key, { status: 'n/a', available: null, latencyMs: null });
+    }
+  }
+  async function mapLimit(items, limit, fn) {
+    let cursor = 0;
+    await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (cursor < items.length) {
+        const item = items[cursor++];
+        await fn(item);
+      }
+    }));
+  }
+  async function refreshSourceHealth(force = true) {
+    const button = $('#refreshSourceHealth');
+    if (button.disabled) return;
+    button.disabled = true;
+    $('#sourceHealthSummary').textContent = 'Checking source availability and latency…';
+    state.directHealth.clear();
+    try {
+      let snapshot = await request('/api/v1/sources/health' + (force ? '?refresh=1' : ''));
+      const applySnapshot = (data) => {
+        state.proxyHealth = new Map((data.statuses || []).map((item) => [String(item.id), item]));
+        renderAllSourceLists();
+        renderSourceHealthSummary(Boolean(data.scanning));
+      };
+      applySnapshot(snapshot);
+      const entries = Object.keys(routes).flatMap((section) =>
+        (state.sources[section] || []).map((source) => ({ section, source })));
+      const directWork = mapLimit(entries, 10, (entry) => probeCurrentNetwork(entry));
+      let polls = 0;
+      while (snapshot.scanning && polls < 60) {
+        await wait(1000);
+        snapshot = await request('/api/v1/sources/health');
+        applySnapshot(snapshot);
+        polls++;
+      }
+      await directWork;
+      renderAllSourceLists();
+      renderSourceHealthSummary(Boolean(snapshot.scanning));
+      if (snapshot.scanning) $('#sourceHealthSummary').textContent += ' · server checks continue in the background';
+    } catch (error) {
+      $('#sourceHealthSummary').textContent = 'Source health check failed: ' + error.message;
+    } finally {
+      button.disabled = false;
+    }
+  }
   async function request(url, options = {}) {
     const headers = { ...(options.headers || {}) };
     if (state.auth) headers.Authorization = 'Basic ' + state.auth;
@@ -59,6 +174,7 @@
         detail += source.enabled ? ' · enabled' : ' · disabled';
       }
       main.append(make('div', 'source-meta', detail));
+      main.append(make('div', 'source-meta source-health', sourceHealthText(section, source)));
       row.append(main);
       const actions = make('div', 'source-actions');
       const toggle = make('button', '', source.enabled ? 'Disable' : 'Enable');
@@ -85,6 +201,7 @@
     try {
       const data = await request(routes[section]);
       const sources = Array.isArray(data.sources) ? data.sources : [];
+      state.sources[section] = sources;
       renderList(section, sources);
       status(section, sources.length + ' source(s).');
     } catch (error) {
@@ -96,6 +213,7 @@
     try {
       await request(url, options);
       await load(section);
+      await refreshSourceHealth(true);
     } catch (error) {
       status(section, error.message, true);
     }
@@ -195,8 +313,9 @@
       $('#loginPanel').hidden = true;
       $('#manager').hidden = false;
       $('#password').value = '';
-      for (const section of Object.keys(routes)) load(section);
+      await Promise.all(Object.keys(routes).map(load));
       loadApiIndex();
+      refreshSourceHealth(true);
     } catch (error) {
       state.auth = '';
       $('#loginStatus').textContent = 'Login failed: ' + error.message;
@@ -276,7 +395,8 @@
     }
   });
   document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListener('click', () => setTab(button.dataset.tab)));
-  document.querySelectorAll('[data-reload]').forEach((button) => button.addEventListener('click', () => load(button.dataset.reload)));
+  document.querySelectorAll('[data-reload]').forEach((button) => button.addEventListener('click', async () => { await load(button.dataset.reload); refreshSourceHealth(true); }));
+  $('#refreshSourceHealth').addEventListener('click', () => refreshSourceHealth(true));
 
   document.querySelectorAll('[data-enable-all]').forEach((button) => button.addEventListener('click', async () => {
     const section = button.dataset.enableAll;
