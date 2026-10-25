@@ -15,6 +15,7 @@ test('source manager has three separate source tabs and simple default login', (
   assert.match(html, /data-tab="api"/);
   assert.match(html, /id="apiTryForm"/);
   assert.match(html, /id="apiEndpointGroups"/);
+  assert.doesNotMatch(html, /id="apiAgentToken"|Optional agent token/i);
   assert.match(html, /href="\/api\/v1\/openapi\.json"/);
   assert.match(html, /Enable all radio sources/);
   assert.match(html, /Enable all IPTV playlists/);
