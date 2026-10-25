@@ -23,32 +23,17 @@ function createAgentApi({ dataDir, catalog, refresh, api, automation, navigation
   const project = createGitHubProject();
   function authenticate(req, res) {
     if (req && req.adminAuthenticated === true) return true;
-    const expected = process.env.AGENT_API_TOKEN;
-    if (!expected) {
-      sendJson(req, res, 503, {
-        error: 'agent API is disabled',
-        hint: 'Set a long random AGENT_API_TOKEN and rebuild/restart the application.',
-      });
-      return false;
-    }
-    const authHeader = String(req.headers.authorization || '');
-    const bearer = /^Bearer\s+(.+)$/i.exec(authHeader);
-    const given = req.headers['x-agent-token'] || (bearer && bearer[1]);
-    if (!matchesToken(given, expected)) {
-      sendJson(req, res, 401, { error: 'invalid agent token', hint: 'Send X-Agent-Token or Authorization: Bearer <token>.' });
-      return false;
-    }
-    return true;
+    sendJson(req, res, 401, {
+      error: 'Token-based agent access is disabled.',
+      hint: 'Sign in at /admin.html and call the unified /api/v1/agent endpoints.',
+    });
+    return false;
   }
 
   function gate(action, write, handler) {
     return async (req, res, params, query) => {
       if (!authenticate(req, res)) return;
-      // Normalize bearer auth for existing source-management handlers which also support X-Agent-Token.
-      if (!req.headers['x-agent-token'] && /^Bearer\\s+/i.test(String(req.headers.authorization || ''))) {
-        req.headers['x-agent-token'] = String(process.env.AGENT_API_TOKEN || '');
-      }
-      // The dedicated AGENT_API_TOKEN grants the agent the owner's project-management authority.
+      // Repository operations use the server-side GitHub integration; API callers use the admin login.
       // AGENT_AUTONOMY controls the background import policy, not authenticated interactive writes.
       const started = Date.now();
       res.once('finish', () => {
