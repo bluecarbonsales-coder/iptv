@@ -31,6 +31,14 @@ test('Theatre falls back to an explicitly open-license movie source when none is
   });
   let calledWith = null;
   try {
+    // Explicitly model a registry with no enabled providers; new installations
+    // now intentionally seed the bundled providers as enabled.
+    fs.writeFileSync(vod.registryPath(dataDir), JSON.stringify({
+      version: 1,
+      defaultsSeeded: true,
+      defaultSourcesEnabled: true,
+      sources: [],
+    }));
     archive.search = async (term, kind, limit) => {
       calledWith = { term, kind, limit };
       return [film];
