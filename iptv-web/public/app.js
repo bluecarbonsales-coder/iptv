@@ -36,7 +36,7 @@
     pages: 1,
     items: [],
     meta: null,
-    proxy: LS.get('iptvweb.proxy', false),
+    proxy: false,
     favorites: LS.get('iptvweb.fav', []),
     recent: LS.get('iptvweb.recent', []),
     playlists: LS.get('iptvweb.playlists', []),
