@@ -301,9 +301,9 @@ function publicSource(source) {
   return {
     id: source.id,
     name: source.name,
-    // This object is returned only by token-protected source-management endpoints;
-    // preserve the exact endpoint so administrators can edit/export/import it losslessly.
-    api: source.api,
+    // Source endpoints can contain provider credentials in query parameters.
+    // Redact secrets in API responses just as we do for detail/import URLs.
+    api: redactUrl(source.api),
     apiHost: (() => { try { return new URL(source.api).host; } catch { return null; } })(),
     detail: source.detail ? redactUrl(source.detail) : null,
     kind: source.kind,

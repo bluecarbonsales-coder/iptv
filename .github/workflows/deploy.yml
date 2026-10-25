@@ -14,6 +14,11 @@ on:
 permissions:
   contents: read
 
+# Prevent overlapping releases from extracting files/building/restarting concurrently.
+concurrency:
+  group: iptv-production-deploy
+  cancel-in-progress: false
+
 jobs:
   validate:
     name: Validate and build
@@ -35,7 +40,7 @@ jobs:
         run: docker build -t iptv-web:ci ./iptv-web
 
   deploy:
-    name: Deploy to configured VPS
+    name: Deploy web app to configured VPS
     needs: validate
     if: github.event_name == 'push' || inputs.deploy == true
     runs-on: ubuntu-latest
@@ -78,7 +83,7 @@ jobs:
       - name: Package release
         if: steps.deploy-config.outputs.ready == 'true'
         run: tar --exclude='.env' --exclude='./.env' -czf "$RUNNER_TEMP/iptv-web-release.tgz" -C iptv-web .
-      - name: Copy and deploy
+      - name: Copy and deploy web app
         if: steps.deploy-config.outputs.ready == 'true'
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
@@ -98,23 +103,57 @@ jobs:
           ssh -p "$DEPLOY_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes "$TARGET" "DEPLOY_DIR='$DEPLOY_DIR' REMOTE_ARCHIVE='$REMOTE_ARCHIVE' bash -s" <<'REMOTE'
           set -Eeuo pipefail
           mkdir -p "$DEPLOY_DIR"
+          # Save the running image ID before changing files or rebuilding. A failed build
+          # leaves the current container running; a failed health check restores this image.
+          OLD_IMAGE=""
+          if docker inspect iptv-web >/dev/null 2>&1; then
+            OLD_IMAGE="$(docker inspect --format '{{.Image}}' iptv-web)"
+          fi
+
+          # Do not overwrite runtime secrets. The archive deliberately excludes .env.
           tar --no-same-owner --no-same-permissions -xzf "$REMOTE_ARCHIVE" -C "$DEPLOY_DIR"
           rm -f "$REMOTE_ARCHIVE"
           cd "$DEPLOY_DIR"
-          docker compose up -d --build
+
+          # Important for 1 GB hosts: only start/update the web service. Do not implicitly
+          # start nodecast-tv or any other service defined in the same Compose project.
+          # Build first, while the existing container remains in place.
+          docker compose build iptv-web
+          docker compose up -d --no-build iptv-web
+
           healthy=0
-          for attempt in $(seq 1 20); do
-            if curl --fail --silent http://127.0.0.1:3920/healthz; then
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:3920/healthz >/dev/null; then
               healthy=1
               break
             fi
-            sleep 3
+            sleep 2
           done
+
           if [[ "$healthy" != "1" ]]; then
-            docker compose ps
-            docker compose logs --tail=100 iptv-web
+            echo "New release failed health check; collecting diagnostics." >&2
+            docker compose ps >&2 || true
+            docker compose logs --tail=100 iptv-web >&2 || true
+
+            if [[ -n "$OLD_IMAGE" ]]; then
+              echo "Rolling back iptv-web to its previous image." >&2
+              docker tag "$OLD_IMAGE" iptv-web:1.0
+              docker compose up -d --no-build iptv-web || true
+              for attempt in $(seq 1 15); do
+                if curl --fail --silent http://127.0.0.1:3920/healthz >/dev/null; then
+                  echo "Previous image restored and healthy." >&2
+                  break
+                fi
+                sleep 2
+              done
+            else
+              echo "No previous image was found; automatic rollback was not possible." >&2
+            fi
             exit 1
           fi
-          echo
+
           echo "Deployment healthy."
+          curl --fail --silent http://127.0.0.1:3920/healthz
+          echo
+          docker compose ps
           REMOTE
