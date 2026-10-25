@@ -17,7 +17,7 @@
       <nav class="radio-nav" aria-label="Main navigation">
         <a href="/">Home</a>
         <a class="active" href="/radio.html" aria-current="page">Radio</a>
-        <a href="/watch.html">Live TV &amp; VOD</a>
+        <a href="/watch.html">IPTV</a>
       </nav>
       <div class="radio-live-status"><span class="pulse"></span> Global station directory</div>
     </div>
@@ -27,7 +27,7 @@
     <section class="radio-hero">
       <div class="hero-kicker">LISTEN BEYOND BORDERS</div>
       <h1>The world,<br><span>tuned in.</span></h1>
-      <p>Discover public radio streams from around the world. Explore news, music, culture, talk and local stations by country or language.</p>
+      <p>Discover public radio streams from around the world. Explore news, music, culture, talk and local stations by language first, with country as an optional filter.</p>
       <div class="hero-stats"><span><b id="resultsCount">—</b> stations shown</span><span class="dot-sep"></span><span>Powered by <a href="https://www.radio-browser.info/" target="_blank" rel="noopener noreferrer">Radio Browser ↗</a></span></div>
     </section>
 
@@ -41,11 +41,11 @@
         <button class="r-btn" id="searchButton" type="button">Search stations <span aria-hidden="true">↗</span></button>
       </div>
       <div class="radio-filters">
-        <label class="r-field">Country
-          <select id="countryFilter"><option value="">Everywhere</option></select>
-        </label>
         <label class="r-field">Language
           <select id="languageFilter"><option value="">Any language</option></select>
+        </label>
+        <label class="r-field">Country (optional)
+          <select id="countryFilter"><option value="">Everywhere</option></select>
         </label>
         <label class="r-field">Genre / topic
           <select id="tagFilter"><option value="">All genres</option></select>
