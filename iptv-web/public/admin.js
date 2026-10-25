@@ -132,12 +132,25 @@
         const select = make('button', '', 'Use');
         select.type = 'button';
         select.addEventListener('click', () => {
+          let requestPath = endpoint.path;
+          for (const match of [...requestPath.matchAll(/\\{([^}]+)\\}/g)]) {
+            const parameter = match[1];
+            const defaultValue = parameter === 'type' ? 'radio' : parameter === 'visitorId' ? 'demo-visitor' : parameter === 'sourceId' ? 'archive' : parameter === 'number' ? '1' : '';
+            const value = window.prompt('Enter ' + parameter + ' for this endpoint:', defaultValue);
+            if (value === null) return;
+            if (!value.trim()) {
+              $('#apiRequestStatus').textContent = 'A value for ' + parameter + ' is required.';
+              $('#apiRequestStatus').classList.add('error');
+              return;
+            }
+            requestPath = requestPath.replace('{' + parameter + '}', encodeURIComponent(value.trim()));
+          }
           $('#apiMethod').value = endpoint.method;
-          $('#apiPath').value = endpoint.path;
+          $('#apiPath').value = requestPath;
           if (['POST', 'PATCH', 'PUT'].includes(endpoint.method)) {
-            if (endpoint.path === '/api/v1/sources/radio') $('#apiBody').value = JSON.stringify({ name: 'Example Radio', url: 'https://radio.example/stream.mp3', language: 'English' }, null, 2);
-            else if (endpoint.path === '/api/v1/sources/iptv') $('#apiBody').value = JSON.stringify({ name: 'My IPTV playlist', url: 'https://example.com/playlist.m3u' }, null, 2);
-            else if (endpoint.path === '/api/v1/sources/theatre') $('#apiBody').value = JSON.stringify({ name: 'My Theatre provider', api: 'https://example.com/api.php/provide/vod', kind: 'all' }, null, 2);
+            if (requestPath === '/api/v1/sources/radio') $('#apiBody').value = JSON.stringify({ name: 'Example Radio', url: 'https://radio.example/stream.mp3', language: 'English' }, null, 2);
+            else if (requestPath === '/api/v1/sources/iptv') $('#apiBody').value = JSON.stringify({ name: 'My IPTV playlist', url: 'https://example.com/playlist.m3u' }, null, 2);
+            else if (requestPath === '/api/v1/sources/theatre') $('#apiBody').value = JSON.stringify({ name: 'My Theatre provider', api: 'https://example.com/api.php/provide/vod', kind: 'all' }, null, 2);
             else if (!$('#apiBody').value.trim()) $('#apiBody').value = '{}';
           }
           $('#apiTryForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
