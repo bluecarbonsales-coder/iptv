@@ -23,7 +23,7 @@ const { Router } = require('./lib/router');
 const { Catalog } = require('./lib/catalog');
 const { createApi } = require('./lib/api');
 const { serveStatic } = require('./lib/static');
-const { send, sendJson, readBody } = require('./lib/util');
+const { send, sendJson, readBody, isPrivateIp } = require('./lib/util');
 const { matchesAdminCredentials } = require('./lib/admin-auth');
 const { createMediaSettings } = require('./lib/media-settings');
 const { createSourceHealth } = require('./lib/source-health');
@@ -108,10 +108,15 @@ const mail = createMailApi({ dataDir: DATA_DIR });
 const metadata = createMetadataApi();
 const staticHandler = serveStatic(PUBLIC_DIR);
 
-// POST /api/refresh drags 18 MB from iptv-org: allow it freely from the host itself,
-// require the shared token for anything that arrived through the reverse proxy.
+// Catalogue refresh is expensive: allow local scheduled jobs, but require Settings login for remote requests.
 function refreshGuard(req, res, params, query) {
-  if (!adminCredentialsMatch(req)) return sendJson(req, res, 401, { error: 'Please sign in with the admin username and password.' });
+  const viaProxy = !!req.headers['x-forwarded-for'] || !!req.headers['x-real-ip'];
+  const remote = (req.socket.remoteAddress || '').replace(/^::ffff:/, '');
+  // Docker's local bridge address is private too; the app port is intentionally bound to loopback on the host.
+  if (!viaProxy && isPrivateIp(remote)) return api.refreshNow(req, res, params, query);
+  if (!adminCredentialsMatch(req)) {
+    return sendJson(req, res, 401, { error: 'Please sign in at /admin.html to refresh the catalogue. Token authentication is disabled.' });
+  }
   req.adminAuthenticated = true;
   res.setHeader('Cache-Control', 'no-store');
   return api.refreshNow(req, res, params, query);
