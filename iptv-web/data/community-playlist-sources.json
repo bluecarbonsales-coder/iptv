@@ -1,0 +1,34 @@
+[
+  {
+    "id": "community-collect-iptv",
+    "name": "Collect-IPTV (auto-updated M3U)",
+    "url": "https://raw.githubusercontent.com/zilong7728/Collect-IPTV/main/best_sorted.m3u",
+    "enabled": true,
+    "managedBy": "community-defaults",
+    "upstreamRepository": "https://github.com/zilong7728/Collect-IPTV"
+  },
+  {
+    "id": "community-fanmingming-live",
+    "name": "fanmingming/live IPv6 M3U",
+    "url": "https://live.fanmingming.com/tv/m3u/ipv6.m3u",
+    "enabled": true,
+    "managedBy": "community-defaults",
+    "upstreamRepository": "https://github.com/fanmingming/live"
+  },
+  {
+    "id": "community-imdazui-tvlist",
+    "name": "Tvlist-awesome-m3u-m3u8 Mobile IPv6",
+    "url": "https://raw.githubusercontent.com/imDazui/Tvlist-awesome-m3u-m3u8/master/m3u/%E7%A7%BB%E5%8A%A8ipv6.m3u",
+    "enabled": true,
+    "managedBy": "community-defaults",
+    "upstreamRepository": "https://github.com/imDazui/Tvlist-awesome-m3u-m3u8"
+  },
+  {
+    "id": "community-zhuiju-vma",
+    "name": "awesome-zhuiju-free: VMA IPTV list",
+    "url": "https://pan.vma.cc/down.php/f83b92a24d61858666f13c5db938a292.txt",
+    "enabled": true,
+    "managedBy": "community-defaults",
+    "upstreamRepository": "https://github.com/laoma528/awesome-zhuiju-free"
+  }
+]
