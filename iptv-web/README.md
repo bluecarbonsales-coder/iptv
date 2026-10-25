@@ -138,13 +138,14 @@ The common API supports browser CORS preflight (`OPTIONS`) so another web app ca
 
 The Settings page at `/admin.html` has an **API** tab. It lists the endpoint groups and includes a small request tester. You can also connect another app to these endpoints directly.
 
-Source management and advanced endpoints under `/api/v1` use the same simple login as the Settings page. Send HTTP Basic authentication using the admin username and password documented at the top of this README. The username/password can be changed with `ADMIN_USERNAME` and `ADMIN_PASSWORD`. Normal public reading and playback endpoints do not require that login. Mail endpoints use the Mail Workspace login/session. Older `/api/agent/v1/*` URLs remain available for existing integrations and continue to use `X-Agent-Token`.
+Source management and advanced endpoints under `/api/v1` use the same simple login as the Settings page. Send HTTP Basic authentication using the admin username and password documented at the top of this README. The username/password can be changed with `ADMIN_USERNAME` and `ADMIN_PASSWORD`. Normal public reading and playback endpoints do not require that login. Mail endpoints use the Mail Workspace login/session. Legacy token-only `/api/agent/v1/*` agent routes and token-based source registry writes are disabled. Use Settings or the unified `/api/v1` API with the admin username and password.
 
-The common source API covers all three source types:
+The common source API covers all three source types. Settings also reports each configured source's HTTP availability and response latency from the server/proxy, alongside browser-side reachability from the current network:
 
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/api/v1/sources` | List Radio, IPTV and Theatre sources together |
+| `GET` | `/api/v1/sources/health` | Check each configured source from the server/proxy and report availability and response latency |
 | `GET` | `/api/v1/sources/radio`, `/iptv`, or `/theatre` | List one source group |
 | `POST` | `/api/v1/sources/radio`, `/iptv`, or `/theatre` | Add a source |
 | `POST` | `/api/v1/sources/{type}/enable-all` | Enable every source in one group |
@@ -180,14 +181,14 @@ The original endpoints listed below remain available for backward compatibility.
 | `GET /api/playlist?u=` | import an external M3U (server-side fetch + parse) |
 | `GET /api/vod?type=&q=` | search configured VOD APIs and the built-in Internet Archive adapter for `all`, `movies`, `series`, or `anime` (includes Internet Archive and Wikimedia Commons results) |
 | `GET /api/vod/:sourceId/:vodId` | resolve details and episodes for a VOD title |
-| `GET /api/vod/sources` | list VOD providers (requires `X-Source-Token`) |
-| `POST /api/vod/sources` | validate and add Apple CMS / MacCMS provider (requires `X-Source-Token`) |
-| `POST /api/vod/import` | import providers from an authorized LibreTV/MoonTV/TVBox-compatible JSON list URL (requires `X-Source-Token`) |
-| `PATCH /api/vod/sources/:id` | rename, re-categorize, or enable/disable a VOD provider (requires `X-Source-Token`) |
-| `DELETE /api/vod/sources/:id` | remove VOD provider (requires `X-Source-Token`) |
-| `GET /api/sources` | list persistent resources (requires `X-Source-Token`) |
-| `POST /api/sources` | validate and add a persistent resource (requires `X-Source-Token`) |
-| `PATCH /api/sources/:id` | rename, change URL, or enable/disable a resource (requires `X-Source-Token`) |
+| `GET /api/vod/sources` | disabled legacy token route; use `/api/v1/sources/theatre` with admin login |
+| `POST /api/vod/sources` | disabled legacy token route; use `/api/v1/sources/theatre` with admin login |
+| `POST /api/vod/import` | disabled legacy token route; use `/api/v1/sources/theatre/import` with admin login |
+| `PATCH /api/vod/sources/:id` | disabled legacy token route; use `/api/v1/sources/theatre/:id` with admin login |
+| `DELETE /api/vod/sources/:id` | disabled legacy token route; use `/api/v1/sources/theatre/:id` with admin login |
+| `GET /api/sources` | disabled legacy token route; use `/api/v1/sources` with admin login |
+| `POST /api/sources` | disabled legacy token route; use `/api/v1/sources/iptv` with admin login |
+| `PATCH /api/sources/:id` | disabled legacy token route; use `/api/v1/sources/iptv/:id` with admin login |
 | `DELETE /api/sources/:id` | delete a resource (requires `X-Source-Token`) |
 | `GET /api/playlist.m3u?u=` | the same playlist rewritten through `/hls` |
 | `GET /api/export.m3u` | current filters as a downloadable playlist (`&proxy=1` to relay) |
