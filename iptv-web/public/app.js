@@ -482,6 +482,7 @@
     player.index = 0;
     player.autoTried = 0;
     $('#player').hidden = false;
+    $('#player').scrollIntoView({ behavior: 'smooth', block: 'start' });
     $('#pName').textContent = item.name;
     $('#pSub').textContent = [item.year || null, item.remarks || null, item.sourceName || null, item.country ? countryLabel(item.country) : null, (item.cats || []).join(', ')].filter(Boolean).join(' · ');
     $('#pLogo').hidden = !item.logo;
