@@ -108,6 +108,66 @@
       button.setAttribute('aria-selected', String(active));
     });
     document.querySelectorAll('.section').forEach((node) => { node.hidden = node.id !== section + 'Section'; });
+    if (section === 'api') loadApiIndex();
+  }
+
+  function renderApiGroups(groups) {
+    const root = $('#apiEndpointGroups');
+    root.replaceChildren();
+    for (const group of groups || []) {
+      const details = make('details', 'api-group');
+      details.style.cssText = 'border-top:1px solid var(--line);padding:12px 0';
+      const summary = make('summary', '', group.name + ' (' + (group.endpoints || []).length + ')');
+      summary.style.cssText = 'cursor:pointer;font-weight:800;padding:6px 0';
+      details.append(summary);
+      for (const endpoint of group.endpoints || []) {
+        const row = make('div', 'source');
+        row.style.alignItems = 'flex-start';
+        const info = make('div', 'source-main');
+        const headline = make('div', 'source-name');
+        const method = make('span', '', endpoint.method);
+        method.style.cssText = 'display:inline-block;min-width:58px;margin-right:8px;color:var(--accent);font-size:12px;letter-spacing:.05em';
+        headline.append(method, document.createTextNode(endpoint.path));
+        info.append(headline, make('div', 'source-meta', endpoint.summary + ' · ' + endpoint.auth + ' access'));
+        const select = make('button', '', 'Use');
+        select.type = 'button';
+        select.addEventListener('click', () => {
+          $('#apiMethod').value = endpoint.method;
+          $('#apiPath').value = endpoint.path;
+          if (['POST', 'PATCH', 'PUT'].includes(endpoint.method)) {
+            if (endpoint.path === '/api/v1/sources/radio') $('#apiBody').value = JSON.stringify({ name: 'Example Radio', url: 'https://radio.example/stream.mp3', language: 'English' }, null, 2);
+            else if (endpoint.path === '/api/v1/sources/iptv') $('#apiBody').value = JSON.stringify({ name: 'My IPTV playlist', url: 'https://example.com/playlist.m3u' }, null, 2);
+            else if (endpoint.path === '/api/v1/sources/theatre') $('#apiBody').value = JSON.stringify({ name: 'My Theatre provider', api: 'https://example.com/api.php/provide/vod', kind: 'all' }, null, 2);
+            else if (!$('#apiBody').value.trim()) $('#apiBody').value = '{}';
+          }
+          $('#apiTryForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+        const actions = make('div', 'source-actions');
+        actions.append(select);
+        row.append(info, actions);
+        details.append(row);
+      }
+      root.append(details);
+    }
+  }
+
+  async function loadApiIndex() {
+    const statusNode = $('#apiIndexStatus');
+    if (!statusNode) return;
+    statusNode.textContent = 'Loading platform API…';
+    try {
+      const response = await fetch('/api/v1', { cache: 'no-store' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'HTTP ' + response.status);
+      $('#apiBaseUrl').value = data.basePath || '/api/v1';
+      $('#apiDocsUrl').value = data.openapi || '/api/v1/openapi.json';
+      $('#fullApiBase').textContent = location.origin + (data.basePath || '/api/v1');
+      renderApiGroups(data.groups || []);
+      statusNode.textContent = (data.groups || []).length + ' endpoint groups loaded. One base path: ' + location.origin + (data.basePath || '/api/v1');
+    } catch (error) {
+      statusNode.textContent = 'Could not load API list: ' + error.message;
+      statusNode.classList.add('error');
+    }
   }
 
   $('#loginForm').addEventListener('submit', async (event) => {
@@ -123,6 +183,7 @@
       $('#manager').hidden = false;
       $('#password').value = '';
       for (const section of Object.keys(routes)) load(section);
+      loadApiIndex();
     } catch (error) {
       state.auth = '';
       $('#loginStatus').textContent = 'Login failed: ' + error.message;
@@ -135,6 +196,73 @@
     $('#loginPanel').hidden = false;
     $('#password').value = '';
     $('#loginStatus').textContent = 'Signed out.';
+  });
+  $('#copyApiBase').addEventListener('click', async () => {
+    const base = location.origin + '/api/v1';
+    try {
+      await navigator.clipboard.writeText(base);
+      $('#apiIndexStatus').textContent = 'Copied: ' + base;
+      $('#apiIndexStatus').classList.remove('error');
+    } catch {
+      $('#apiBaseUrl').value = base;
+      $('#apiBaseUrl').select();
+      $('#apiIndexStatus').textContent = 'Select and copy the base URL above.';
+    }
+  });
+  $('#reloadApiIndex').addEventListener('click', loadApiIndex);
+  $('#clearApiResponse').addEventListener('click', () => {
+    $('#apiResponse').textContent = 'API response will appear here.';
+    $('#apiRequestStatus').textContent = '';
+  });
+  $('#apiTryForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const method = $('#apiMethod').value.toUpperCase();
+    const rawPath = $('#apiPath').value.trim();
+    let target;
+    try { target = new URL(rawPath, location.origin); }
+    catch { $('#apiRequestStatus').textContent = 'Enter a valid API path.'; $('#apiRequestStatus').classList.add('error'); return; }
+    if (target.origin !== location.origin || (target.pathname !== '/api/v1' && !target.pathname.startsWith('/api/v1/'))) {
+      $('#apiRequestStatus').textContent = 'Use an endpoint on this site under /api/v1.';
+      $('#apiRequestStatus').classList.add('error');
+      return;
+    }
+    const headers = {};
+    if (state.auth) headers.Authorization = 'Basic ' + state.auth;
+    const agentToken = $('#apiAgentToken').value.trim();
+    if (agentToken) headers['X-Agent-Token'] = agentToken;
+    const bodyText = $('#apiBody').value.trim();
+    let body;
+    if (['POST', 'PATCH', 'PUT'].includes(method) && bodyText) {
+      try { body = JSON.stringify(JSON.parse(bodyText)); }
+      catch { $('#apiRequestStatus').textContent = 'The request body is not valid JSON.'; $('#apiRequestStatus').classList.add('error'); return; }
+      headers['Content-Type'] = 'application/json';
+    }
+    $('#runApiRequest').disabled = true;
+    $('#apiRequestStatus').textContent = 'Sending ' + method + ' ' + target.pathname + '…';
+    $('#apiRequestStatus').classList.remove('error');
+    $('#apiResponse').textContent = 'Waiting for response…';
+    try {
+      const started = performance.now();
+      const response = await fetch(target.pathname + target.search, { method, headers, body, cache: 'no-store' });
+      const raw = await response.text();
+      let formatted = raw;
+      try { formatted = JSON.stringify(JSON.parse(raw), null, 2); } catch {}
+      $('#apiResponse').textContent = formatted || '(empty response)';
+      $('#apiRequestStatus').textContent = 'HTTP ' + response.status + ' · ' + Math.round(performance.now() - started) + ' ms';
+      if (!response.ok) $('#apiRequestStatus').classList.add('error');
+      if (response.status === 401) {
+        state.auth = '';
+        $('#manager').hidden = true;
+        $('#loginPanel').hidden = false;
+        $('#loginStatus').textContent = 'Admin login expired. Please sign in again.';
+      }
+    } catch (error) {
+      $('#apiRequestStatus').textContent = 'Request failed: ' + error.message;
+      $('#apiRequestStatus').classList.add('error');
+      $('#apiResponse').textContent = String(error);
+    } finally {
+      $('#runApiRequest').disabled = false;
+    }
   });
   document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListener('click', () => setTab(button.dataset.tab)));
   document.querySelectorAll('[data-reload]').forEach((button) => button.addEventListener('click', () => load(button.dataset.reload)));
