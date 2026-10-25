@@ -7,8 +7,10 @@
     "node": ">=24 <25"
   },
   "scripts": {
-    "test": "node --test test/*.test.js",
-    "start": "node server.js"
+    "setup": "node tools/setup-local.js",
+    "dev": "node --env-file-if-exists=.env --watch server.js",
+    "start": "node --env-file-if-exists=.env server.js",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "imapflow": "2.5.4",
