@@ -32,7 +32,7 @@ function safeItem(raw) {
     pageUrl: typeof raw.pageUrl === 'string' ? raw.pageUrl.slice(0, 2000) : null,
     licenseUrl: typeof raw.licenseUrl === 'string' ? raw.licenseUrl.slice(0, 2000) : null,
     addedAt: raw.addedAt || new Date().toISOString(), updatedAt: new Date().toISOString(),
-    lastSeenAt: new Date().toISOString(), searchText: normalize([name, raw.overview, raw.year, raw.category, raw.sourceName, ...(raw.cats || [])].join(' ')),
+    lastSeenAt: new Date().toISOString(), searchText: normalize([name, raw.overview, raw.year, raw.category, raw.sourceName, ...(Array.isArray(raw.cats) ? raw.cats : []), ...(Array.isArray(raw.episodes) ? raw.episodes.map(episode => episode && episode.title || '') : [])].join(' ')),
   };
 }
 function read(dataDir) {
