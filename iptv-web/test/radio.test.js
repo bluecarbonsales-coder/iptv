@@ -1,6 +1,9 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const { createRadioApi, normalizeStation, safeHttpUrl, UUID_RE } = require('../lib/radio');
 
 function responseRecorder() {
@@ -165,4 +168,40 @@ test('radio resolve refuses a private or otherwise unsafe broadcaster endpoint',
   await api.resolveStation(request('/api/radio/resolve/' + uuid), res, { uuid });
   assert.equal(res.status, 403);
   assert.match(JSON.parse(res.body).error, /private address blocked/);
+});
+
+test('radio station search cache survives API recreation and can be explicitly refreshed', async () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'iptv-radio-index-'));
+  let calls = 0;
+  const upstreamFetch = async () => {
+    calls += 1;
+    return { response: new Response(JSON.stringify([{
+      stationuuid: '01234567-89ab-cdef-0123-456789abcdef',
+      name: 'Persisted Station ' + calls,
+    }]), { status: 200 }) };
+  };
+  const options = { dataDir, mirrors: ['https://de1.api.radio-browser.info'], minRequestIntervalMs: 0, upstreamFetch };
+  try {
+    const firstApi = createRadioApi(options);
+    const first = responseRecorder();
+    await firstApi.stations(request('/api/radio/stations?q=persisted'), first);
+    assert.equal(first.status, 200);
+    await new Promise(resolve => setTimeout(resolve, 120));
+    assert.equal(fs.existsSync(path.join(dataDir, 'radio-index-cache.json')), true);
+
+    const restartedApi = createRadioApi(options);
+    const cached = responseRecorder();
+    await restartedApi.stations(request('/api/radio/stations?q=persisted'), cached);
+    assert.equal(cached.status, 200);
+    assert.equal(JSON.parse(cached.body).stations[0].name, 'Persisted Station 1');
+    assert.equal(calls, 1);
+
+    const refreshed = responseRecorder();
+    await restartedApi.stations(request('/api/radio/stations?q=persisted&refresh=1'), refreshed);
+    assert.equal(refreshed.status, 200);
+    assert.equal(JSON.parse(refreshed.body).stations[0].name, 'Persisted Station 2');
+    assert.equal(calls, 2);
+  } finally {
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
 });
