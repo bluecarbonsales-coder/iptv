@@ -30,7 +30,7 @@ The root path `/` is now a configurable service portal, not a player-specific la
 
 The initial directory includes the player, known Nafisa service shortcuts, and examples such as ChatGPT, GitHub, Cloudflare, YouTube, and Wikipedia. Edit or delete any example to match the services you actually use. It also includes **SeedHub** and the official **Streambert** project link under *Media resources*. SeedHub is a web catalog; Streambert is a desktop-app repository—not an Apple CMS/MacCMS VOD API—so these are external shortcuts rather than falsely advertised native providers. Service definitions persist in `DATA_DIR/portal-services.json` (in Docker, `/data/portal-services.json`), separate from the image and preserved with the existing data volume.
 
-To manage homepage shortcuts, choose **Manage links** and use the shortcut-management token configured in the server environment. This is only for links on the homepage; **Radio, IPTV, and Theatre sources are managed at `/admin.html` with the simple `admin / 0809` login and do not need an API token. The token is kept only in page memory and is not written to local storage. Management calls use the API below:
+To manage homepage shortcuts, choose **Manage links** and use the shortcut-management token configured in the server environment. This is only for links on the homepage. To manage media sources, open **`/admin.html`** and use **`admin / 0809`**; Radio, IPTV, and Theatre source management does not need an API token. The shortcut-management token is kept only in page memory and is not written to local storage. Management calls use the API below:
 
 | Route | Purpose |
 |---|---|
