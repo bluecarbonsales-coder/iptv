@@ -28,10 +28,14 @@ function ensureDefaultSources(dataDir) {
     registry = JSON.parse(fs.readFileSync(target, 'utf8'));
     if (!Array.isArray(registry.sources)) registry.sources = [];
   } catch {}
-  if (registry.defaultsSeeded === true) return false;
   const now = new Date().toISOString();
-  const existing = new Set(registry.sources.map((source) => source.api));
-  const seeded = DEFAULT_SOURCES.slice(0, MAX_VOD_SOURCES).filter((source) => {
+  const existing = new Set(registry.sources.map((source) => {
+    try { return normalizeApiUrl(source.api); } catch { return String(source.api || ''); }
+  }));
+  // Merge newly configured defaults into existing persistent registries on every startup.
+  // Existing entries and their enabled/disabled state are preserved; defaults are registered
+  // without making network requests or probing their contents.
+  const seeded = DEFAULT_SOURCES.filter((source) => {
     try { return !existing.has(normalizeApiUrl(source.api)); } catch { return false; }
   }).map((source) => ({
     id: newId(),
@@ -39,16 +43,18 @@ function ensureDefaultSources(dataDir) {
     api: normalizeApiUrl(source.api),
     detail: null,
     kind: source.kind || 'all',
-    enabled: source.enabled === true,
+    enabled: source.enabled !== false,
     addedAt: now,
     lastChecked: null,
     lastError: null,
     lastItemCount: null,
     listAction: 'videolist',
-    importedFrom: 'operator-provided initial list',
+    importedFrom: 'operator-provided source list',
   }));
   const additions = seeded.slice(0, Math.max(0, MAX_VOD_SOURCES - registry.sources.length));
-  saveSources(dataDir, registry.sources.concat(additions));
+  if (additions.length || registry.defaultsSeeded !== true) {
+    saveSources(dataDir, registry.sources.concat(additions));
+  }
   return additions.length > 0;
 }
 function saveSources(dataDir, sources) {
