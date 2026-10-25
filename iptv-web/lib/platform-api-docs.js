@@ -86,6 +86,7 @@ const ROUTES = [
   ['PATCH', '/agent/sources/theatre/{id}', 'Edit a Theatre provider', 'Agent', 'agent'],
   ['DELETE', '/agent/sources/theatre/{id}', 'Delete a Theatre provider', 'Agent', 'agent'],
   ['GET', '/agent/theatre/search', 'Search configured and open-license movie sources', 'Agent', 'agent'],
+  ['GET', '/agent/theatre/titles/{sourceId}/{vodId}', 'Get a Theatre title and its episodes as an agent', 'Agent', 'agent'],
   ['GET', '/agent/theatre/archive/search', 'Search Internet Archive open-license candidates', 'Agent', 'agent'],
   ['GET', '/agent/theatre/commons/search', 'Search Wikimedia Commons open-license videos', 'Agent', 'agent'],
   ['GET', '/agent/navigation', 'Read editable navigation configuration', 'Agent', 'agent'],
@@ -159,7 +160,8 @@ function buildOpenApi() {
       name: match[1], in: 'path', required: true, schema: { type: 'string' },
     }));
     if (pathParameters.length) operation.parameters = pathParameters;
-    if (['POST', 'PATCH', 'PUT'].includes(method) && !key.includes('/openapi.json')) {
+    const bodyOptional = new Set(['/sources/{type}/enable-all', '/iptv/refresh', '/mail/logout']);
+    if (['POST', 'PATCH', 'PUT'].includes(method) && !key.includes('/openapi.json') && !bodyOptional.has(key)) {
       operation.requestBody = {
         required: true,
         content: { 'application/json': { schema: { type: 'object', additionalProperties: true } } },
