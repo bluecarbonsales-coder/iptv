@@ -30,17 +30,17 @@ The root path `/` is now a configurable service portal, not a player-specific la
 
 The initial directory includes the player, known Nafisa service shortcuts, and examples such as ChatGPT, GitHub, Cloudflare, YouTube, and Wikipedia. Edit or delete any example to match the services you actually use. It also includes **SeedHub** and the official **Streambert** project link under *Media resources*. SeedHub is a web catalog; Streambert is a desktop-app repository—not an Apple CMS/MacCMS VOD API—so these are external shortcuts rather than falsely advertised native providers. Service definitions persist in `DATA_DIR/portal-services.json` (in Docker, `/data/portal-services.json`), separate from the image and preserved with the existing data volume.
 
-To manage homepage shortcuts, use the unified `/api/v1/portal/services` endpoints from the Settings API tab and sign in with the Settings admin username/password. Token-only calls to the old `/api/portal/services` mutations are no longer accepted. To manage media sources, open **`/admin.html`** and use **`admin / 0809`**; Radio, IPTV, and Theatre source management does not need an API token. The shortcut-management token is kept only in page memory and is not written to local storage. Management calls use the API below:
+To manage homepage shortcuts, use the unified `/api/v1/portal/services` endpoints from the Settings API tab and sign in with the Settings admin username/password. Token-only calls to the old `/api/portal/services` mutations are no longer accepted. To manage media sources, open **`/admin.html`** and use **`admin / 0809`**; Radio, IPTV, and Theatre source management does not need an API token. Management calls use the API below with the Settings login:
 
 | Route | Purpose |
 |---|---|
 | `GET /api/portal/availability` | Live HTTP availability and response latency for each portal shortcut; includes the fastest responding media-resource site |
 | `GET /api/portal/availability?refresh=1` | Request an availability refresh (cooldown and in-flight scan limits still apply) |
 | `GET /api/portal/services` | Public service directory |
-| `GET /api/portal/services?manage=1` | Validate management access and return the directory |
-| `POST /api/portal/services` | Add a link (management token required) |
-| `PATCH /api/portal/services/:id` | Edit a link (management token required) |
-| `DELETE /api/portal/services/:id` | Remove a link (management token required) |
+| `GET /api/portal/services?manage=1` | Validate Settings login and return the directory |
+| `POST /api/portal/services` | Add a link (Settings login required) |
+| `PATCH /api/portal/services/:id` | Edit a link (Settings login required) |
+| `DELETE /api/portal/services/:id` | Remove a link (Settings login required) |
 
 Links accept same-site relative paths or absolute HTTP(S) URLs. Each card opens safely in a new tab. Removing a link only removes its shortcut; it does not modify or delete the linked service. Every card always shows a reachability state: local, online, slow, restricted, not found, offline, or checking. External sites are probed with a bounded HEAD request (falling back to a one-byte range GET when HEAD is blocked), SSRF-checked on every redirect, with caching and limited concurrency. The *Fastest responding media resource* banner compares SeedHub and Streambert by HTTP response latency measured from the application server; that is **not** an end-user speed test or a guarantee of media-stream throughput. HTTP 403/429 is reported as restricted/rate-limited instead of being mislabeled offline.
 
@@ -175,49 +175,30 @@ The original endpoints listed below remain available for backward compatibility.
 
 | Route | Purpose |
 |---|---|
-| `GET /api/meta` | countries / categories / qualities with counts, catalogue timestamp |
-| `GET /api/channels` | `q`, `country`, `category`, `minQuality`, `hasLogo`, `nsfw`, `ids`, `sort`, `page`, `limit` |
-| `GET /api/channel/:id` | one channel with every stream URL, quality, referrer, user-agent, labels |
-| `GET /api/playlist?u=` | import an external M3U (server-side fetch + parse) |
-| `GET /api/vod?type=&q=` | search configured VOD APIs and the built-in Internet Archive adapter for `all`, `movies`, `series`, or `anime` (includes Internet Archive and Wikimedia Commons results) |
-| `GET /api/vod/:sourceId/:vodId` | resolve details and episodes for a VOD title |
-| `GET /api/vod/sources` | disabled legacy token route; use `/api/v1/sources/theatre` with admin login |
-| `POST /api/vod/sources` | disabled legacy token route; use `/api/v1/sources/theatre` with admin login |
-| `POST /api/vod/import` | disabled legacy token route; use `/api/v1/sources/theatre/import` with admin login |
-| `PATCH /api/vod/sources/:id` | disabled legacy token route; use `/api/v1/sources/theatre/:id` with admin login |
-| `DELETE /api/vod/sources/:id` | disabled legacy token route; use `/api/v1/sources/theatre/:id` with admin login |
-| `GET /api/sources` | disabled legacy token route; use `/api/v1/sources` with admin login |
-| `POST /api/sources` | disabled legacy token route; use `/api/v1/sources/iptv` with admin login |
-| `PATCH /api/sources/:id` | disabled legacy token route; use `/api/v1/sources/iptv/:id` with admin login |
-| `DELETE /api/sources/:id` | disabled legacy token route; use `/api/v1/sources/iptv/:id` with admin login |
-| `GET /api/playlist.m3u?u=` | the same playlist rewritten through `/hls` |
-| `GET /api/export.m3u` | current filters as a downloadable playlist (`&proxy=1` to relay) |
-| `POST /api/refresh` | re-download the iptv-org API and rebuild the catalogue |
-| `GET /hls?u=&r=&ua=` | HLS manifest + segment relay (see above) |
-| `GET /img?u=` | channel-logo relay with a disk cache |
-Legacy `/api/agent/v1/*` routes previously listed in this section are disabled (HTTP 410) because they depended on API tokens. Use `/api/v1/agent/*` with the same admin username and password as Settings. Repository/GitHub operations still need the server-side GitHub integration configured, but API callers do not send GitHub or agent tokens.
+| `GET /api/meta` | Countries, categories, qualities, and catalogue counts |
+| `GET /api/channels` | Search and filter live channels |
+| `GET /api/channel/:id` | Get channel information and candidate stream URLs |
+| `GET /api/playlist?u=` | Import an external M3U playlist |
+| `GET /api/playlist.m3u?u=` | Rewritten playlist using the media relay |
+| `GET /api/export.m3u` | Download the current filtered channel list |
+| `GET /api/vod?type=&q=` | Search configured VOD and open-license providers |
+| `GET /api/vod/:sourceId/:vodId` | Resolve a VOD title and playback episodes |
+| `GET /api/vod/sources`, `/api/sources` | Disabled legacy token routes; use `/api/v1/sources` with Settings login |
+| `POST /api/vod/sources`, `/api/vod/import`, `/api/sources` | Disabled legacy token routes; use `/api/v1/sources/{type}` with Settings login |
+| `PATCH/DELETE /api/vod/sources/:id`, `/api/sources/:id` | Disabled legacy token routes; use `/api/v1/sources/{type}/:id` with Settings login |
+| `POST /api/refresh` | Refresh the catalogue; remote requests need Settings admin login. Local systemd refresh jobs remain supported. |
+| `GET /hls?u=&r=&ua=` | HLS manifest and segment relay |
+| `GET /img?u=` | Channel-logo relay with disk cache |
+| `GET /healthz` | Application health, uptime, and catalogue counts |
+| `GET /api/radio/stations` | Search the public radio directory |
+| `GET /api/radio/options?type=` | Load country, language, or genre options |
+| `GET /api/radio/resolve/:uuid` | Resolve a station for playback |
+| `GET /api/radio/stream/:ticket` | Bounded short-lived radio stream relay |
+| `GET /api/portal/services` | Public homepage service directory |
+| `GET /api/portal/services?manage=1` | Management directory; Settings admin login required |
+| `POST/PATCH/DELETE /api/portal/services` | Add, edit, or delete shortcuts; Settings admin login required |
 
-| `GET /api/agent/v1/archive/search?q=&type=` | search Internet Archive public-domain/CC candidates |
-| `GET /api/agent/v1/commons/search?q=&type=` | search open-license video files on Wikimedia Commons |
-| `POST /api/agent/v1/tasks/run` | run `maintain_sources`, `sync_source_lists`, `check_vod_providers`, or `refresh_live_catalog` |
-| `GET/POST /api/agent/v1/live/sources` | list/add live M3U resources |
-| `PATCH/DELETE /api/agent/v1/live/sources/:id` | update or remove live resources |
-| `GET/POST /api/agent/v1/vod/sources` | list/add VOD providers |
-| `PATCH/DELETE /api/agent/v1/vod/sources/:id` | update or remove VOD providers |
-| `POST /api/agent/v1/vod/import` | import a trusted provider directory by URL or JSON config |
-| `GET /api/agent/v1/vod/search?type=&q=` | machine-oriented VOD + licensed-archive search |
-| `GET /api/agent/v1/archive/search?type=&q=` | search the built-in Internet Archive adapter |
-| `GET /healthz` | counts, timestamp, uptime |
-| `GET /api/radio/stations` | search public radio directory with name, country, language, genre, codec, sorting, and paging filters |
-| `GET /api/radio/options?type=` | load country, language, or genre lists |
-| `GET /api/radio/resolve/:uuid` | resolve station playback through Radio Browser's click-counter endpoint |
-| `GET /api/radio/stream/:ticket` | bounded audio relay using a short-lived ticket minted from a valid station UUID |
-| `GET /api/portal/services` | searchable-homepage service directory; reads are public |
-| `POST /api/portal/services` | add a homepage service shortcut (requires existing management token) |
-| `PATCH /api/portal/services/:id` | update a shortcut (requires existing management token) |
-| `DELETE /api/portal/services/:id` | remove a shortcut only (requires existing management token) |
-
-These token rules apply to the **legacy routes** in the table above. The new `/api/v1` entry is the recommended interface: use the same admin username/password as `/admin.html` for source and settings changes. There is no separate source-management token to enter in the new API tester. The advanced agent routes still use the configured `X-Agent-Token`, and old integrations using the original routes continue to work as before.
+Token-only legacy `/api/agent/v1/*` routes return HTTP 410. Use the unified `/api/v1/agent/*` API through the Settings API tab, authenticated with the same admin username/password. Source availability and proxy-side latency are available at `GET /api/v1/sources/health`. API callers do not need to supply an agent token or source-management token. Server-side GitHub credentials remain a separate integration secret for repository automation.
 
 ## Agent operation and automation
 
@@ -275,7 +256,7 @@ lib/commons-vod.js     Wikimedia Commons open-license video adapter
 lib/agent-settings.js persistent runtime settings that agents can update
 lib/registry-lock.js   serialized registry writes across agent/refresh operations
 lib/automation.js     scheduled provider discovery, health checks, and audit
-lib/agent.js          Hermes/agent API, OpenAPI schema, token auth and agent settings
+lib/agent.js          Unified admin-authenticated agent API, OpenAPI schema and settings
 tools/agentctl.js     dependency-free CLI for Hermes and other agents
 lib/m3u.js           M3U parser (server); public/js/m3u.js is the browser twin
 lib/static.js        static serving with etag + gzip
@@ -287,7 +268,7 @@ deploy/              scripts used to stand the site up on the server
 
 ## Hermes / agent CLI
 
-The dependency-free `tools/agentctl.js` CLI wraps the authenticated agent API and returns JSON for automation. Set `IPTV_BASE_URL` and `AGENT_API_TOKEN` in your Hermes service environment; do not store the token in the repository or a prompt. For a **local agent on the deployment server**, see [`AGENTS.md`](AGENTS.md): give its OS account write access to the real project checkout plus the privileges needed to run tests, rebuild Docker, and deploy. Local filesystem editing—including all UI files—does not require `GITHUB_REPO_TOKEN`; that secret is only needed for remote GitHub operations through the HTTP API.
+The dependency-free `tools/agentctl.js` CLI still documents the retired token-based interface and is not supported while token access is disabled. Use `/admin.html` and the unified `/api/v1/agent/*` endpoints with the Settings admin login. For a **local agent on the deployment server**, see [`AGENTS.md`](AGENTS.md): give its OS account write access to the real project checkout plus the privileges needed to run tests, rebuild Docker, and deploy. Local filesystem editing—including all UI files—does not require `GITHUB_REPO_TOKEN`; that secret is only needed for remote GitHub operations through the HTTP API.
 
 ```bash
 node iptv-web/tools/agentctl.js capabilities
@@ -351,6 +332,6 @@ Mailbox credentials are encrypted at rest with AES-256-GCM in /data/mail-workspa
 
 Features: IMAP TLS 993, SMTP STARTTLS 587 or TLS 465, folder/message view, compose and send, alias-aware From addresses, drafts, address-book CRUD and audit events. Message HTML is not executed; attachments are listed but not downloaded in this initial UI.
 
-Agents use AGENT_API_TOKEN Bearer or X-Agent-Token authentication with GET /api/agent/v1/mail/openapi.json, /accounts, /folders, /messages, /message, /contacts and /drafts plus POST /drafts and /drafts/:id/send. Agent-created drafts require owner approval by default. Set EMAIL_AGENT_SEND_MODE=direct only if trusted agents should send unattended. Allowed mail hosts are restricted by EMAIL_ALLOWED_MAIL_HOSTS.
+Legacy token-authenticated `/api/agent/v1/mail/*` access is disabled. The unified `/api/v1/agent/mail/*` endpoints use the Settings admin login. Agent-created drafts require owner approval by default. Agent-created drafts require owner approval by default. Set EMAIL_AGENT_SEND_MODE=direct only if trusted agents should send unattended. Allowed mail hosts are restricted by EMAIL_ALLOWED_MAIL_HOSTS.
 
 CI passing does not prove the live VPS has these environment values, that SMTP/IMAP connections work, or that this change is deployed.
