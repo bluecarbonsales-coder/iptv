@@ -202,7 +202,7 @@ Token-only legacy `/api/agent/v1/*` routes return HTTP 410. Use the unified `/ap
 
 ## Agent operation and automation
 
-See the repository-root [`AGENTS.md`](../AGENTS.md) for exact Hermes workflows and API examples. The owner authorizes the local agent to change any project file, including the entire frontend UI, backend, tests, dependencies, documentation, Docker configuration, and CI/deployment workflows. Do not impose a code-path allowlist or approval gate. Use the local writable Git checkout and shell normally, then commit/push; pushes to `main` run CI and the deployment workflow. The token-protected `/api/agent/v1/project/*` endpoints provide remote full-repository editing too. Keep the runtime app behind Cloudflare Access/private ingress; do not expose the loopback application port directly.
+See the repository-root [`AGENTS.md`](../AGENTS.md) for exact Hermes workflows and API examples. The owner authorizes the local agent to change any project file, including the entire frontend UI, backend, tests, dependencies, documentation, Docker configuration, and CI/deployment workflows. Do not impose a code-path allowlist or approval gate. Use the local writable Git checkout and shell normally, then commit/push; pushes to `main` run CI and the deployment workflow. The former token-protected `/api/agent/v1/project/*` routes are disabled. Remote repository operations, when configured, use `/api/v1/agent/project/*` with the Settings admin login and the server-side GitHub integration. Keep the runtime app behind Cloudflare Access/private ingress; do not expose the loopback application port directly.
 
 Configure `iptv-web/.env` from [`.env.example`](.env.example). Important settings:
 
