@@ -9,6 +9,7 @@ const sourceLib = require('./sources');
 const vodLib = require('./vod');
 const archiveLib = require('./archive-vod');
 const commonsLib = require('./commons-vod');
+const mediaLibrary = require('./media-library');
 const { withLock, withFileLock } = require('./registry-lock');
 
 // Absolute origin as the browser sees it (proxy sets X-Forwarded-Proto).
@@ -396,6 +397,76 @@ function createApi(catalog, refresh, dataDir) {
     }
   };
 
+  const librarySearch = (req, res, params, query) => sendJson(req, res, 200, mediaLibrary.search(sourceDataDir, query));
+  const libraryStats = (req, res) => sendJson(req, res, 200, mediaLibrary.stats(sourceDataDir));
+  const saveLibraryItem = async (req, res) => {
+    if (!authorizeSourceWrite(req, res)) return;
+    try {
+      const body = JSON.parse(await readBody(req, 65536));
+      const result = mediaLibrary.upsert(sourceDataDir, body.items || body.item || body);
+      sendJson(req, res, 201, { ok: true, ...result });
+    } catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message || 'could not save library item' }); }
+  };
+  const deleteLibraryItem = (req, res, params) => {
+    if (!authorizeSourceWrite(req, res)) return;
+    if (!mediaLibrary.remove(sourceDataDir, params.id)) return sendJson(req, res, 404, { error: 'library item not found' });
+    sendJson(req, res, 200, { ok: true, ...mediaLibrary.stats(sourceDataDir) });
+  };
+  const importLibraryM3u = async (req, res) => {
+    if (!authorizeSourceWrite(req, res)) return;
+    try {
+      const body = JSON.parse(await readBody(req, 16384));
+      const playlistUrl = String(body.url || '').trim();
+      if (!sourceLib.isHttpUrl(playlistUrl)) return sendJson(req, res, 400, { error: 'a valid HTTP(S) playlist URL is required' });
+      const { response } = await upstreamFetch(playlistUrl, { timeoutMs: 20000, extraHeaders: { Accept: 'application/vnd.apple.mpegurl, application/x-mpegURL, text/plain, */*' } });
+      if (!response.ok) return sendJson(req, res, 502, { error: 'playlist returned HTTP ' + response.status });
+      const raw = await bodyToString(response);
+      if (Buffer.byteLength(raw, 'utf8') > 8 * 1024 * 1024) return sendJson(req, res, 413, { error: 'playlist exceeds 8 MB' });
+      const parsed = parseM3U(raw);
+      const sourceName = String(body.name || new URL(playlistUrl).hostname).slice(0, 120);
+      const sourceId = 'playlist-' + require('crypto').createHash('sha256').update(playlistUrl).digest('hex').slice(0, 16);
+      const items = parsed.filter(item => item.name && item.url && /^https?:\/\//i.test(item.url)).slice(0, 25000).map((item, i) => ({
+        id: sourceId + '-' + (item.id || require('crypto').createHash('sha256').update(item.url).digest('hex').slice(0, 20)),
+        sourceId, sourceName, name: item.name, title: item.name, url: item.url,
+        logo: item.logo, category: item.group || '', kind: 'channel', vod: false, sortOrder: i,
+      }));
+      if (!items.length) return sendJson(req, res, 400, { error: 'no HTTP(S) channels found in this playlist' });
+      const result = mediaLibrary.upsert(sourceDataDir, items);
+      sendJson(req, res, 201, { ok: true, playlist: sourceName, imported: items.length, ...result });
+    } catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message || 'could not import playlist' }); }
+  };
+  const syncLibrary = async (req, res) => {
+    if (!authorizeSourceWrite(req, res)) return;
+    try {
+      const sources = vodLib.loadSourcesSync(sourceDataDir).sources.filter(source => source.enabled !== false);
+      const maxPages = Math.max(1, Math.min(10, Number.parseInt(process.env.MEDIA_LIBRARY_SYNC_PAGES || '3', 10) || 3));
+      const outcomes = await mapLimit(sources, 3, async source => {
+        const records = [];
+        for (let page = 1; page <= maxPages && records.length < 1000; page++) {
+          const batch = await vodLib.searchSource(source, '', page);
+          records.push(...batch);
+          if (!batch.length || batch.length < 10) break;
+        }
+        return records;
+      });
+      const items = [], errors = [];
+      for (let i = 0; i < outcomes.length; i++) {
+        if (outcomes[i].status === 'rejected') {
+          errors.push({ source: sources[i].name, error: String(outcomes[i].reason && outcomes[i].reason.message || 'source sync failed').slice(0, 180) });
+          continue;
+        }
+        for (const item of outcomes[i].value) items.push({
+          id: 'vod-' + item.sourceId + '-' + item.id, vod: true, vodId: item.id,
+          sourceId: item.sourceId, sourceName: item.sourceName, name: item.name,
+          logo: item.logo, overview: item.overview, year: item.year, category: item.category,
+          kind: item.kind, episodes: item.episodes, detailUrl: item.detailUrl,
+        });
+      }
+      const result = mediaLibrary.upsert(sourceDataDir, items);
+      sendJson(req, res, 200, { ok: true, sourcesChecked: sources.length, errors, ...result, note: 'Indexes the first configured pages from each enabled provider; repeat to refresh. Large provider catalogs may require additional syncs.' });
+    } catch (err) { sendJson(req, res, err.statusCode || 500, { error: err.message || 'library sync failed' }); }
+  };
+
   const vodSearch = async (req, res, params, query) => {
     const kind = vodLib.KINDS.has(query.type) ? query.type : 'all';
     const term = String(query.q || '').trim().slice(0, 120);
@@ -508,6 +579,8 @@ function createApi(catalog, refresh, dataDir) {
     }
     if (archiveError) errors.push({ source: 'Internet Archive (public domain / CC)', error: archiveError });
     if (commonsError) errors.push({ source: 'Wikimedia Commons (open-license video)', error: commonsError });
+    // Persist discovered titles so the library survives server restarts and provider outages.
+    mediaLibrary.upsert(sourceDataDir, unique.map(item => ({ ...item, kind: item.kind || kind, vod: true })));
     const payload = {
       type: kind,
       total: unique.length,
@@ -717,7 +790,7 @@ function createApi(catalog, refresh, dataDir) {
     });
   };
 
-  return { meta, channels, channel, refreshNow, playlist, playlistProxied, exportM3u, health, sourceList, addSource, updateSource, deleteSource, listVodSources, addVodSource, importVodSourceList, updateVodSource, deleteVodSource, vodSearch, vodDetail, clearVodCache: () => vodSearchCache.clear() };
+  return { meta, channels, channel, refreshNow, playlist, playlistProxied, exportM3u, health, sourceList, addSource, updateSource, deleteSource, listVodSources, addVodSource, importVodSourceList, updateVodSource, deleteVodSource, vodSearch, vodDetail, librarySearch, libraryStats, saveLibraryItem, deleteLibraryItem, importLibraryM3u, syncLibrary, clearVodCache: () => vodSearchCache.clear() };
 }
 
 module.exports = { createApi };
