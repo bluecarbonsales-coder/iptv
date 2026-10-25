@@ -332,6 +332,6 @@ Mailbox credentials are encrypted at rest with AES-256-GCM in /data/mail-workspa
 
 Features: IMAP TLS 993, SMTP STARTTLS 587 or TLS 465, folder/message view, compose and send, alias-aware From addresses, drafts, address-book CRUD and audit events. Message HTML is not executed; attachments are listed but not downloaded in this initial UI.
 
-Legacy token-authenticated `/api/agent/v1/mail/*` access is disabled. The unified `/api/v1/agent/mail/*` endpoints use the Settings admin login. Agent-created drafts require owner approval by default. Agent-created drafts require owner approval by default. Set EMAIL_AGENT_SEND_MODE=direct only if trusted agents should send unattended. Allowed mail hosts are restricted by EMAIL_ALLOWED_MAIL_HOSTS.
+Legacy token-authenticated `/api/agent/v1/mail/*` access is disabled. The unified `/api/v1/agent/mail/*` endpoints use the Settings admin login. Agent-created drafts require owner approval by default. Set EMAIL_AGENT_SEND_MODE=direct only if trusted agents should send unattended. Allowed mail hosts are restricted by EMAIL_ALLOWED_MAIL_HOSTS.
 
 CI passing does not prove the live VPS has these environment values, that SMTP/IMAP connections work, or that this change is deployed.
