@@ -12,6 +12,21 @@
   let hlsPlayer = null;
   let loadSequence = 0;
   let activeTicket = 0;
+  const SPOKEN_LANGUAGE_PRIORITY = [
+    'english', 'chinese', 'mandarin', 'hindi', 'spanish', 'arabic', 'french', 'bengali', 'portuguese', 'russian', 'urdu', 'indonesian',
+    'german', 'japanese', 'punjabi', 'javanese', 'korean', 'vietnamese', 'marathi', 'telugu', 'tamil', 'turkish', 'italian', 'persian',
+    'polish', 'ukrainian', 'dutch', 'thai', 'swahili', 'nepali', 'greek', 'swedish', 'hausa', 'amharic', 'yoruba',
+  ];
+  function languageRank(value) {
+    const name = String(value || '').trim().toLowerCase().replace(/\\s+language$/, '');
+    const aliases = { chinese: 'chinese', mandarin: 'chinese', español: 'spanish', français: 'french', deutsch: 'german', 日本語: 'japanese', हिन्दी: 'hindi', português: 'portuguese', русский: 'russian', العربية: 'arabic' };
+    const canonical = aliases[name] || name;
+    const rank = SPOKEN_LANGUAGE_PRIORITY.indexOf(canonical);
+    return rank < 0 ? SPOKEN_LANGUAGE_PRIORITY.length : rank;
+  }
+  function prettyLanguage(value) {
+    return String(value || '').replace(/\\b\\p{L}/gu, (letter) => letter.toLocaleUpperCase());
+  }
 
   function loadJson(key, fallback) {
     try { const value = JSON.parse(localStorage.getItem(key)); return Array.isArray(value) ? value : fallback; }
@@ -75,7 +90,8 @@
     name.title = station.name;
     const loc = document.createElement('div');
     loc.className = 'station-loc';
-    loc.textContent = flagOrCountry(station) + (station.language ? ' · ' + station.language.split(',')[0].trim() : '');
+    const stationLanguage = station.language ? prettyLanguage(station.language.split(',')[0].trim()) : 'Language not listed';
+    loc.textContent = stationLanguage + ' · ' + flagOrCountry(station);
     const tag = document.createElement('div');
     tag.className = 'station-tags';
     tag.textContent = tagsPreview(station);
@@ -182,17 +198,25 @@
       const result = await request('/api/radio/options?type=' + encodeURIComponent(type));
       const select = $(selectId);
       const values = result.values || [];
+      if (type === 'languages') {
+        values.sort((a, b) => languageRank(a.name) - languageRank(b.name) || Number(b.stationcount || 0) - Number(a.stationcount || 0) || String(a.name).localeCompare(String(b.name)));
+      }
       values.forEach((item) => {
         const option = document.createElement('option');
         option.value = type === 'countries' ? item.name.toUpperCase() : item.name;
         const count = item.stationcount ? ' (' + Number(item.stationcount).toLocaleString() + ')' : '';
-        let label = item.name;
+        let label = type === 'languages' ? prettyLanguage(item.name) : item.name;
         if (type === 'countries' && /^[A-Z]{2}$/.test(item.name)) {
           try { label = new Intl.DisplayNames(['en'], { type: 'region' }).of(item.name) + ' · ' + item.name; } catch {}
         }
         option.textContent = label + count;
         select.append(option);
       });
+      if (type === 'languages' && values.length) {
+        const preferred = values.find((item) => /^(english|eng)$/i.test(String(item.name).trim())) || values[0];
+        state.language = preferred.name;
+        select.value = preferred.name;
+      }
     } catch (error) {
       // Search remains available even if the filter dictionaries are temporarily down.
       console.warn('Could not load radio ' + type + ':', error.message);
