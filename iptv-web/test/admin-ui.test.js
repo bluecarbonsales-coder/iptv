@@ -54,6 +54,8 @@ test('Settings compares browser and server source availability without agent-tok
   const js = fs.readFileSync(path.join(root, 'public', 'admin.js'), 'utf8');
   const server = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
   const api = fs.readFileSync(path.join(root, 'lib', 'api.js'), 'utf8');
+  const agent = fs.readFileSync(path.join(root, 'lib', 'agent.js'), 'utf8');
+  const portal = fs.readFileSync(path.join(root, 'lib', 'portal.js'), 'utf8');
   assert.match(html, /id="sourceHealthSummary"/);
   assert.match(html, /id="refreshSourceHealth"/);
   assert.match(js, /\/api\/v1\/sources\/health/);
@@ -62,6 +64,10 @@ test('Settings compares browser and server source availability without agent-tok
   assert.match(server, /app\.get\('\/api\/v1\/sources\/health'/);
   assert.match(server, /Token-based agent access is disabled/);
   assert.match(api, /Token-based source management has been disabled/);
+  assert.match(agent, /Token-based agent access is disabled/);
+  assert.match(portal, /Token-based portal management is disabled/);
+  assert.match(server, /app\.post\('\/api\/portal\/services', adminRoute\(portal\.add\)\)/);
+  assert.match(server, /Sign in at \/admin\.html to refresh the catalogue\. Token access is disabled/);
 });
 
 test('IPTV and Theatre playback render inline in the page rather than as fixed overlays', () => {
