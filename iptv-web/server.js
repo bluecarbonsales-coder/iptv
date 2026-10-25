@@ -25,6 +25,9 @@ const { createApi } = require('./lib/api');
 const { serveStatic } = require('./lib/static');
 const { send, sendJson, isPrivateIp, readBody } = require('./lib/util');
 const radioSourceStore = require('./lib/radio-sources');
+const sourceLib = require('./lib/sources');
+const vodLib = require('./lib/vod');
+const platformApiDocs = require('./lib/platform-api-docs');
 const hls = require('./lib/hls');
 const img = require('./lib/img');
 const refreshLib = require('./lib/refresh');
@@ -316,7 +319,281 @@ app.post('/api/refresh', refreshGuard);
 app.get('/hls', hls.handler);
 app.head('/hls', hls.handler);
 app.get('/img', img.handler);
-app.use(staticHandler);
+
+/*
+ * Unified platform API: use /api/v1 for one entry point.
+ * Old routes remain available so existing pages and integrations keep working.
+ */
+app.get('/api/v1', (req, res) => sendJson(req, res, 200, platformApiDocs.describeApi()));
+app.get('/api/v1/openapi.json', (req, res) => sendJson(req, res, 200, platformApiDocs.buildOpenApi()));
+app.get('/api/v1/health', api.health);
+
+function normalizeUnifiedSourceType(raw) {
+  const type = String(raw || '').toLowerCase();
+  if (type === 'radio') return 'radio';
+  if (type === 'iptv' || type === 'live') return 'iptv';
+  if (['theatre', 'theater', 'movie', 'movies', 'vod'].includes(type)) return 'theatre';
+  throw Object.assign(new Error('Source type must be radio, iptv, or theatre.'), { statusCode: 400 });
+}
+
+function unifiedSourceList(type) {
+  if (type === 'radio') return radioSourceStore.list(DATA_DIR);
+  if (type === 'iptv') {
+    return sourceLib.loadSourcesSync(DATA_DIR).sources.map((source) => ({
+      id: source.id,
+      type: 'iptv',
+      name: source.name,
+      url: vodLib.redactUrl(source.url),
+      enabled: source.enabled !== false,
+      count: source.lastCount || 0,
+      streams: source.lastStreamCount || 0,
+      updated: source.lastUpdated || null,
+      error: source.lastError || null,
+    }));
+  }
+  return vodLib.loadSourcesSync(DATA_DIR).sources.map((source) => ({
+    ...vodLib.publicSource(source),
+    type: 'theatre',
+  }));
+}
+
+app.get('/api/v1/sources', adminRoute((req, res) => {
+  sendJson(req, res, 200, {
+    sources: {
+      radio: unifiedSourceList('radio'),
+      iptv: unifiedSourceList('iptv'),
+      theatre: unifiedSourceList('theatre'),
+    },
+  });
+}));
+
+app.get('/api/v1/sources/:type', adminRoute((req, res, params, query) => {
+  try {
+    const type = normalizeUnifiedSourceType(params.type);
+    if (type === 'radio') return sendJson(req, res, 200, { sources: unifiedSourceList(type) });
+    if (type === 'iptv') return api.sourceList(req, res, params, query);
+    return api.listVodSources(req, res, params, query);
+  } catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message }); }
+}));
+
+app.post('/api/v1/sources/:type/enable-all', adminRoute(async (req, res, params) => {
+  try {
+    const type = normalizeUnifiedSourceType(params.type);
+    if (type === 'radio') return sendJson(req, res, 200, { sources: radioSourceStore.enableAll(DATA_DIR) });
+    if (type === 'iptv') return api.enableAllSources(req, res);
+    return api.enableAllVodSources(req, res);
+  } catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message }); }
+}));
+
+app.post('/api/v1/sources/theatre/import', adminRoute((req, res, params, query) => api.importVodSourceList(req, res, params, query)));
+app.post('/api/v1/sources/movies/import', adminRoute((req, res, params, query) => api.importVodSourceList(req, res, params, query)));
+
+app.post('/api/v1/sources/:type', adminRoute(async (req, res, params, query) => {
+  try {
+    const type = normalizeUnifiedSourceType(params.type);
+    if (type === 'radio') {
+      const body = JSON.parse(await readBody(req, 16384));
+      const source = radioSourceStore.add(DATA_DIR, body);
+      return sendJson(req, res, 201, { source, sources: unifiedSourceList(type) });
+    }
+    if (type === 'iptv') return api.addSource(req, res, params, query);
+    return api.addVodSource(req, res, params, query);
+  } catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message || 'Could not add source.' }); }
+}));
+
+app.patch('/api/v1/sources/:type/:id', adminRoute(async (req, res, params, query) => {
+  try {
+    const type = normalizeUnifiedSourceType(params.type);
+    if (type === 'radio') {
+      const body = JSON.parse(await readBody(req, 16384));
+      const source = radioSourceStore.update(DATA_DIR, params.id, body);
+      return sendJson(req, res, 200, { source, sources: unifiedSourceList(type) });
+    }
+    if (type === 'iptv') return api.updateSource(req, res, params, query);
+    return api.updateVodSource(req, res, params, query);
+  } catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message || 'Could not update source.' }); }
+}));
+
+app.delete('/api/v1/sources/:type/:id', adminRoute((req, res, params, query) => {
+  try {
+    const type = normalizeUnifiedSourceType(params.type);
+    if (type === 'radio') {
+      radioSourceStore.remove(DATA_DIR, params.id);
+      return sendJson(req, res, 200, { ok: true, sources: unifiedSourceList(type) });
+    }
+    if (type === 'iptv') return api.deleteSource(req, res, params);
+    return api.deleteVodSource(req, res, params);
+  } catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message || 'Could not delete source.' }); }
+}));
+
+// Media APIs use one naming scheme below /api/v1.
+app.get('/api/v1/iptv/meta', api.meta);
+app.get('/api/v1/iptv/channels', api.channels);
+app.get('/api/v1/iptv/channels/:id', api.channel);
+app.get('/api/v1/iptv/playlist', api.playlist);
+app.get('/api/v1/iptv/playlist.m3u', api.playlistProxied);
+app.get('/api/v1/iptv/export.m3u', api.exportM3u);
+app.get('/api/v1/iptv/hls', hls.handler);
+app.head('/api/v1/iptv/hls', hls.handler);
+app.get('/api/v1/iptv/image', img.handler);
+app.post('/api/v1/iptv/refresh', adminRoute((req, res) => api.refreshNow(req, res)));
+
+app.get('/api/v1/radio/stations', radio.stations);
+app.get('/api/v1/radio/options', radio.listOptions);
+app.get('/api/v1/radio/resolve/:uuid', radio.resolveStation);
+app.get('/api/v1/radio/stream/:ticket', radio.stream);
+
+app.get('/api/v1/theatre/titles', api.vodSearch);
+app.get('/api/v1/theatre/titles/:sourceId/:vodId', api.vodDetail);
+
+// Homepage shortcuts and settings share the same admin login under this API.
+app.get('/api/v1/portal/services', (req, res, params, query) => {
+  if (query.manage === '1') return adminRoute((innerReq, innerRes, innerParams, innerQuery) => portal.list(innerReq, innerRes, innerParams, innerQuery))(req, res, params, query);
+  return portal.list(req, res, params, query);
+});
+app.get('/api/v1/portal/availability', resourceAvailability.handler);
+app.post('/api/v1/portal/services', adminRoute((req, res, params, query) => portal.add(req, res, params, query)));
+app.patch('/api/v1/portal/services/:id', adminRoute((req, res, params, query) => portal.update(req, res, params, query)));
+app.delete('/api/v1/portal/services/:id', adminRoute((req, res, params, query) => portal.remove(req, res, params, query)));
+app.get('/api/v1/navigation', adminRoute((req, res) => {
+  try { sendJson(req, res, 200, navigationConfig.read()); }
+  catch (err) { sendJson(req, res, err.statusCode || 500, { error: err.message || 'Could not read navigation settings.' }); }
+}));
+app.put('/api/v1/navigation', adminRoute(async (req, res) => {
+  try {
+    const body = JSON.parse(await readBody(req, 32768));
+    sendJson(req, res, 200, navigationConfig.replace(body));
+  } catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message || 'Could not save navigation settings.' }); }
+}));
+
+app.get('/api/v1/metadata/search', metadata.search);
+app.get('/api/v1/metadata/tvmaze', metadata.tvmazeSearch);
+app.get('/api/v1/metadata/title', metadata.title);
+
+app.get('/api/v1/history/:visitorId', (req, res, params) => {
+  try { sendJson(req, res, 200, { records: watchHistory.get(params.visitorId) }); }
+  catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message || 'Could not read history.' }); }
+});
+app.post('/api/v1/history/:visitorId', async (req, res, params) => {
+  try {
+    const body = JSON.parse(await readBody(req, 16384));
+    sendJson(req, res, 200, watchHistory.record(params.visitorId, body));
+  } catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message || 'Could not save history.' }); }
+});
+app.post('/api/v1/visitor/context', async (req, res) => {
+  const now = Date.now();
+  if (now - visitorContextWindowStart >= 60000) {
+    visitorContextWindowStart = now;
+    visitorContextRequests = 0;
+  }
+  if (visitorContextRequests >= 120) return sendJson(req, res, 429, { error: 'Visitor discovery submission limit reached; try again later.' });
+  visitorContextRequests++;
+  try {
+    const body = JSON.parse(await readBody(req, 4096));
+    sendJson(req, res, 200, visitorContext.record(body));
+  } catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message || 'Visitor context was not recorded.' }); }
+});
+
+// Mail API aliases retain Mail Workspace's own login/session and mailbox rules.
+// The normal legacy cookie path is /api/mail; rewrite it so login works with /api/v1/mail too.
+function unifiedMailSessionCookie(handler) {
+  return (req, res, params, query) => {
+    const originalSetHeader = res.setHeader.bind(res);
+    res.setHeader = (name, value) => {
+      if (String(name).toLowerCase() === 'set-cookie') {
+        const rewrite = (item) => String(item).replace(/;\s*Path=\/api\/mail(?=;|$)/i, '; Path=/api/v1/mail');
+        value = Array.isArray(value) ? value.map(rewrite) : rewrite(value);
+      }
+      return originalSetHeader(name, value);
+    };
+    return handler(req, res, params || {}, query || {});
+  };
+}
+app.get('/api/v1/mail/session', mail.session);
+app.post('/api/v1/mail/login', unifiedMailSessionCookie(mail.login));
+app.post('/api/v1/mail/logout', unifiedMailSessionCookie(mail.logout));
+app.get('/api/v1/mail/accounts', mail.accountsList);
+app.post('/api/v1/mail/accounts', mail.accountsAdd);
+app.post('/api/v1/mail/accounts/bulk-password', mail.accountsBulkPassword);
+app.delete('/api/v1/mail/accounts/:id', mail.accountsDelete);
+app.post('/api/v1/mail/accounts/:id/test', mail.accountTest);
+app.get('/api/v1/mail/folders', mail.folders);
+app.get('/api/v1/mail/messages', mail.messages);
+app.get('/api/v1/mail/message', mail.message);
+app.post('/api/v1/mail/send', mail.send);
+app.get('/api/v1/mail/drafts', mail.draftsList);
+app.post('/api/v1/mail/drafts', mail.draftsCreate);
+app.delete('/api/v1/mail/drafts/:id', mail.draftsDelete);
+app.post('/api/v1/mail/drafts/:id/send', mail.draftsSend);
+app.get('/api/v1/mail/contacts', mail.contactsList);
+app.post('/api/v1/mail/contacts', mail.contactsAdd);
+app.patch('/api/v1/mail/contacts/:id', mail.contactsUpdate);
+app.delete('/api/v1/mail/contacts/:id', mail.contactsDelete);
+app.get('/api/v1/mail/audit', mail.auditList);
+
+// Advanced agent operations use the same admin login under the /api/v1 prefix.
+const unifiedAgent = (handler) => adminRoute((req, res, params, query) => handler(req, res, params, query));
+app.get('/api/v1/agent/capabilities', unifiedAgent(agent.capabilities));
+app.get('/api/v1/agent/status', unifiedAgent(agent.status));
+app.get('/api/v1/agent/settings', unifiedAgent(agent.settingsView));
+app.patch('/api/v1/agent/settings', unifiedAgent(agent.settingsUpdate));
+app.get('/api/v1/agent/audit', unifiedAgent(agent.auditLog));
+app.post('/api/v1/agent/tasks/run', unifiedAgent(agent.runTask));
+app.get('/api/v1/agent/sources/iptv', unifiedAgent(agent.liveList));
+app.post('/api/v1/agent/sources/iptv', unifiedAgent(agent.liveAdd));
+app.patch('/api/v1/agent/sources/iptv/:id', unifiedAgent(agent.liveUpdate));
+app.delete('/api/v1/agent/sources/iptv/:id', unifiedAgent(agent.liveDelete));
+app.get('/api/v1/agent/sources/theatre', unifiedAgent(agent.vodList));
+app.post('/api/v1/agent/sources/theatre', unifiedAgent(agent.vodAdd));
+app.post('/api/v1/agent/sources/theatre/import', unifiedAgent(agent.vodImport));
+app.patch('/api/v1/agent/sources/theatre/:id', unifiedAgent(agent.vodUpdate));
+app.delete('/api/v1/agent/sources/theatre/:id', unifiedAgent(agent.vodDelete));
+app.get('/api/v1/agent/theatre/search', unifiedAgent(agent.vodSearch));
+app.get('/api/v1/agent/theatre/titles/:sourceId/:vodId', unifiedAgent(agent.vodDetail));
+app.get('/api/v1/agent/theatre/archive/search', unifiedAgent(agent.archiveSearch));
+app.get('/api/v1/agent/theatre/commons/search', unifiedAgent(agent.commonsSearch));
+app.get('/api/v1/agent/navigation', unifiedAgent(agent.navigationGet));
+app.put('/api/v1/agent/navigation', unifiedAgent(agent.navigationReplace));
+app.get('/api/v1/agent/portal/services', unifiedAgent(agent.portalList));
+app.post('/api/v1/agent/portal/services', unifiedAgent(agent.portalAdd));
+app.patch('/api/v1/agent/portal/services/:id', unifiedAgent(agent.portalUpdate));
+app.delete('/api/v1/agent/portal/services/:id', unifiedAgent(agent.portalDelete));
+app.get('/api/v1/agent/discovery/visitor-trends', unifiedAgent(agent.visitorTrends));
+app.get('/api/v1/agent/project/status', unifiedAgent(agent.projectStatus));
+app.get('/api/v1/agent/project/tree', unifiedAgent(agent.projectTree));
+app.get('/api/v1/agent/project/file', unifiedAgent(agent.projectFile));
+app.post('/api/v1/agent/project/commit', unifiedAgent(agent.projectCommit));
+app.post('/api/v1/agent/project/branch', unifiedAgent(agent.projectBranch));
+app.post('/api/v1/agent/project/pr', unifiedAgent(agent.projectPullRequest));
+app.post('/api/v1/agent/project/pr/:number/merge', unifiedAgent(agent.projectMerge));
+app.post('/api/v1/agent/project/dispatch', unifiedAgent(agent.projectDispatch));
+app.get('/api/v1/agent/project/actions', unifiedAgent(agent.projectActions));
+app.get('/api/v1/agent/project/checks/:sha', unifiedAgent(agent.projectChecks));
+app.get('/api/v1/agent/mail/accounts', unifiedAgent(mail.agentAccounts));
+app.get('/api/v1/agent/mail/folders', unifiedAgent(mail.agentFolders));
+app.get('/api/v1/agent/mail/messages', unifiedAgent(mail.agentMessages));
+app.get('/api/v1/agent/mail/message', unifiedAgent(mail.agentMessage));
+app.get('/api/v1/agent/mail/contacts', unifiedAgent(mail.agentContacts));
+app.get('/api/v1/agent/mail/drafts', unifiedAgent(mail.agentDrafts));
+app.post('/api/v1/agent/mail/drafts', unifiedAgent(mail.agentDraftCreate));
+app.post('/api/v1/agent/mail/drafts/:id/send', unifiedAgent(mail.agentDraftSend));
+
+app.use(async (req, res) => {
+  const pathname = (() => {
+    try { return new URL(req.url, 'http://localhost').pathname; }
+    catch { return req.url.split('?')[0]; }
+  })();
+  if (req.method === 'OPTIONS' && (pathname === '/api/v1' || pathname.startsWith('/api/v1/'))) {
+    res.writeHead(204, {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PATCH, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Agent-Token, X-Source-Token, X-Refresh-Token',
+      'Access-Control-Max-Age': '600',
+    });
+    return res.end();
+  }
+  return staticHandler(req, res);
+});
 
 const server = http.createServer((req, res) => {
   const started = Date.now();

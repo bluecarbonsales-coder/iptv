@@ -22,6 +22,7 @@ function safeUrlSummary(raw) {
 function createAgentApi({ dataDir, catalog, refresh, api, automation, navigationConfig, visitorContext, portal }) {
   const project = createGitHubProject();
   function authenticate(req, res) {
+    if (req && req.adminAuthenticated === true) return true;
     const expected = process.env.AGENT_API_TOKEN;
     if (!expected) {
       sendJson(req, res, 503, {

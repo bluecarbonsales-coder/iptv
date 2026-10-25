@@ -126,6 +126,52 @@ play fine through it.
 
 ## API
 
+### One common API entry (recommended)
+
+The whole site is available under one base path:
+
+- **API index:** `/api/v1`
+- **Full API definition:** `/api/v1/openapi.json`
+- **Absolute base URL:** `https://iptv.nafisainternational.com/api/v1` (replace the domain when self-hosting)
+
+The common API supports browser CORS preflight (`OPTIONS`) so another web app can call it. Public reads and playback are open; management endpoints use the same admin Basic login as Settings.
+
+The Settings page at `/admin.html` has an **API** tab. It lists the endpoint groups and includes a small request tester. You can also connect another app to these endpoints directly.
+
+Source management and advanced endpoints under `/api/v1` use the same simple login as the Settings page. Send HTTP Basic authentication using the admin username and password documented at the top of this README. The username/password can be changed with `ADMIN_USERNAME` and `ADMIN_PASSWORD`. Normal public reading and playback endpoints do not require that login. Mail endpoints use the Mail Workspace login/session. Older `/api/agent/v1/*` URLs remain available for existing integrations and continue to use `X-Agent-Token`.
+
+The common source API covers all three source types:
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/sources` | List Radio, IPTV and Theatre sources together |
+| `GET` | `/api/v1/sources/radio`, `/iptv`, or `/theatre` | List one source group |
+| `POST` | `/api/v1/sources/radio`, `/iptv`, or `/theatre` | Add a source |
+| `POST` | `/api/v1/sources/{type}/enable-all` | Enable every source in one group |
+| `PATCH` | `/api/v1/sources/{type}/{id}` | Rename, edit or enable/disable a source |
+| `DELETE` | `/api/v1/sources/{type}/{id}` | Delete a source |
+| `POST` | `/api/v1/sources/theatre/import` | Import a Theatre provider list |
+
+Use `radio`, `iptv`, or `theatre` as the source type. The same common API also includes IPTV catalogue/playlist playback, radio search and playback, Theatre title search and episode lookup, homepage shortcuts, navigation, metadata, Mail Workspace, visitor-history endpoints, health, and the advanced agent API.
+
+Example: list all source groups from a terminal (set the two environment variables to your admin login first):
+
+```sh
+export ADMIN_USERNAME='your-admin-username'
+export ADMIN_PASSWORD='your-admin-password'
+curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" https://iptv.nafisainternational.com/api/v1/sources
+```
+
+Example: add an IPTV playlist:
+
+```sh
+curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" -H 'Content-Type: application/json' \
+  -d '{"name":"My playlist","url":"https://example.com/playlist.m3u"}' \
+  https://iptv.nafisainternational.com/api/v1/sources/iptv
+```
+
+The original endpoints listed below remain available for backward compatibility. New integrations should start at `/api/v1`.
+
 | Route | Purpose |
 |---|---|
 | `GET /api/meta` | countries / categories / qualities with counts, catalogue timestamp |
@@ -183,11 +229,7 @@ play fine through it.
 | `PATCH /api/portal/services/:id` | update a shortcut (requires existing management token) |
 | `DELETE /api/portal/services/:id` | remove a shortcut only (requires existing management token) |
 
-`POST /api/refresh` is accepted from the host itself without a token; anything arriving
-through the reverse proxy must send `X-Refresh-Token` matching `REFRESH_TOKEN`. Resource-management
-requests require `X-Source-Token`, matching `SOURCE_TOKEN` or (if unset) `REFRESH_TOKEN`.
-Enter that token in the Resource manager panel; it is held in the current browser tab only.
-Configure a strong random token in the deployment environment before exposing the UI publicly.
+These token rules apply to the **legacy routes** in the table above. The new `/api/v1` entry is the recommended interface: use the same admin username/password as `/admin.html` for source and settings changes. There is no separate source-management token to enter in the new API tester. The advanced agent routes still use the configured `X-Agent-Token`, and old integrations using the original routes continue to work as before.
 
 ## Agent operation and automation
 
