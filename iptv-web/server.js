@@ -607,6 +607,27 @@ app.use(async (req, res) => {
     try { return new URL(req.url, 'http://localhost').pathname; }
     catch { return req.url.split('?')[0]; }
   })();
+  // Reverse-proxy the separately isolated Go Music DL service under the same private hostname.
+  // Its own base-path support keeps assets and navigation rooted at /music.
+  if (pathname === '/music' || pathname.startsWith('/music/')) {
+    const upstream = require('http').request({
+      hostname: 'music-dl',
+      port: 8080,
+      method: req.method,
+      path: req.url,
+      headers: { ...req.headers, host: 'music-dl:8080' },
+    }, (upstreamRes) => {
+      res.writeHead(upstreamRes.statusCode || 502, upstreamRes.headers);
+      upstreamRes.pipe(res);
+    });
+    upstream.on('error', (err) => {
+      log('music-dl proxy error:', err.message);
+      if (!res.headersSent) sendJson(req, res, 502, { error: 'Music service is unavailable. Start the music-dl container and check its health.' });
+      else res.end();
+    });
+    req.pipe(upstream);
+    return;
+  }
   if (req.method === 'OPTIONS' && (pathname === '/api/v1' || pathname.startsWith('/api/v1/'))) {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
