@@ -18,14 +18,14 @@
     'polish', 'ukrainian', 'dutch', 'thai', 'swahili', 'nepali', 'greek', 'swedish', 'hausa', 'amharic', 'yoruba',
   ];
   function languageRank(value) {
-    const name = String(value || '').trim().toLowerCase().replace(/\\s+language$/, '');
+    const name = String(value || '').trim().toLowerCase().replace(/\s+language$/, '');
     const aliases = { chinese: 'chinese', mandarin: 'chinese', español: 'spanish', français: 'french', deutsch: 'german', 日本語: 'japanese', हिन्दी: 'hindi', português: 'portuguese', русский: 'russian', العربية: 'arabic' };
     const canonical = aliases[name] || name;
     const rank = SPOKEN_LANGUAGE_PRIORITY.indexOf(canonical);
     return rank < 0 ? SPOKEN_LANGUAGE_PRIORITY.length : rank;
   }
   function prettyLanguage(value) {
-    return String(value || '').replace(/\\b\\p{L}/gu, (letter) => letter.toLocaleUpperCase());
+    return String(value || '').replace(/\b\p{L}/gu, (letter) => letter.toLocaleUpperCase());
   }
 
   function loadJson(key, fallback) {
