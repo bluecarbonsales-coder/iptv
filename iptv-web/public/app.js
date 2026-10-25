@@ -536,6 +536,7 @@
     if (!src) return;
     player.index = index;
     destroyHls();
+
     const video = $('#video');
     const relay = $('#pProxy').checked;
     const target = relay ? proxyUrl(src) : src.url;
@@ -544,83 +545,131 @@
     setStatus(src.quality ? `${src.quality} · ${relay ? 'relay' : 'direct'}` : relay ? 'relay' : 'direct');
 
     if (!relay && /^http:\/\//i.test(src.url) && location.protocol === 'https:') {
-      showOverlay('This source is plain HTTP and cannot be played from an HTTPS page directly — switching the relay on.', false, true);
+      showOverlay('This source is plain HTTP and cannot be played directly from an HTTPS page. Enabling the relay…', false, true);
       $('#pProxy').checked = true;
       return play(index);
     }
-    if (!relay) showOverlay(t('connecting') + ' (direct — CORS may block this)', true);
-    else showOverlay(t('connecting'), true);
 
-    const directFile = /\.(mp4|m4v|webm|mov|ogv|ogg|mp3|aac)(?:$|[?#])/i.test(src.url);
+    // Reset the media element between sources. Without this, an old MediaSource
+    // or stale media error can leak into the next playback attempt.
+    video.onloadeddata = null;
+    video.onplaying = null;
+    video.onerror = null;
+    try {
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+    } catch {}
+
+    showOverlay(t('connecting') + (relay ? '' : ' (direct — CORS may block this)'), true);
+
+    let pathname = '';
+    try { pathname = new URL(src.url, location.href).pathname.toLowerCase(); } catch {}
+    const isHls = /\.m3u8?$/i.test(pathname) || /(?:^|[?&])(?:format|type)=hls(?:&|$)/i.test(src.url);
+    const isDash = /\.mpd$/i.test(pathname);
+    const directTypes = {
+      mp4: 'video/mp4', m4v: 'video/mp4', webm: 'video/webm',
+      ogv: 'video/ogg', ogg: 'video/ogg', mov: 'video/quicktime',
+      mp3: 'audio/mpeg', m4a: 'audio/mp4', aac: 'audio/aac',
+      wav: 'audio/wav', mp4a: 'audio/mp4',
+    };
+    const extension = (pathname.split('.').pop() || '').toLowerCase();
+    const directFile = !!directTypes[extension];
+
+    const fail = (kind) => {
+      const err = video.error;
+      const mediaDetail = err ? ({
+        1: 'playback was aborted',
+        2: 'network error while loading media',
+        3: 'the browser could not decode this media or codec',
+        4: 'the browser rejected the media format or MIME type',
+      }[err.code] || 'unknown media error') : 'media playback failed';
+      onStreamError(`${kind}: ${mediaDetail}`);
+    };
+
+    if (isDash) {
+      showOverlay('This source is MPEG-DASH (.mpd). The current player supports HLS and browser-native media; try another source.', false, true);
+      return;
+    }
+
+    // Safari/iOS has excellent native HLS support. Prefer it there; use hls.js
+    // on browsers with Media Source Extensions for other HLS playback.
+    const nativeHls = !!video.canPlayType('application/vnd.apple.mpegurl');
+    if (isHls && nativeHls) {
+      video.src = target;
+      video.onloadeddata = hideOverlay;
+      video.onerror = () => fail('Native HLS');
+      video.play().catch(() => {});
+      return;
+    }
+
+    // Direct files should be handed to the browser's media decoder, not parsed
+    // as HLS. URL extensions are only hints; the browser still validates bytes
+    // and codecs returned by the server.
     if (directFile) {
       video.src = target;
       video.onloadeddata = hideOverlay;
-      video.onerror = () => onStreamError('direct media playback error');
+      video.onerror = () => fail(`Direct media (${directTypes[extension]})`);
       video.play().catch(() => {});
       return;
     }
 
-    const nativeHls = video.canPlayType('application/vnd.apple.mpegurl') && !window.Hls;
-    if (nativeHls) {
-      video.src = target;
-      video.play().catch(() => {});
-      video.onloadeddata = hideOverlay;
-      video.onerror = () => onStreamError('native playback error');
-      return;
-    }
-    if (!window.Hls || !window.Hls.isSupported()) {
-      showOverlay('This browser cannot play HLS streams (no Media Source Extensions).', false, true);
-      return;
-    }
+    if (window.Hls && window.Hls.isSupported()) {
+      const hls = new window.Hls({
+        lowLatencyMode: false,
+        enableWorker: true,
+        backBufferLength: 30,
+        manifestLoadingTimeOut: 15000,
+        manifestLoadingMaxRetry: 3,
+        levelLoadingTimeOut: 15000,
+        fragLoadingTimeOut: 25000,
+        fragLoadingMaxRetry: 4,
+        maxBufferLength: 30,
+        capLevelToPlayerSize: true,
+      });
+      player.hls = hls;
 
-    const hls = new window.Hls({
-      lowLatencyMode: false,
-      enableWorker: true,
-      backBufferLength: 30,
-      manifestLoadingTimeOut: 12000,
-      manifestLoadingMaxRetry: 2,
-      levelLoadingTimeOut: 12000,
-      fragLoadingTimeOut: 20000,
-      fragLoadingMaxRetry: 3,
-      maxBufferLength: 24,
-    });
-    player.hls = hls;
-
-    hls.on(window.Hls.Events.MANIFEST_PARSED, (e, data) => {
-      const levels = data.levels || [];
-      const opts = ['<option value="-1">Auto</option>']
-        .concat(levels.map((l, i) => `<option value="${i}">${l.height ? l.height + 'p' : Math.round((l.bitrate || 0) / 1000) + ' kbps'}</option>`))
-        .join('');
-      $('#pQuality').innerHTML = opts;
-      setStatus(`${levels.length} level${levels.length === 1 ? '' : 's'} · ${$('#pProxy').checked ? 'relay' : 'direct'}`);
-      hideOverlay();
-      hls.currentLevel = -1;
-    });
-    hls.on(window.Hls.Events.LEVEL_SWITCHED, (e, data) => {
-      const l = hls.levels[data.level];
-      if (l && l.height) setStatus(`${l.height}p · ${$('#pProxy').checked ? 'relay' : 'direct'}`);
-    });
-    hls.on(window.Hls.Events.ERROR, (e, data) => {
-      if (!data.fatal) return;
-      const map = {
-        networkError: 'network error',
-        mediaError: 'media error',
-        otherError: 'playback error',
+      hls.on(window.Hls.Events.MANIFEST_PARSED, (e, data) => {
+        const levels = data.levels || [];
+        $('#pQuality').innerHTML = ['<option value="-1">Auto</option>']
+          .concat(levels.map((l, i) => `<option value="${i}">${l.height ? l.height + 'p' : Math.round((l.bitrate || 0) / 1000) + ' kbps'}</option>`))
+          .join('');
+        setStatus(`${levels.length} quality level${levels.length === 1 ? '' : 's'} · ${$('#pProxy').checked ? 'relay' : 'direct'}`);
+        hls.currentLevel = -1;
+      });
+      hls.on(window.Hls.Events.LEVEL_SWITCHED, (e, data) => {
+        const level = hls.levels[data.level];
+        if (level && level.height) setStatus(`${level.height}p · ${$('#pProxy').checked ? 'relay' : 'direct'}`);
+      });
+      hls.on(window.Hls.Events.ERROR, (e, data) => {
+        if (!data.fatal) return;
+        const detail = (data.response && (data.response.code || data.response.text)) || '';
+        const reason = data.type === 'networkError' ? 'HLS network/manifest error'
+          : data.type === 'mediaError' ? 'HLS media/codec decode error'
+          : `HLS ${data.type || 'playback error'}`;
+        onStreamError(`${reason}${detail ? ' (' + String(detail).slice(0, 100) + ')' : ''}`);
+      });
+      video.onerror = () => fail('HLS media element');
+      video.onplaying = () => {
+        hideOverlay();
+        player.autoTried = 0;
       };
-      const detail = (data.response && (data.response.code || data.response.text)) || '';
-      onStreamError(`${map[data.type] || data.type}${detail ? ' (' + String(detail).slice(0, 120) + ')' : ''}`);
-    });
+      hls.attachMedia(video);
+      hls.on(window.Hls.Events.MEDIA_ATTACHED, () => hls.loadSource(target));
+      return;
+    }
 
-    hls.loadSource(target);
-    hls.attachMedia(video);
-    hls.on(window.Hls.Events.MEDIA_ATTACHED, () => {
+    // Some older browsers can play HLS natively but don't expose MSE; unknown
+    // URLs are attempted as native media as a last browser-native option.
+    if (nativeHls || !window.Hls || !window.Hls.isSupported()) {
+      video.src = target;
+      video.onloadeddata = hideOverlay;
+      video.onerror = () => fail(isHls ? 'HLS' : 'Browser-native media');
       video.play().catch(() => {});
-    });
+      return;
+    }
 
-    video.onplaying = () => {
-      hideOverlay();
-      player.autoTried = 0;
-    };
+    showOverlay('This browser cannot play this stream format. Try another source, or use a browser with Media Source Extensions support.', false, true);
   }
 
   function onStreamError(reason) {
