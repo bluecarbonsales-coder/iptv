@@ -21,6 +21,9 @@ function loadSourcesSync(dataDir) {
   } catch {}
   return { sources: [] };
 }
+function bundledApiSet() {
+  return new Set(DEFAULT_SOURCES.map((source) => normalizeApiUrl(source.api)));
+}
 function ensureDefaultSources(dataDir) {
   const target = registryPath(dataDir);
   let registry = { sources: [] };
@@ -28,7 +31,25 @@ function ensureDefaultSources(dataDir) {
     registry = JSON.parse(fs.readFileSync(target, 'utf8'));
     if (!Array.isArray(registry.sources)) registry.sources = [];
   } catch {}
-  if (registry.defaultsSeeded === true) return false;
+
+  // One-time migration: enable only endpoints that are part of the bundled starter
+  // list. Preserve user-added providers and respect future manual disable actions.
+  if (registry.defaultsSeeded === true) {
+    if (registry.bundledSourcesEnabled === true) return false;
+    const knownApis = bundledApiSet();
+    let changed = false;
+    for (const source of registry.sources) {
+      let api;
+      try { api = normalizeApiUrl(source.api); } catch { continue; }
+      if (knownApis.has(api) && source.enabled !== true) {
+        source.enabled = true;
+        changed = true;
+      }
+    }
+    saveSources(dataDir, registry.sources, { bundledSourcesEnabled: true });
+    return changed;
+  }
+
   const now = new Date().toISOString();
   const existing = new Set(registry.sources.map((source) => source.api));
   const seeded = DEFAULT_SOURCES.slice(0, MAX_VOD_SOURCES).filter((source) => {
@@ -39,7 +60,7 @@ function ensureDefaultSources(dataDir) {
     api: normalizeApiUrl(source.api),
     detail: null,
     kind: source.kind || 'all',
-    enabled: source.enabled === true,
+    enabled: true,
     addedAt: now,
     lastChecked: null,
     lastError: null,
@@ -48,14 +69,20 @@ function ensureDefaultSources(dataDir) {
     importedFrom: 'operator-provided initial list',
   }));
   const additions = seeded.slice(0, Math.max(0, MAX_VOD_SOURCES - registry.sources.length));
-  saveSources(dataDir, registry.sources.concat(additions));
+  saveSources(dataDir, registry.sources.concat(additions), { bundledSourcesEnabled: true });
   return additions.length > 0;
 }
-function saveSources(dataDir, sources) {
+function saveSources(dataDir, sources, metadata = {}) {
   fs.mkdirSync(dataDir, { recursive: true });
   const target = registryPath(dataDir);
   const temp = target + '.tmp';
-  fs.writeFileSync(temp, JSON.stringify({ version: 1, defaultsSeeded: true, sources }, null, 2), { mode: 0o600 });
+  let existing = {};
+  try {
+    existing = JSON.parse(fs.readFileSync(target, 'utf8'));
+    if (!existing || typeof existing !== 'object' || Array.isArray(existing)) existing = {};
+  } catch {}
+  const registry = { ...existing, ...metadata, version: 1, defaultsSeeded: true, sources };
+  fs.writeFileSync(temp, JSON.stringify(registry, null, 2), { mode: 0o600 });
   fs.renameSync(temp, target);
 }
 function newId() {
