@@ -142,18 +142,19 @@
     html += '<button data-page="'+(state.page+1)+'" '+(state.nextOffset==null||state.isLoading?'disabled':'')+'>›</button>';
     el.innerHTML = html;
   }
-  async function loadStations(reset) {
+  async function loadStations(reset, forceRefresh = false) {
     if (state.isLoading && !reset) return;
     if (reset) { state.offset = (state.page - 1) * state.limit; state.nextOffset = null; state.stations = []; }
     state.isLoading = true;
     const currentSequence = ++loadSequence;
     render();
-    setStatus(reset ? 'Searching the global radio directory…' : 'Loading more stations…');
+    setStatus(forceRefresh ? 'Refreshing the saved radio index from Radio Browser…' : (reset ? 'Searching your saved radio index…' : 'Loading more indexed stations…'));
     const params = new URLSearchParams({ limit: String(state.limit), offset: String(state.offset), order: state.order, reverse: state.order === 'name' ? 'false' : 'true' });
     if (state.query) params.set('q', state.query);
     if (state.countrycode) params.set('countrycode', state.countrycode);
     if (state.language) params.set('language', state.language);
     if (state.tag) params.set('tag', state.tag);
+    if (forceRefresh) params.set('refresh', '1');
     try {
       const result = await request('/api/radio/stations?' + params.toString());
       if (currentSequence !== loadSequence) return;
@@ -161,7 +162,7 @@
       state.stations = incoming;
       state.nextOffset = result.nextOffset;
       state.offset = result.nextOffset == null ? state.offset : result.nextOffset;
-      setStatus(incoming.length ? 'Directory supplied by Radio Browser. Availability may vary by station and region.' : 'No matches in this result page.');
+      setStatus(incoming.length ? 'Loaded from the server-side radio index. Results are kept for 7 days; use Refresh to update this search. Stream availability can still change.' : 'No matches in this indexed result page.');
     } catch (error) {
       setStatus(error.message + ' Check again in a moment.', true);
       if (!state.stations.length) {
@@ -330,12 +331,15 @@
       loadStations(true);
     });
     $('#radioQuery').addEventListener('input', () => {
-      clearTimeout(searchTimer);
-      searchTimer = setTimeout(() => {
-        state.page = 1;
-        state.query = $('#radioQuery').value.trim();
-        loadStations(true);
-      }, 420);
+      // Typing edits the search only. Do not query the directory on every keystroke.
+      state.query = $('#radioQuery').value.trim();
+    });
+    $('#radioQuery').addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      state.page = 1;
+      state.query = $('#radioQuery').value.trim();
+      loadStations(true);
     });
     $('#countryFilter').addEventListener('change', (event) => setFilter('countrycode', event.target.value));
     $('#languageFilter').addEventListener('change', (event) => setFilter('language', event.target.value));
@@ -355,7 +359,7 @@
       state.onlyFavorites = !state.onlyFavorites;
       render();
     });
-    $('#reloadStations').addEventListener('click', () => { state.page = 1; loadStations(true); });
+    $('#reloadStations').addEventListener('click', () => { state.page = 1; loadStations(true, true); });
     $('#radioPagination').addEventListener('click', (event) => { const button = event.target.closest('[data-page]'); if (!button || button.disabled) return; const target = Number(button.dataset.page); if (!Number.isInteger(target) || target < 1 || (target > state.page && state.nextOffset == null)) return; state.page = target; loadStations(true); window.scrollTo({ top: $('#stationHeading').getBoundingClientRect().top + window.scrollY - 90, behavior: 'smooth' }); });
     $('#stopRadio').addEventListener('click', stopRadio);
     audio.addEventListener('play', render);
