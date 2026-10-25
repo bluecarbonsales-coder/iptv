@@ -10,7 +10,7 @@
   {
     "id": "community-fanmingming-live",
     "name": "fanmingming/live IPv6 M3U",
-    "url": "https://live.fanmingming.com/tv/m3u/ipv6.m3u",
+    "url": "https://raw.githubusercontent.com/fanmingming/live/main/tv/m3u/ipv6.m3u",
     "enabled": true,
     "managedBy": "community-defaults",
     "upstreamRepository": "https://github.com/fanmingming/live"
