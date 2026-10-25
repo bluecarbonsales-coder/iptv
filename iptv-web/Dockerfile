@@ -5,7 +5,7 @@ RUN apk add --no-cache ffmpeg
 
 # Install reviewed IMAP, SMTP and MIME packages for the Mail Workspace.
 WORKDIR /app
-COPY package.json ./
+COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund
 ENV NODE_ENV=production \
     PORT=3920 \
