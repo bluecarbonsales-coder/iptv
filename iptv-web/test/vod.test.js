@@ -2,6 +2,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const vod = require('../lib/vod');
+const DEFAULT_SOURCES = require('../lib/default-vod-sources');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 
 test('rejects unsupported schemes and embedded URL credentials', () => {
   assert.equal(vod.isHttpUrl('https://example.org/api.php/provide/vod'), true);
@@ -106,4 +110,64 @@ test('prefers the working Apple CMS list action discovered during probing', () =
   assert.equal(vod.preferredListAction({ listAction: 'videolist' }), 'videolist');
   assert.equal(vod.preferredListAction({}), 'videolist');
   assert.equal(vod.preferredListAction(null), 'videolist');
+});
+
+
+test('new VOD registries enable bundled provider sources', () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'iptv-vod-defaults-'));
+  try {
+    assert.equal(DEFAULT_SOURCES.length, 33);
+    assert.ok(DEFAULT_SOURCES.every((source) => source.enabled === true));
+    assert.equal(vod.ensureDefaultSources(dataDir), true);
+    const registry = vod.loadSourcesSync(dataDir);
+    assert.equal(registry.sources.length, DEFAULT_SOURCES.length);
+    assert.ok(registry.sources.every((source) => source.enabled === true));
+    const persisted = JSON.parse(fs.readFileSync(vod.registryPath(dataDir), 'utf8'));
+    assert.equal(persisted.defaultSourcesEnabled, true);
+  } finally {
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test('legacy installations enable the bundled providers once and preserve non-default source settings', () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'iptv-vod-migration-'));
+  try {
+    const legacySources = [
+      {
+        id: 'seeded-disabled',
+        name: DEFAULT_SOURCES[0].name,
+        api: DEFAULT_SOURCES[0].api,
+        kind: 'all',
+        enabled: false,
+        importedFrom: 'operator-provided initial list',
+      },
+      {
+        id: 'custom-disabled',
+        name: 'Custom disabled source',
+        api: 'https://custom.example/api.php/provide/vod',
+        kind: 'all',
+        enabled: false,
+        importedFrom: 'uploaded config',
+      },
+    ];
+    fs.writeFileSync(vod.registryPath(dataDir), JSON.stringify({
+      version: 1,
+      defaultsSeeded: true,
+      sources: legacySources,
+    }, null, 2));
+
+    assert.equal(vod.ensureDefaultSources(dataDir), true);
+    let registry = vod.loadSourcesSync(dataDir);
+    assert.equal(registry.sources.find((source) => source.id === 'seeded-disabled').enabled, true);
+    assert.equal(registry.sources.find((source) => source.id === 'custom-disabled').enabled, false);
+
+    // After the one-time migration, individual source toggles remain effective.
+    registry.sources.find((source) => source.id === 'seeded-disabled').enabled = false;
+    vod.saveSources(dataDir, registry.sources);
+    assert.equal(vod.ensureDefaultSources(dataDir), false);
+    registry = vod.loadSourcesSync(dataDir);
+    assert.equal(registry.sources.find((source) => source.id === 'seeded-disabled').enabled, false);
+  } finally {
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
 });
