@@ -3,3 +3,7 @@ node_modules/
 .env.*
 *.log
 .DS_Store
+
+# Runtime media index can contain private source URLs; keep it out of Git.
+/iptv-web/data/media-library.json
+/iptv-web/data/media-library.json.*.tmp
