@@ -10,7 +10,7 @@ The existing live iptv-org catalog remains in \`catalog.json\` and keeps its cur
 - \`GET /api/library/stats\` — counts for saved media records.
 - \`POST /api/library/items\` — authenticated upsert of one item or an \`items\` array.
 - \`DELETE /api/library/items/:id\` — authenticated removal of a saved record.
-- \`POST /api/library/import-m3u\` — authenticated JSON body \`{ "name": "My playlist", "url": "https://example.org/list.m3u" }\`; imports up to 25,000 HTTP(S) entries.
+- \`POST /api/library/import-m3u\` — authenticated JSON body \`{ "name": "My playlist", "url": "https://example.org/list.m3u" }\`; imports up to 25,000 HTTP(S) entries, registers the playlist in the existing live-source registry when not already configured, and attempts to refresh the main channel catalog.
 - \`POST /api/library/sync\` — authenticated synchronization of the first configured pages from enabled VOD providers. Defaults to three pages per provider; tune with \`MEDIA_LIBRARY_SYNC_PAGES\` (1–10) and rerun to continue refreshing.
 
 Write endpoints require \`X-Agent-Token\` matching \`AGENT_API_TOKEN\`, consistent with the existing source-management APIs. Never expose that token in browser JavaScript.
