@@ -20,6 +20,8 @@ const ROUTES = [
   ['GET', '/iptv/playlist', 'Fetch and parse an external M3U playlist URL', 'IPTV', 'public'],
   ['GET', '/iptv/playlist.m3u', 'Return an external playlist through the HLS relay', 'IPTV', 'public'],
   ['GET', '/iptv/export.m3u', 'Export the filtered IPTV catalogue as M3U', 'IPTV', 'public'],
+  ['GET', '/iptv/hls', 'Relay HLS manifests and segments for playback', 'IPTV', 'public'],
+  ['GET', '/iptv/image', 'Load a channel logo through the image cache', 'IPTV', 'public'],
   ['POST', '/iptv/refresh', 'Refresh the IPTV catalogue now', 'IPTV', 'admin'],
 
   ['GET', '/radio/stations', 'Search radio stations by name, language, country, genre and codec', 'Radio', 'public'],
@@ -41,6 +43,9 @@ const ROUTES = [
   ['GET', '/metadata/search', 'Search film and TV metadata', 'Metadata', 'public'],
   ['GET', '/metadata/tvmaze', 'Search TVMaze metadata', 'Metadata', 'public'],
   ['GET', '/metadata/title', 'Get enriched metadata for a title', 'Metadata', 'public'],
+  ['GET', '/history/{visitorId}', 'Read local playback and search history', 'Visitor', 'public'],
+  ['POST', '/history/{visitorId}', 'Record a playback or search event', 'Visitor', 'public'],
+  ['POST', '/visitor/context', 'Submit optional coarse resource-discovery context', 'Visitor', 'public'],
 
   ['GET', '/mail/session', 'Check the current Mail Workspace session', 'Mail', 'mail'],
   ['POST', '/mail/login', 'Sign in to a Mail Workspace account', 'Mail', 'public'],
