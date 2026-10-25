@@ -39,14 +39,19 @@
     const proxy = all.map(({ section, source }) => state.proxyHealth.get(sourceHealthKey(section, source))).filter(Boolean);
     const proxyAvailable = proxy.filter((item) => item.available === true || item.status === 'local').length;
     const proxyUnavailable = proxy.filter((item) => item.available === false).length;
-    const direct = Array.from(state.directHealth.values()).filter((item) => item.status !== 'n/a');
+    const proxyMeasured = proxy.filter((item) => item.status !== 'checking').length;
+    const proxyPending = Math.max(0, all.length - proxyMeasured);
+    const directAll = Array.from(state.directHealth.values());
+    const direct = directAll.filter((item) => item.status !== 'n/a');
     const directAvailable = direct.filter((item) => item.available === true).length;
     const directUnavailable = direct.filter((item) => item.available === false).length;
+    const directNotTestable = directAll.filter((item) => item.status === 'n/a').length;
+    const directPending = Math.max(0, all.length - directAll.length);
     $('#sourceHealthSummary').textContent =
       'Configured sources: ' + all.length +
-      ' · Server proxy: ' + proxyAvailable + ' available / ' + proxyUnavailable + ' unavailable' +
-      (scanning ? ' · checking…' : '') +
-      ' · Current network: ' + directAvailable + ' reachable / ' + directUnavailable + ' unreachable (' + direct.length + ' checked)';
+      ' · Server proxy: ' + proxyAvailable + ' available / ' + proxyUnavailable + ' unavailable / ' + proxyPending + ' checking' +
+      (scanning ? ' · scan running' : '') +
+      ' · Current network: ' + directAvailable + ' reachable / ' + directUnavailable + ' unreachable / ' + directNotTestable + ' not directly testable / ' + directPending + ' checking';
   }
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   async function probeCurrentNetwork(entry) {
