@@ -2,6 +2,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createRadioApi, normalizeStation, safeHttpUrl, UUID_RE } = require('../lib/radio');
+const radioSources = require('../lib/radio-sources');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 
 function responseRecorder() {
   return {
@@ -165,4 +169,43 @@ test('radio resolve refuses a private or otherwise unsafe broadcaster endpoint',
   await api.resolveStation(request('/api/radio/resolve/' + uuid), res, { uuid });
   assert.equal(res.status, 403);
   assert.match(JSON.parse(res.body).error, /private address blocked/);
+});
+
+
+test('custom radio stations appear in search and resolve to their saved stream URL', async (t) => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'iptv-radio-api-'));
+  t.after(() => fs.rmSync(dataDir, { recursive: true, force: true }));
+  const station = {
+    id: '01234567-89ab-cdef-0123-456789abcdef',
+    name: 'My Custom Radio',
+    url: 'https://radio.example/live.mp3',
+    language: 'English',
+    country: 'Japan',
+    countrycode: 'JP',
+    genre: 'Jazz',
+    enabled: true,
+  };
+  radioSources.save(dataDir, { directoryEnabled: false, allSourcesEnabledOnce: true, stations: [station] });
+  const api = createRadioApi({
+    dataDir,
+    minRequestIntervalMs: 0,
+    assertSafeUrl: async () => true,
+    upstreamFetch: async () => { throw new Error('Radio Browser should be disabled'); },
+  });
+  const listRes = responseRecorder();
+  await api.stations(request('/api/radio/stations?language=English'), listRes);
+  assert.equal(listRes.status, 200);
+  const list = JSON.parse(listRes.body);
+  assert.equal(list.source, 'Your radio stations');
+  assert.equal(list.stations.length, 1);
+  assert.equal(list.stations[0].stationuuid, station.id);
+  assert.equal(list.stations[0].name, station.name);
+  assert.equal(list.stations[0].hls, false);
+
+  const resolveRes = responseRecorder();
+  await api.resolveStation(request('/api/radio/resolve/' + station.id), resolveRes, { uuid: station.id });
+  assert.equal(resolveRes.status, 200);
+  const resolved = JSON.parse(resolveRes.body);
+  assert.equal(resolved.url, station.url);
+  assert.ok(resolved.proxyUrl.startsWith('/api/radio/stream/'));
 });

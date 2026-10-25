@@ -6,6 +6,8 @@ const dns = require('dns').promises;
 const crypto = require('crypto');
 const { upstreamFetch, bodyToString, pipeBody } = require('./fetch-upstream');
 const { assertSafeUrl, sendJson, clampInt } = require('./util');
+const radioSourceStore = require('./radio-sources');
+const path = require('path');
 
 const USER_AGENT = 'IPTV-Web-Radio/1.0 (+https://github.com/bluecarbonsales-coder/iptv)';
 const FALLBACK_MIRROR = 'https://de1.api.radio-browser.info';
@@ -75,6 +77,8 @@ function createRadioApi(options = {}) {
   const pipeStream = options.pipeBody || pipeBody;
   const minRequestIntervalMs = Number.isFinite(options.minRequestIntervalMs) ? options.minRequestIntervalMs : 350;
   const configuredMirrors = Array.isArray(options.mirrors) ? options.mirrors.slice() : null;
+  const dataDir = options.dataDir || path.join(__dirname, '..', 'data');
+  radioSourceStore.ensureEnabled(dataDir);
   let cachedMirrors = null;
   let mirrorsExpires = 0;
   let nextApiRequestAt = 0;
@@ -204,38 +208,82 @@ function createRadioApi(options = {}) {
     try {
       const url = new URL(req.url, 'http://localhost');
       const params = url.searchParams;
-      const q = safeString(params.get('q'), 120);
+      const q = safeString(params.get('q'), 120).toLowerCase();
       const countrycode = safeString(params.get('countrycode'), 2).toUpperCase();
-      const language = safeString(params.get('language'), 60);
-      const tag = safeString(params.get('tag'), 60);
+      const language = safeString(params.get('language'), 60).toLowerCase();
+      const tag = safeString(params.get('tag'), 60).toLowerCase();
       const codec = safeString(params.get('codec'), 24).toUpperCase();
       const orderIn = safeString(params.get('order'), 32);
       const order = VALID_ORDER.has(orderIn) ? orderIn : 'clickcount';
       const reverse = params.get('reverse') === 'false' ? 'false' : 'true';
       const limit = clampInt(params.get('limit'), 1, 100, 48);
       const offset = clampInt(params.get('offset'), 0, 1000000, 0);
-      const query = new URLSearchParams({
-        hidebroken: 'true',
-        order,
-        reverse,
-        limit: String(limit),
-        offset: String(offset),
+      const config = radioSourceStore.loadSync(dataDir);
+      const customMatches = config.stations.filter((station) => {
+        if (station.enabled === false) return false;
+        if (q && ![station.name, station.language, station.country, station.genre].join(' ').toLowerCase().includes(q)) return false;
+        if (countrycode && countrycode !== String(station.countrycode || '').toUpperCase()) return false;
+        if (language && !String(station.language || '').toLowerCase().includes(language)) return false;
+        if (tag && !String(station.genre || '').toLowerCase().includes(tag)) return false;
+        if (codec) return false;
+        return true;
+      }).map((station) => ({
+        stationuuid: station.id,
+        name: station.name,
+        countrycode: /^[A-Z]{2}$/.test(String(station.countrycode || '').toUpperCase()) ? String(station.countrycode).toUpperCase() : '',
+        country: station.country || '',
+        language: station.language || '',
+        languagecodes: '',
+        tags: station.genre || '',
+        favicon: '',
+        homepage: station.homepage || '',
+        codec: '',
+        bitrate: 0,
+        votes: 0,
+        clickcount: 0,
+        hls: /\.m3u8(?:$|[?#])/i.test(station.url),
+        lastcheckok: true,
+        custom: true,
+      }));
+      const customOnPage = customMatches.slice(offset, offset + limit);
+      const remoteOffset = Math.max(0, offset - customMatches.length);
+      const remoteLimit = Math.max(0, limit - customOnPage.length);
+      let remote = [];
+      if (config.directoryEnabled && remoteLimit > 0) {
+        const query = new URLSearchParams({
+          hidebroken: 'true',
+          order,
+          reverse,
+          limit: String(remoteLimit),
+          offset: String(remoteOffset),
+        });
+        if (params.get('q')) query.set('name', safeString(params.get('q'), 120));
+        if (/^[A-Z]{2}$/.test(countrycode)) query.set('countrycode', countrycode);
+        if (language) query.set('language', safeString(params.get('language'), 60));
+        if (tag) query.set('tag', safeString(params.get('tag'), 60));
+        if (codec) query.set('codec', codec);
+        const data = await apiJson('/json/stations/search?' + query.toString(), {
+          cacheKey: 'stations:' + query.toString(), ttlMs: 45_000,
+        });
+        if (!Array.isArray(data)) throw new Error('Unexpected radio directory response');
+        remote = data.map(normalizeStation).filter(Boolean);
+      }
+      const stations = customOnPage.concat(remote);
+      let nextOffset = null;
+      if (config.directoryEnabled) {
+        if (stations.length === limit) nextOffset = offset + stations.length;
+        else if (customMatches.length > offset + customOnPage.length) nextOffset = offset + customOnPage.length;
+      } else if (customMatches.length > offset + customOnPage.length) {
+        nextOffset = offset + customOnPage.length;
+      }
+      sendJson(req, res, 200, {
+        stations, limit, offset, nextOffset,
+        source: config.directoryEnabled ? (customMatches.length ? 'Radio Browser + your stations' : 'Radio Browser') : 'Your radio stations',
       });
-      if (q) query.set('name', q);
-      if (/^[A-Z]{2}$/.test(countrycode)) query.set('countrycode', countrycode);
-      if (language) query.set('language', language);
-      if (tag) query.set('tag', tag);
-      if (codec) query.set('codec', codec);
-      const cacheKey = 'stations:' + query.toString();
-      const data = await apiJson('/json/stations/search?' + query.toString(), { cacheKey, ttlMs: 45_000 });
-      if (!Array.isArray(data)) throw new Error('Unexpected radio directory response');
-      const normalized = data.map(normalizeStation).filter(Boolean);
-      sendJson(req, res, 200, { stations: normalized, limit, offset, nextOffset: normalized.length === limit ? offset + normalized.length : null, source: 'Radio Browser' });
     } catch (err) {
       sendJson(req, res, err.statusCode || 502, { error: err.message || 'Could not load radio stations' });
     }
   }
-
   async function listOptions(req, res) {
     if (!rateAllowed(req)) return sendJson(req, res, 429, { error: 'Too many radio requests. Please wait a moment.' });
     const url = new URL(req.url, 'http://localhost');
@@ -271,9 +319,18 @@ function createRadioApi(options = {}) {
     const uuid = safeString(params && params.uuid, 64);
     if (!UUID_RE.test(uuid)) return sendJson(req, res, 400, { error: 'Invalid station UUID' });
     try {
-      // Radio Browser's documented click-counter endpoint returns the current playable URL.
-      const result = await apiJson('/json/url/' + encodeURIComponent(uuid));
-      const stream = safeHttpUrl(result && result.url);
+      // Custom stations are managed locally; all other UUIDs are resolved by Radio Browser.
+      const custom = radioSourceStore.stationById(dataDir, uuid);
+      let rawUrl;
+      if (custom) {
+        rawUrl = custom.url;
+      } else {
+        const config = radioSourceStore.loadSync(dataDir);
+        if (!config.directoryEnabled) return sendJson(req, res, 404, { error: 'Radio Browser directory is disabled' });
+        const result = await apiJson('/json/url/' + encodeURIComponent(uuid));
+        rawUrl = result && result.url;
+      }
+      const stream = safeHttpUrl(rawUrl);
       if (!stream) return sendJson(req, res, 502, { error: 'This station has no usable HTTP(S) stream URL' });
       await validateUrl(stream.toString());
       expireTickets();
@@ -282,7 +339,6 @@ function createRadioApi(options = {}) {
       sendJson(req, res, 200, {
         stationuuid: uuid.toLowerCase(),
         url: stream.toString(),
-        // The browser prefers direct HTTPS and uses this random-ticket relay only if needed.
         proxyUrl: '/api/radio/stream/' + ticket,
       });
     } catch (err) {

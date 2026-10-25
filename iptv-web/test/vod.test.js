@@ -124,12 +124,13 @@ test('new VOD registries enable bundled provider sources', () => {
     assert.ok(registry.sources.every((source) => source.enabled === true));
     const persisted = JSON.parse(fs.readFileSync(vod.registryPath(dataDir), 'utf8'));
     assert.equal(persisted.defaultSourcesEnabled, true);
+    assert.equal(persisted.allSourcesEnabledOnce, true);
   } finally {
     fs.rmSync(dataDir, { recursive: true, force: true });
   }
 });
 
-test('legacy installations enable the bundled providers once and preserve non-default source settings', () => {
+test('legacy installations enable all sources once, then preserve manual disable settings', () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'iptv-vod-migration-'));
   try {
     const legacySources = [
@@ -159,14 +160,16 @@ test('legacy installations enable the bundled providers once and preserve non-de
     assert.equal(vod.ensureDefaultSources(dataDir), true);
     let registry = vod.loadSourcesSync(dataDir);
     assert.equal(registry.sources.find((source) => source.id === 'seeded-disabled').enabled, true);
-    assert.equal(registry.sources.find((source) => source.id === 'custom-disabled').enabled, false);
+    assert.equal(registry.sources.find((source) => source.id === 'custom-disabled').enabled, true);
 
     // After the one-time migration, individual source toggles remain effective.
     registry.sources.find((source) => source.id === 'seeded-disabled').enabled = false;
+    registry.sources.find((source) => source.id === 'custom-disabled').enabled = false;
     vod.saveSources(dataDir, registry.sources);
     assert.equal(vod.ensureDefaultSources(dataDir), false);
     registry = vod.loadSourcesSync(dataDir);
     assert.equal(registry.sources.find((source) => source.id === 'seeded-disabled').enabled, false);
+    assert.equal(registry.sources.find((source) => source.id === 'custom-disabled').enabled, false);
   } finally {
     fs.rmSync(dataDir, { recursive: true, force: true });
   }

@@ -4,13 +4,33 @@ A self-hosted media and service portal: browse live TV/VOD, listen to worldwide 
 
 Live deployment: **https://iptv.nafisainternational.com**
 
+## Simple source settings
+
+Open **https://iptv.nafisainternational.com/admin.html** (or `/admin.html` on your own server).
+
+- **Username:** `admin`
+- **Password:** `0809`
+
+The page has three separate lists: **Radio**, **IPTV**, and **Theatre**. Each list has an **Enable all** button plus individual **Enable / Disable** and **Delete** buttons. You can add radio stream URLs, IPTV M3U/M3U8 playlist URLs, and Theatre Apple CMS/MacCMS video API URLs. Theatre also has an option to import a source-list JSON URL. You do not need to enter an API token to manage these sources.
+
+All sources are enabled once on a fresh install or the first upgrade after this change. After that, individual on/off choices you make are saved and stay saved when the app restarts. The settings are stored in the Docker data volume:
+
+| File | Contains |
+|---|---|
+| `radio-sources.json` | Radio Browser on/off setting and your added radio stations |
+| `sources.json` | IPTV M3U/M3U8 playlists |
+| `vod-sources.json` | Theatre video API providers |
+
+The simple login defaults are intended for your current testing stage. You can change them with `ADMIN_USERNAME` and `ADMIN_PASSWORD` in the server environment if needed.
+
+
 ## Service portal homepage
 
 The root path `/` is now a configurable service portal, not a player-specific landing page. It provides a searchable directory of self-hosted apps and external websites, category filters, responsive cards, and authenticated add/edit/delete/reorder controls. Existing IPTV functionality remains available at **`/watch.html`**.
 
 The initial directory includes the player, known Nafisa service shortcuts, and examples such as ChatGPT, GitHub, Cloudflare, YouTube, and Wikipedia. Edit or delete any example to match the services you actually use. It also includes **SeedHub** and the official **Streambert** project link under *Media resources*. SeedHub is a web catalog; Streambert is a desktop-app repository—not an Apple CMS/MacCMS VOD API—so these are external shortcuts rather than falsely advertised native providers. Service definitions persist in `DATA_DIR/portal-services.json` (in Docker, `/data/portal-services.json`), separate from the image and preserved with the existing data volume.
 
-To manage links, choose **Manage links** on the homepage and enter the existing `SOURCE_TOKEN`, `REFRESH_TOKEN`, or `AGENT_API_TOKEN` configured in the server environment. The token is kept only in page memory and is not written to local storage. Management calls use the API below:
+To manage homepage shortcuts, choose **Manage links** and use the shortcut-management token configured in the server environment. This is only for links on the homepage. To manage media sources, open **`/admin.html`** and use **`admin / 0809`**; Radio, IPTV, and Theatre source management does not need an API token. The shortcut-management token is kept only in page memory and is not written to local storage. Management calls use the API below:
 
 | Route | Purpose |
 |---|---|

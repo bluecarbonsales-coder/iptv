@@ -23,7 +23,8 @@ const { Router } = require('./lib/router');
 const { Catalog } = require('./lib/catalog');
 const { createApi } = require('./lib/api');
 const { serveStatic } = require('./lib/static');
-const { send, sendJson, isPrivateIp } = require('./lib/util');
+const { send, sendJson, isPrivateIp, readBody } = require('./lib/util');
+const radioSourceStore = require('./lib/radio-sources');
 const hls = require('./lib/hls');
 const img = require('./lib/img');
 const refreshLib = require('./lib/refresh');
@@ -88,7 +89,7 @@ const watchHistory = createHistoryStore(DATA_DIR);
 const portal = createPortalApi({ dataDir: DATA_DIR });
 const agent = createAgentApi({ dataDir: DATA_DIR, catalog, refresh: refreshNow, api, automation, navigationConfig, visitorContext, portal });
 const resourceAvailability = createResourceAvailability({ getServices: portal.getServices });
-const radio = createRadioApi();
+const radio = createRadioApi({ dataDir: DATA_DIR });
 const mail = createMailApi({ dataDir: DATA_DIR });
 const metadata = createMetadataApi();
 const staticHandler = serveStatic(PUBLIC_DIR);
@@ -220,6 +221,72 @@ app.post('/api/agent/v1/mail/drafts/:id/send', mail.agentDraftSend);
 app.get('/api/metadata/search', metadata.search);
 app.get('/api/metadata/tvmaze', metadata.tvmazeSearch);
 app.get('/api/metadata/title', metadata.title);
+
+// Simple browser-based source manager. Login is a plain username/password from .env
+// (defaults: admin / 0809); no separate API token is required for the admin page.
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '0809';
+
+function adminCredentialsMatch(req) {
+  const header = String(req.headers.authorization || '');
+  const match = /^Basic\s+(.+)$/i.exec(header);
+  if (!match) return false;
+  let decoded;
+  try { decoded = Buffer.from(match[1], 'base64').toString('utf8'); } catch { return false; }
+  const split = decoded.indexOf(':');
+  if (split < 0) return false;
+  return decoded.slice(0, split) === ADMIN_USERNAME && decoded.slice(split + 1) === ADMIN_PASSWORD;
+}
+
+function adminRoute(handler) {
+  return async (req, res, params, query) => {
+    if (!adminCredentialsMatch(req)) {
+      return sendJson(req, res, 401, { error: 'Please sign in with the admin username and password.' });
+    }
+    req.adminAuthenticated = true;
+    res.setHeader('Cache-Control', 'no-store');
+    return handler(req, res, params || {}, query || {});
+  };
+}
+
+app.get('/admin/api/check', adminRoute((req, res) => sendJson(req, res, 200, { ok: true, username: ADMIN_USERNAME })));
+
+app.get('/admin/api/iptv/sources', adminRoute((req, res, params, query) => api.sourceList(req, res, params, query)));
+app.post('/admin/api/iptv/sources', adminRoute((req, res, params, query) => api.addSource(req, res, params, query)));
+app.patch('/admin/api/iptv/sources/enable-all', adminRoute((req, res) => api.enableAllSources(req, res)));
+app.patch('/admin/api/iptv/sources/:id', adminRoute((req, res, params) => api.updateSource(req, res, params)));
+app.delete('/admin/api/iptv/sources/:id', adminRoute((req, res, params) => api.deleteSource(req, res, params)));
+app.post('/admin/api/iptv/sources/enable-all', adminRoute((req, res) => api.enableAllSources(req, res)));
+
+app.get('/admin/api/theatre/sources', adminRoute((req, res, params, query) => api.listVodSources(req, res, params, query)));
+app.post('/admin/api/theatre/sources', adminRoute((req, res, params, query) => api.addVodSource(req, res, params, query)));
+app.post('/admin/api/theatre/sources/import', adminRoute((req, res, params, query) => api.importVodSourceList(req, res, params, query)));
+app.post('/admin/api/theatre/sources/enable-all', adminRoute((req, res) => api.enableAllVodSources(req, res)));
+app.patch('/admin/api/theatre/sources/:id', adminRoute((req, res, params) => api.updateVodSource(req, res, params)));
+app.delete('/admin/api/theatre/sources/:id', adminRoute((req, res, params) => api.deleteVodSource(req, res, params)));
+
+app.get('/admin/api/radio/sources', adminRoute((req, res) => sendJson(req, res, 200, { sources: radioSourceStore.list(DATA_DIR) })));
+app.post('/admin/api/radio/sources', adminRoute(async (req, res) => {
+  try {
+    const body = JSON.parse(await readBody(req, 16384));
+    const station = radioSourceStore.add(DATA_DIR, body);
+    sendJson(req, res, 201, { source: station, sources: radioSourceStore.list(DATA_DIR) });
+  } catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message || 'Could not add radio station' }); }
+}));
+app.post('/admin/api/radio/sources/enable-all', adminRoute((req, res) => sendJson(req, res, 200, { sources: radioSourceStore.enableAll(DATA_DIR) })));
+app.patch('/admin/api/radio/sources/:id', adminRoute(async (req, res, params) => {
+  try {
+    const body = JSON.parse(await readBody(req, 16384));
+    const source = radioSourceStore.update(DATA_DIR, params.id, body);
+    sendJson(req, res, 200, { source, sources: radioSourceStore.list(DATA_DIR) });
+  } catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message || 'Could not update radio source' }); }
+}));
+app.delete('/admin/api/radio/sources/:id', adminRoute((req, res, params) => {
+  try {
+    radioSourceStore.remove(DATA_DIR, params.id);
+    sendJson(req, res, 200, { ok: true, sources: radioSourceStore.list(DATA_DIR) });
+  } catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message || 'Could not delete radio source' }); }
+}));
 
 // Public Radio Browser directory and UUID-based stream relay (no arbitrary URL proxy).
 app.get('/api/radio/stations', radio.stations);

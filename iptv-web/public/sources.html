@@ -2,59 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#090a0f">
-<title>Hermes Media Source Control · Nafisa Theatre</title>
-<style>
-:root{color-scheme:dark;--bg:#090a0f;--panel:#12151e;--line:#292e3b;--text:#f3f3f6;--muted:#a2a8b8;--gold:#e8c78b}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 75% 0,#292337 0,transparent 38%),var(--bg);color:var(--text);font:15px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}a{color:var(--gold)}main{max-width:900px;margin:0 auto;padding:32px 22px}.top{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center}.brand{font-weight:850;letter-spacing:.12em;text-decoration:none}.brand span{color:var(--gold)}.panel{padding:22px;border:1px solid var(--line);background:#12151edb;border-radius:16px;margin:18px 0}.eyebrow{font-size:12px;letter-spacing:.14em;color:var(--gold);font-weight:800}.endpoint{display:block;padding:10px 12px;margin:8px 0;border-radius:8px;background:#080a10;border:1px solid var(--line);overflow-wrap:anywhere}code{color:#f4d7a4}li{margin:8px 0}.muted{color:var(--muted)}
-</style>
+<meta http-equiv="refresh" content="0;url=/admin.html">
+<title>Source Settings · IPTV</title>
+<style>body{margin:0;background:#0c0f16;color:#f3f5fa;font:16px/1.6 system-ui;display:grid;place-items:center;min-height:100vh}main{max-width:520px;padding:28px}a{color:#77e0ce}</style>
 </head>
-<body>
-<header class="top"><a class="brand" href="/movies.html">NAFISA <span>THEATRE</span></a><span class="muted">Hermes-managed configuration</span><a href="/movies.html" style="margin-left:auto">← Back to Theatre</a></header>
-<main>
-<div class="eyebrow">AGENT CONTROL PLANE</div>
-<h1>Media sources and navigation</h1>
-<p class="muted">Hermes is the configuration editor for this portal. Public pages are read-only; this page intentionally does not accept management tokens or perform source changes from a visitor browser.</p>
-<section class="panel">
-<h2>What Hermes can manage</h2>
-<ul>
-<li>IPTV playlists and M3U/M3U8 sources: add, validate, replace, enable, disable and remove.</li>
-<li>Movie, series, anime and documentary API providers: add, probe, edit, enable, disable, import and remove.</li>
-<li>Theatre sidebar navigation and homepage service shortcuts.</li>
-<li>Metadata/discovery settings, source registry schedules, and project UI/code when runtime configuration is insufficient.</li>
-<li>Opt-in aggregate visitor trends to prioritize relevant local resources.</li>
-</ul>
-</section>
-<section class="panel">
-<h2>Hermes API endpoints</h2>
-<p class="muted">Hermes must send <code>X-Agent-Token</code> in the request header. Keep the token in the agent's secret environment; never put it in browser JavaScript, query strings, source URLs, or Git commits.</p>
-<span class="endpoint">GET /api/agent/v1/capabilities</span>
-<span class="endpoint">GET /api/agent/v1/status</span>
-<span class="endpoint">GET /api/agent/v1/live/sources</span>
-<span class="endpoint">POST /api/agent/v1/live/sources</span>
-<span class="endpoint">PATCH /api/agent/v1/live/sources/:id</span>
-<span class="endpoint">DELETE /api/agent/v1/live/sources/:id</span>
-<span class="endpoint">GET /api/agent/v1/vod/sources</span>
-<span class="endpoint">POST /api/agent/v1/vod/sources</span>
-<span class="endpoint">POST /api/agent/v1/vod/import</span>
-<span class="endpoint">PATCH /api/agent/v1/vod/sources/:id</span>
-<span class="endpoint">DELETE /api/agent/v1/vod/sources/:id</span>
-<span class="endpoint">GET /api/agent/v1/navigation · PUT /api/agent/v1/navigation</span>
-<span class="endpoint">GET /api/agent/v1/portal/services · POST /api/agent/v1/portal/services</span>
-<span class="endpoint">PATCH /api/agent/v1/portal/services/:id · DELETE /api/agent/v1/portal/services/:id</span>
-<span class="endpoint">GET /api/agent/v1/discovery/visitor-trends</span>
-<span class="endpoint">GET /api/agent/v1/openapi.json</span>
-</section>
-<section class="panel">
-<h2>Safe operating rules</h2>
-<ul>
-<li>Check compatibility before enabling a source and keep uncertain sources disabled.</li>
-<li>Use official, public-domain, open-license, and documented sources wherever possible.</li>
-<li>A successful API probe is not proof of streaming rights.</li>
-<li>Use only coarse, explicitly shared visitor context. Do not collect exact addresses, raw IPs, precise GPS coordinates, or per-person viewing histories.</li>
-<li>Before code deployments, run the project tests and preserve the persistent data volume and deployment environment.</li>
-</ul>
-</section>
-</main>
-</body>
+<body><main><h1>Source Settings</h1><p>The old source page has moved to the simple Radio, IPTV, and Theatre manager.</p><p><a href="/admin.html">Open source settings</a></p><script>location.replace('/admin.html');</script></main></body>
 </html>

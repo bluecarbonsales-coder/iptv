@@ -29,49 +29,56 @@ function ensureDefaultSources(dataDir) {
     if (!Array.isArray(registry.sources)) registry.sources = [];
   } catch {}
 
-  // One-time migration for installations that already seeded these operator-listed
-  // providers while they were disabled. Run this only once so the operator can
-  // disable individual providers again from the source manager afterward.
-  if (registry.defaultsSeeded === true) {
-    if (registry.defaultSourcesEnabled === true) return false;
-    let changed = false;
-    for (const source of registry.sources) {
-      if (source.importedFrom === 'operator-provided initial list' && source.enabled !== true) {
-        source.enabled = true;
-        changed = true;
-      }
-    }
-    saveSources(dataDir, registry.sources);
-    return changed;
+  // Enable every currently configured Theatre provider once on upgrade. After this
+  // marker is saved, the operator's individual enable/disable choices are respected.
+  if (registry.allSourcesEnabledOnce === true) return false;
+
+  let changed = false;
+  if (registry.defaultsSeeded !== true) {
+    const now = new Date().toISOString();
+    const existing = new Set(registry.sources.map((source) => source.api));
+    const seeded = DEFAULT_SOURCES.slice(0, MAX_VOD_SOURCES).filter((source) => {
+      try { return !existing.has(normalizeApiUrl(source.api)); } catch { return false; }
+    }).map((source) => ({
+      id: newId(),
+      name: source.name,
+      api: normalizeApiUrl(source.api),
+      detail: null,
+      kind: source.kind || 'all',
+      enabled: true,
+      addedAt: now,
+      lastChecked: null,
+      lastError: null,
+      lastItemCount: null,
+      listAction: 'videolist',
+      importedFrom: 'operator-provided initial list',
+    }));
+    const additions = seeded.slice(0, Math.max(0, MAX_VOD_SOURCES - registry.sources.length));
+    registry.sources.push(...additions);
+    changed = additions.length > 0;
   }
 
-  const now = new Date().toISOString();
-  const existing = new Set(registry.sources.map((source) => source.api));
-  const seeded = DEFAULT_SOURCES.slice(0, MAX_VOD_SOURCES).filter((source) => {
-    try { return !existing.has(normalizeApiUrl(source.api)); } catch { return false; }
-  }).map((source) => ({
-    id: newId(),
-    name: source.name,
-    api: normalizeApiUrl(source.api),
-    detail: null,
-    kind: source.kind || 'all',
-    enabled: source.enabled === true,
-    addedAt: now,
-    lastChecked: null,
-    lastError: null,
-    lastItemCount: null,
-    listAction: 'videolist',
-    importedFrom: 'operator-provided initial list',
-  }));
-  const additions = seeded.slice(0, Math.max(0, MAX_VOD_SOURCES - registry.sources.length));
-  saveSources(dataDir, registry.sources.concat(additions));
-  return additions.length > 0;
+  for (const source of registry.sources) {
+    if (source.enabled !== true) {
+      source.enabled = true;
+      changed = true;
+    }
+  }
+  saveSources(dataDir, registry.sources, { allSourcesEnabledOnce: true });
+  return changed;
 }
-function saveSources(dataDir, sources) {
+function saveSources(dataDir, sources, metadata = {}) {
   fs.mkdirSync(dataDir, { recursive: true });
   const target = registryPath(dataDir);
   const temp = target + '.tmp';
+  let current = {};
+  try {
+    const raw = JSON.parse(fs.readFileSync(target, 'utf8'));
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) current = raw;
+  } catch {}
   fs.writeFileSync(temp, JSON.stringify({
+    ...current,
+    ...metadata,
     version: 1,
     defaultsSeeded: true,
     defaultSourcesEnabled: true,
