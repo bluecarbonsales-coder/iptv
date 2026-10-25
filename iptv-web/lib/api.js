@@ -398,11 +398,12 @@ function createApi(catalog, refresh, dataDir) {
   };
 
   const librarySearch = (req, res, params, query) => {
-    const q = String(query.q || '').trim().toLocaleLowerCase().normalize('NFKC').replace(/[^\\p{L}\\p{N}]+/gu, ' ').trim();
+    const normalizeSearch = value => String(value || '').normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    const q = normalizeSearch(query.q || '');
     const words = q.split(' ').filter(Boolean);
     const type = query.type || 'all';
     const channelItems = (type === 'all' || type === 'channel') ? catalog.channels
-      .filter(channel => !q || words.every(word => (channel._s || String(channel.name || '').toLowerCase()).includes(word)))
+      .filter(channel => !q || words.every(word => (channel._s || normalizeSearch(channel.name)).includes(word)))
       .map(channel => ({
         id: 'channel-' + channel.id, name: channel.name, title: channel.name,
         logo: channel.logo || null, kind: 'channel', sourceId: 'iptv-org', sourceName: 'iptv-org',
@@ -410,11 +411,12 @@ function createApi(catalog, refresh, dataDir) {
       })) : [];
     const savedItems = mediaLibrary.allItems(sourceDataDir).filter(item =>
       (type === 'all' || item.kind === type || (type === 'movies' && item.kind === 'video')) &&
-      (!q || words.every(word => String([item.name, item.overview, item.year, item.category, item.sourceName].join(' ')).toLocaleLowerCase().normalize('NFKC').replace(/[^\\p{L}\\p{N}]+/gu, ' ').includes(word)))
+      (!q || words.every(word => normalizeSearch([item.name, item.overview, item.year, item.category, item.sourceName].join(' ')).includes(word)))
     );
     const combined = [...channelItems, ...savedItems].sort((a, b) => a.name.localeCompare(b.name));
     const limit = Math.max(1, Math.min(100, Number.parseInt(query.limit, 10) || 50));
     const page = Math.max(1, Number.parseInt(query.page, 10) || 1);
+    const stats = mediaLibrary.stats(sourceDataDir);
     sendJson(req, res, 200, {
       total: combined.length, page, limit, pages: Math.max(1, Math.ceil(combined.length / limit)),
       items: combined.slice((page - 1) * limit, page * limit).map(item => ({
@@ -424,7 +426,7 @@ function createApi(catalog, refresh, dataDir) {
         detailUrl: undefined,
         episodes: Array.isArray(item.episodes) ? item.episodes.map(episode => ({ title: episode.title })) : [],
       })),
-      updatedAt: saved.updatedAt, channelCatalogCount: catalog.channels.length,
+      updatedAt: stats.updatedAt, channelCatalogCount: catalog.channels.length,
     });
   };
   const libraryStats = (req, res) => sendJson(req, res, 200, mediaLibrary.stats(sourceDataDir));
