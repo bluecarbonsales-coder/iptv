@@ -3,7 +3,7 @@
   'use strict';
   const DICT = {
     en: {
-      tabAll: 'Live',
+      tabAll: 'IPTV',
       tabMovies: 'Movies',
       tabSeries: 'Series',
       tabAnime: 'Anime',
@@ -13,8 +13,10 @@
       tabPlaylists: 'Playlists',
       filters: 'Filters',
       reset: 'Reset',
-      country: 'Country',
+      country: 'Country (optional)',
       allCountries: 'All countries',
+      language: 'Language',
+      allLanguages: 'All languages',
       sort: 'Sort by',
       sortName: 'Name (A–Z)',
       sortQuality: 'Best quality',
@@ -63,7 +65,7 @@
       updated: 'Data updated',
     },
     zh: {
-      tabAll: '直播',
+      tabAll: 'IPTV频道',
       tabMovies: '电影',
       tabSeries: '剧集',
       tabAnime: '动漫',
@@ -73,8 +75,10 @@
       tabPlaylists: '播放列表',
       filters: '筛选',
       reset: '重置',
-      country: '国家/地区',
+      country: '国家/地区（可选）',
       allCountries: '全部国家/地区',
+      language: '语言',
+      allLanguages: '全部语言',
       sort: '排序',
       sortName: '名称 (A–Z)',
       sortQuality: '清晰度优先',
