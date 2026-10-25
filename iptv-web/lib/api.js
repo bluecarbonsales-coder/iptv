@@ -636,6 +636,7 @@ function createApi(catalog, refresh, dataDir) {
     if (params.sourceId === 'commons') {
       try {
         const item = await commonsLib.getDetail(params.vodId);
+        mediaLibrary.upsert(sourceDataDir, { ...item, id: 'vod-commons-' + item.id, vodId: item.id, sourceId: 'commons', sourceName: item.sourceName, vod: true, kind: item.kind || 'video' });
         return sendJson(req, res, 200, {
           id: item.id,
           sourceId: 'commons',
@@ -657,6 +658,7 @@ function createApi(catalog, refresh, dataDir) {
     if (params.sourceId === 'archive') {
       try {
         const item = await archiveLib.getDetail(params.vodId);
+        mediaLibrary.upsert(sourceDataDir, { ...item, id: 'vod-archive-' + item.id, vodId: item.id, sourceId: 'archive', sourceName: item.sourceName, vod: true, kind: item.kind || 'video' });
         return sendJson(req, res, 200, {
           id: item.id,
           sourceId: 'archive',
@@ -680,6 +682,7 @@ function createApi(catalog, refresh, dataDir) {
     if (!source) return sendJson(req, res, 404, { error: 'VOD provider not found or disabled' });
     try {
       const item = await vodLib.getDetail(source, params.vodId);
+      mediaLibrary.upsert(sourceDataDir, { ...item, id: 'vod-' + source.id + '-' + item.id, vodId: item.id, sourceId: source.id, sourceName: source.name, vod: true });
       sendJson(req, res, 200, {
         id: item.id,
         sourceId: source.id,
