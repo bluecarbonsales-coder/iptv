@@ -12,6 +12,10 @@ test('source manager has three separate source tabs and simple default login', (
   assert.match(html, /data-tab="radio"/);
   assert.match(html, /data-tab="iptv"/);
   assert.match(html, /data-tab="theatre"/);
+  assert.match(html, /data-tab="api"/);
+  assert.match(html, /id="apiTryForm"/);
+  assert.match(html, /id="apiEndpointGroups"/);
+  assert.match(html, /href="\/api\/v1\/openapi\.json"/);
   assert.match(html, /Enable all radio sources/);
   assert.match(html, /Enable all IPTV playlists/);
   assert.match(html, /Enable all Theatre sources/);
@@ -36,4 +40,10 @@ test('server exposes basic username/password protected APIs for each source type
   assert.match(server, /\/admin\/api\/iptv\/sources/);
   assert.match(server, /\/admin\/api\/theatre\/sources/);
   assert.match(server, /adminAuthenticated\s*=\s*true/);
+  assert.match(server, /app\.get\('\/api\/v1',/);
+  assert.match(server, /app\.get\('\/api\/v1\/openapi\.json',/);
+  assert.match(server, /app\.get\('\/api\/v1\/sources',/);
+  assert.match(server, /app\.post\('\/api\/v1\/sources\/:type',/);
+  assert.match(server, /app\.patch\('\/api\/v1\/sources\/:type\/:id',/);
+  assert.match(server, /app\.delete\('\/api\/v1\/sources\/:type\/:id',/);
 });
