@@ -171,7 +171,7 @@ function createResourceAvailability(options = {}) {
 
   function getSnapshot() {
     const listed = getServices();
-    const services = (Array.isArray(listed) ? listed : []).slice(0, MAX_CHECKS);
+    const services = (Array.isArray(listed) ? listed : []).slice(0, maxChecks);
     const checkedAt = new Date(now()).toISOString();
     const items = services.map((service) => {
       const cached = statuses.get(String(service.id));
