@@ -469,14 +469,17 @@ function createApi(catalog, refresh, dataDir) {
   const syncLibrary = async (req, res) => {
     if (!authorizeSourceWrite(req, res)) return;
     try {
+      const rawBody = await readBody(req, 4096);
+      const body = rawBody.trim() ? JSON.parse(rawBody) : {};
       const sources = vodLib.loadSourcesSync(sourceDataDir).sources.filter(source => source.enabled !== false);
-      const maxPages = Math.max(1, Math.min(10, Number.parseInt(process.env.MEDIA_LIBRARY_SYNC_PAGES || '3', 10) || 3));
+      const startPage = Math.max(1, Number.parseInt(body.startPage, 10) || 1);
+      const maxPages = Math.max(1, Math.min(10, Number.parseInt(body.pages, 10) || Number.parseInt(process.env.MEDIA_LIBRARY_SYNC_PAGES || '3', 10) || 3));
       const outcomes = await mapLimit(sources, 3, async source => {
         const records = [];
-        for (let page = 1; page <= maxPages && records.length < 1000; page++) {
+        for (let page = startPage; page < startPage + maxPages && records.length < 1000; page++) {
           const batch = await vodLib.searchSource(source, '', page);
           records.push(...batch);
-          if (!batch.length || batch.length < 10) break;
+          if (!batch.length) break;
         }
         return records;
       });
@@ -494,7 +497,7 @@ function createApi(catalog, refresh, dataDir) {
         });
       }
       const result = mediaLibrary.upsert(sourceDataDir, items);
-      sendJson(req, res, 200, { ok: true, sourcesChecked: sources.length, errors, ...result, note: 'Indexes the first configured pages from each enabled provider; repeat to refresh. Large provider catalogs may require additional syncs.' });
+      sendJson(req, res, 200, { ok: true, sourcesChecked: sources.length, startPage, pagesRequested: maxPages, nextStartPage: startPage + maxPages, errors, ...result, note: 'Indexes a bounded page range from each enabled provider. Continue with startPage=nextStartPage until sources return empty pages; provider APIs may use different pagination limits.' });
     } catch (err) { sendJson(req, res, err.statusCode || 500, { error: err.message || 'library sync failed' }); }
   };
 
