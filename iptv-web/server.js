@@ -118,8 +118,7 @@ const mail = createMailApi({ dataDir: DATA_DIR });
 const metadata = createMetadataApi();
 const staticHandler = serveStatic(PUBLIC_DIR);
 
-// POST /api/refresh drags 18 MB from iptv-org: allow it freely from the host itself,
-// require the shared token for anything that arrived through the reverse proxy.
+// POST /api/refresh can download a large catalogue: allow local scheduled jobs and require Settings login for remote requests.
 function refreshGuard(req, res, params, query) {
   const viaProxy = !!req.headers['x-forwarded-for'] || !!req.headers['x-real-ip'];
   const remote = (req.socket.remoteAddress || '').replace(/^::ffff:/, '');
