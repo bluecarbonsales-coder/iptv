@@ -53,7 +53,7 @@ The service also runs a maintenance cycle shortly after startup and then at `AUT
 
 ```http
 POST /api/agent/v1/vod/sources
-X-Agent-Token: <secret>
+Authorization: Basic <base64(ADMIN_USERNAME:ADMIN_PASSWORD)>
 Content-Type: application/json
 
 {"name":"Authorized catalog","api":"https://provider.example/api.php/provide/vod","kind":"all"}
@@ -65,7 +65,7 @@ Accepted `kind`: `all`, `movies`, `series`, or `anime`. The server validates the
 
 ```http
 POST /api/agent/v1/vod/import
-X-Agent-Token: <secret>
+Authorization: Basic <base64(ADMIN_USERNAME:ADMIN_PASSWORD)>
 Content-Type: application/json
 
 {"url":"https://trusted.example/source-list.json"}
