@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#10131b">
-<title>Source Settings · IPTV</title>
+<title>Settings &amp; API · IPTV</title>
 <style>
 :root{color-scheme:dark;--bg:#0c0f16;--panel:#171c27;--line:#30394a;--text:#f3f5fa;--muted:#a5afc0;--accent:#77e0ce;--danger:#ff9b9b}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}a{color:var(--accent)}button,input,select{font:inherit}button{cursor:pointer;border:1px solid var(--line);background:#202838;color:var(--text);padding:9px 12px;border-radius:9px}button.primary{background:var(--accent);border-color:var(--accent);color:#0b1516;font-weight:750}button.danger{color:var(--danger)}button:disabled{opacity:.55;cursor:wait}header{display:flex;gap:18px;align-items:center;flex-wrap:wrap;padding:16px max(18px,calc((100% - 1080px)/2));border-bottom:1px solid var(--line)}header strong{font-size:17px;letter-spacing:.03em}header nav{display:flex;gap:12px;flex-wrap:wrap;margin-left:auto}main{max-width:1080px;padding:28px 18px 60px;margin:auto}.muted,small{color:var(--muted)}h1{font-size:clamp(28px,4vw,40px);margin:4px 0 8px}h2{margin:0 0 8px;font-size:22px}.eyebrow{font-size:11px;font-weight:800;letter-spacing:.16em;color:var(--accent)}.panel{border:1px solid var(--line);border-radius:15px;padding:20px;background:var(--panel);margin:18px 0}.login{max-width:450px;margin:52px auto}.formgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}.field{display:grid;gap:5px;color:var(--muted);font-size:13px}.field input,.field select{width:100%;min-width:0;background:#0e121a;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:10px 11px}.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:16px 0}.tabs{display:flex;gap:8px;flex-wrap:wrap}.tabs button.active{border-color:var(--accent);color:var(--accent)}.source{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:14px 0;border-top:1px solid var(--line)}.source-main{min-width:0;flex:1}.source-name{font-weight:800;overflow-wrap:anywhere}.source-url{font-size:12px;color:var(--muted);overflow-wrap:anywhere;margin-top:4px}.source-meta{font-size:12px;margin-top:4px;color:var(--muted)}.source-actions{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}.status{min-height:24px;color:var(--muted);margin:10px 0}.status.error{color:var(--danger)}.section[hidden],#manager[hidden],#loginPanel[hidden]{display:none}.note{font-size:13px;color:var(--muted)}.bottom{color:var(--muted);font-size:12px;margin-top:24px}
@@ -13,7 +13,7 @@
 </head>
 <body>
 <header>
-  <strong>IPTV · SOURCE SETTINGS</strong>
+  <strong>IPTV · SETTINGS &amp; API</strong>
   <nav><a href="/">Home</a><a href="/radio.html">Radio</a><a href="/watch.html">IPTV</a><a href="/movies.html">Theatre</a></nav>
 </header>
 <main>
@@ -39,6 +39,7 @@
         <button type="button" class="active" data-tab="radio" role="tab" aria-selected="true">Radio</button>
         <button type="button" data-tab="iptv" role="tab" aria-selected="false">IPTV</button>
         <button type="button" data-tab="theatre" role="tab" aria-selected="false">Theatre</button>
+        <button type="button" data-tab="api" role="tab" aria-selected="false">API</button>
       </div>
       <button id="logout" type="button" style="margin-left:auto">Log out</button>
     </div>
@@ -100,6 +101,48 @@
         </form>
         <p class="status" id="theatreStatus" role="status"></p>
         <div id="theatreList"></div>
+      </div>
+    </section>
+
+    <section class="section" id="apiSection" hidden>
+      <div class="eyebrow">ONE COMMON ENTRY</div>
+      <h1>Platform API</h1>
+      <p class="muted">Use one base path for Radio, IPTV, Theatre, source settings, the homepage, metadata, Mail Workspace, and advanced tools.</p>
+      <div class="panel">
+        <h2>Base URL</h2>
+        <div class="formgrid">
+          <label class="field">API base URL<input id="apiBaseUrl" readonly value="/api/v1"></label>
+          <label class="field">API definition<input id="apiDocsUrl" readonly value="/api/v1/openapi.json"></label>
+        </div>
+        <div class="toolbar">
+          <button type="button" class="primary" id="copyApiBase">Copy base URL</button>
+          <a href="/api/v1" target="_blank" rel="noopener noreferrer">Open API index</a>
+          <a href="/api/v1/openapi.json" target="_blank" rel="noopener noreferrer">Open OpenAPI JSON</a>
+          <button type="button" id="reloadApiIndex">Reload endpoint list</button>
+        </div>
+        <p class="note">Full base URL on this site: <code id="fullApiBase"></code></p>
+        <p class="note">Most source and settings endpoints use the same admin login as this page. Mail endpoints use Mail Workspace login/session. Advanced agent endpoints still use the configured agent token.</p>
+      </div>
+      <div class="panel">
+        <h2>Try an API request</h2>
+        <p class="note">Start with a path like <code>/api/v1/sources</code> or <code>/api/v1/theatre/titles?type=movies&amp;q=classic</code>. Your admin login is sent automatically for this page. Do not put passwords or tokens in the URL.</p>
+        <form id="apiTryForm">
+          <div class="formgrid">
+            <label class="field">Method<select id="apiMethod"><option>GET</option><option>POST</option><option>PATCH</option><option>PUT</option><option>DELETE</option></select></label>
+            <label class="field">Path<input id="apiPath" value="/api/v1" required></label>
+          </div>
+          <label class="field" style="margin-top:12px">Optional agent token (advanced agent endpoints only)<input id="apiAgentToken" type="password" autocomplete="off" placeholder="Leave empty for normal API calls"></label>
+          <label class="field" style="margin-top:12px">JSON body (for POST, PATCH or PUT)<textarea id="apiBody" rows="5" spellcheck="false" placeholder='{"name":"Example source","url":"https://example.com/playlist.m3u"}'></textarea></label>
+          <div class="toolbar"><button class="primary" type="submit" id="runApiRequest">Run request</button><button type="button" id="clearApiResponse">Clear response</button></div>
+        </form>
+        <p class="status" id="apiRequestStatus" role="status"></p>
+        <pre id="apiResponse" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:420px;overflow:auto;background:#0d1119;padding:14px;border-radius:10px;border:1px solid var(--line)">API response will appear here.</pre>
+      </div>
+      <div class="panel">
+        <h2>All available endpoint groups</h2>
+        <p class="note">Click any endpoint to place it in the request box above. The complete machine-readable definition is also available at <a href="/api/v1/openapi.json" target="_blank" rel="noopener noreferrer">/api/v1/openapi.json</a>.</p>
+        <p class="status" id="apiIndexStatus" role="status"></p>
+        <div id="apiEndpointGroups"></div>
       </div>
     </section>
 
