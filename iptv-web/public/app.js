@@ -1164,6 +1164,9 @@
     };
     $('#pSource').addEventListener('change', (e) => play(parseInt(e.target.value, 10) || 0));
     $('#pEpisode').addEventListener('change', (e) => play(parseInt(e.target.value, 10) || 0));
+    $('#video').addEventListener('ended', () => {
+      if (player.isVod && player.index + 1 < player.sources.length) play(player.index + 1);
+    });
     $('#episodePrev').addEventListener('click', () => {
       if (player.sources.length) play(Math.max(0, player.index - 1));
     });
