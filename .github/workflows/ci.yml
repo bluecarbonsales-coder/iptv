@@ -12,9 +12,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
       - name: Install application dependencies
-        run: npm install --prefix iptv-web --no-audit --no-fund
+        run: npm ci --prefix iptv-web --no-audit --no-fund
       - name: Syntax-check JavaScript
         run: |
           node --check iptv-web/server.js
