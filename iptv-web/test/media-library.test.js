@@ -10,15 +10,17 @@ test('media library persists items, deduplicates by source identity, and searche
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'iptv-library-'));
   try {
     const first = library.upsert(dir, [
-      { id: 'vod-src-1', sourceId: 'src', vodId: '1', name: 'The Example', kind: 'movies', year: '2024', overview: 'Space adventure' },
+      { id: 'vod-src-1', sourceId: 'src', vodId: '1', name: 'The Example', kind: 'series', year: '2024', overview: 'Space adventure', episodes: [{ title: 'The Lost Signal', url: 'https://example.org/episode.m3u8' }] },
       { id: 'vod-src-2', sourceId: 'src', vodId: '2', name: 'Another Film', kind: 'movies' },
     ]);
     assert.deepEqual({ added: first.added, updated: first.updated, total: first.total }, { added: 2, updated: 0, total: 2 });
-    const again = library.upsert(dir, [{ id: 'vod-src-1', sourceId: 'src', vodId: '1', name: 'The Example', kind: 'movies', year: '2024', overview: 'Updated overview' }]);
+    const again = library.upsert(dir, [{ id: 'vod-src-1', sourceId: 'src', vodId: '1', name: 'The Example', kind: 'series', year: '2024', overview: 'Updated overview', episodes: [{ title: 'The Lost Signal', url: 'https://example.org/episode.m3u8' }] }]);
     assert.deepEqual({ added: again.added, updated: again.updated, total: again.total }, { added: 0, updated: 1, total: 2 });
-    const found = library.search(dir, { q: 'space adventure', type: 'movies' });
+    const found = library.search(dir, { q: 'space adventure', type: 'series' });
     assert.equal(found.total, 1);
     assert.equal(found.items[0].name, 'The Example');
+    assert.equal(found.items[0].episodes[0].title, 'The Lost Signal');
+    assert.equal(library.search(dir, { q: 'lost signal', type: 'series' }).total, 1);
     assert.equal(library.stats(dir).total, 2);
     assert.equal(library.remove(dir, found.items[0].id), true);
     assert.equal(library.stats(dir).total, 1);
