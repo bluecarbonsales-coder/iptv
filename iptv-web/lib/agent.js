@@ -5,7 +5,6 @@ const vodLib = require('./vod');
 const archiveLib = require('./archive-vod');
 const commonsLib = require('./commons-vod');
 const sourceLib = require('./sources');
-const { matchesAdminCredentials } = require('./admin-auth');
 const { createGitHubProject } = require('./github-project');
 
 function matchesToken(given, expected) {
@@ -24,15 +23,33 @@ function createAgentApi({ dataDir, catalog, refresh, api, automation, navigation
   const project = createGitHubProject();
   function authenticate(req, res) {
     if (req && req.adminAuthenticated === true) return true;
-    if (matchesAdminCredentials(req)) { req.adminAuthenticated = true; return true; }
-    sendJson(req, res, 401, { error: 'Please sign in with the admin username and password. Token authentication is disabled.' });
-    return false;
+    const expected = process.env.AGENT_API_TOKEN;
+    if (!expected) {
+      sendJson(req, res, 503, {
+        error: 'agent API is disabled',
+        hint: 'Set a long random AGENT_API_TOKEN and rebuild/restart the application.',
+      });
+      return false;
+    }
+    const authHeader = String(req.headers.authorization || '');
+    const bearer = /^Bearer\s+(.+)$/i.exec(authHeader);
+    const given = req.headers['x-agent-token'] || (bearer && bearer[1]);
+    if (!matchesToken(given, expected)) {
+      sendJson(req, res, 401, { error: 'invalid agent token', hint: 'Send X-Agent-Token or Authorization: Bearer <token>.' });
+      return false;
+    }
+    return true;
   }
 
   function gate(action, write, handler) {
     return async (req, res, params, query) => {
       if (!authenticate(req, res)) return;
-      // Protected agent routes use the shared Basic login from Settings.
+      // Normalize bearer auth for existing source-management handlers which also support X-Agent-Token.
+      if (!req.headers['x-agent-token'] && /^Bearer\\s+/i.test(String(req.headers.authorization || ''))) {
+        req.headers['x-agent-token'] = String(process.env.AGENT_API_TOKEN || '');
+      }
+      // The dedicated AGENT_API_TOKEN grants the agent the owner's project-management authority.
+      // AGENT_AUTONOMY controls the background import policy, not authenticated interactive writes.
       const started = Date.now();
       res.once('finish', () => {
         automation.audit({
@@ -349,13 +366,14 @@ function createAgentApi({ dataDir, catalog, refresh, api, automation, navigation
     info: {
       title: 'IPTV Web Agent Control API',
       version: '1.0.0',
-      description: 'Machine-oriented control surface for trusted agents. Uses the Settings HTTP Basic login; token authentication is disabled.',
+      description: 'Machine-oriented control surface for trusted agents such as Hermes. API tokens must be sent in headers, never in query strings.',
     },
     servers: [{ url: '/' }],
-    security: [{ AdminLogin: [] }],
+    security: [{ AgentToken: [] }],
     components: {
       securitySchemes: {
-        AdminLogin: { type: 'http', scheme: 'basic', description: 'Use the ADMIN_USERNAME and ADMIN_PASSWORD from Settings.' },
+        AgentToken: { type: 'apiKey', in: 'header', name: 'X-Agent-Token' },
+        BearerToken: { type: 'http', scheme: 'bearer' },
       },
     },
     paths: {

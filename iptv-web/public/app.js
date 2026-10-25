@@ -37,7 +37,7 @@
     pages: 1,
     items: [],
     meta: null,
-    proxy: LS.get('iptvweb.proxy', true),
+    proxy: true,
     favorites: LS.get('iptvweb.fav', []),
     recent: LS.get('iptvweb.recent', []),
     playlists: LS.get('iptvweb.playlists', []),
@@ -482,6 +482,7 @@
     player.index = 0;
     player.autoTried = 0;
     $('#player').hidden = false;
+    $('#player').scrollIntoView({ behavior: 'smooth', block: 'start' });
     $('#pName').textContent = item.name;
     $('#pSub').textContent = [item.year || null, item.remarks || null, item.sourceName || null, item.country ? countryLabel(item.country) : null, (item.cats || []).join(', ')].filter(Boolean).join(' · ');
     $('#pLogo').hidden = !item.logo;
@@ -837,13 +838,11 @@
 
     $('#optProxy').addEventListener('change', (e) => {
       state.proxy = e.target.checked;
-      LS.set('iptvweb.proxy', state.proxy);
       $('#pProxy').checked = state.proxy;
       updateProxyNote();
     });
     $('#pProxy').addEventListener('change', (e) => {
       state.proxy = e.target.checked;
-      LS.set('iptvweb.proxy', state.proxy);
       $('#optProxy').checked = state.proxy;
       updateProxyNote();
       play(player.index);
@@ -977,6 +976,20 @@
   }
 
   /* -------------------------------------------------------------------- boot */
+  async function loadGlobalMediaSettings() {
+    try {
+      const response = await fetch('/api/v1/settings/media', { cache: 'no-store' });
+      if (!response.ok) return;
+      const settings = await response.json();
+      if (typeof settings.defaultProxy === 'boolean') {
+        state.proxy = settings.defaultProxy;
+        $('#optProxy').checked = state.proxy;
+        $('#pProxy').checked = state.proxy;
+        updateProxyNote();
+      }
+    } catch {}
+  }
+
   function boot() {
     $('#optProxy').checked = state.proxy;
     $('#pProxy').checked = state.proxy;
@@ -986,6 +999,7 @@
     readHash();
     renderPlaylistList();
     initEvents();
+    loadGlobalMediaSettings();
     loadMeta().then(() => {
       renderMeta();
       load(true);

@@ -4,8 +4,7 @@ const fs = require('fs');
 const path = require('path');
 // Dependency-free CLI for Hermes and other trusted agents. It uses only the documented agent API.
 const DEFAULT_BASE = process.env.IPTV_BASE_URL || 'http://127.0.0.1:3920';
-const ADMIN_USERNAME = process.env.IPTV_ADMIN_USERNAME || process.env.ADMIN_USERNAME || 'admin';
-const ADMIN_PASSWORD = process.env.IPTV_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || '0809';
+const TOKEN = process.env.AGENT_API_TOKEN || '';
 
 function usage() {
   process.stderr.write(`Usage:
@@ -47,7 +46,7 @@ A project commit JSON file can contain:
 
 Environment:
   IPTV_BASE_URL=https://your-private-deployment
-  IPTV_ADMIN_USERNAME=admin (same login as /admin.html)\n  IPTV_ADMIN_PASSWORD=<admin password>
+  AGENT_API_TOKEN=<secret; header only>
 `);
 }
 function baseUrl() {
@@ -57,7 +56,8 @@ function baseUrl() {
   return url.toString().replace(/\/$/, '');
 }
 async function request(path, method = 'GET', body = undefined) {
-  const headers = { Authorization: 'Basic ' + Buffer.from(ADMIN_USERNAME + ':' + ADMIN_PASSWORD).toString('base64'), Accept: 'application/json' };
+  if (!TOKEN) throw new Error('AGENT_API_TOKEN is required; set it in the Hermes process environment, not in shell history.');
+  const headers = { 'X-Agent-Token': TOKEN, Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   let response;
   try {
