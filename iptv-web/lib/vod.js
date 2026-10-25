@@ -119,6 +119,21 @@ function classify(item) {
   if (/电影|动作片|喜剧片|爱情片|科幻片|恐怖片|战争片|犯罪片|悬疑片|剧情片|惊悚片|冒险片|movie|film|feature/.test(category)) return 'movies';
   return 'all';
 }
+
+function isShortForm(item = {}) {
+  const category = text([item.category, item.type_name, item.typeName, item.vod_class, item.type].filter(Boolean).join(' '));
+  const title = text([item.name, item.vod_name, item.title].filter(Boolean).join(' '));
+  const remarks = text([item.remarks, item.vod_remarks, item.state].filter(Boolean).join(' '));
+  const titleText = title.toLowerCase();
+  const remarksText = remarks.toLowerCase();
+  // Provider lists frequently mix a movie catalogue with trailers, promos and
+  // standalone social clips. Keep those out of the feature catalogue.
+  if (/(短视频|短片|预告片|片花|花絮|宣传片|视频剪辑|高光集锦|音乐视频|movie trailer|video clip|shorts? category)/i.test(category)) return true;
+  if (/\b(?:official\s+)?(?:movie\s+)?(?:trailer|teaser|promo(?:tional)?|preview|clip|highlights?|music video|behind the scenes|making of)\b/i.test(title)) return true;
+  if (/\bshort[ _-]+(?:film|movie|video)\b/i.test(title)) return true;
+  if (/\b(?:trailer|teaser|promo(?:tional)?|preview|clip|music video)\b/i.test(remarksText)) return true;
+  return false;
+}
 function parseEpisodes(item) {
   const urlFields = String(item.vod_play_url || item.play_url || item.playUrl || '');
   const sourceNames = String(item.vod_play_from || item.play_from || '').split('$$$');
@@ -318,6 +333,6 @@ function publicSource(source) {
 }
 module.exports = {
   MAX_VOD_SOURCES, KINDS, registryPath, loadSourcesSync, saveSources, ensureDefaultSources,
-  newId, isHttpUrl, normalizeApiUrl, apiQuery, fetchJson, listFrom, classify,
+  newId, isHttpUrl, normalizeApiUrl, apiQuery, fetchJson, listFrom, classify, isShortForm,
   parseEpisodes, normalizeItem, probeSource, preferredListAction, searchSource, getDetail, parseSourceList, redactUrl, publicSource,
 };
