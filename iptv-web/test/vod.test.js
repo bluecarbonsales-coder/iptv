@@ -1,7 +1,11 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const vod = require('../lib/vod');
+const DEFAULT_SOURCES = require('../lib/default-vod-sources');
 
 test('rejects unsupported schemes and embedded URL credentials', () => {
   assert.equal(vod.isHttpUrl('https://example.org/api.php/provide/vod'), true);
@@ -106,4 +110,47 @@ test('prefers the working Apple CMS list action discovered during probing', () =
   assert.equal(vod.preferredListAction({ listAction: 'videolist' }), 'videolist');
   assert.equal(vod.preferredListAction({}), 'videolist');
   assert.equal(vod.preferredListAction(null), 'videolist');
+});
+
+
+test('fresh VOD registry seeds bundled starter providers as enabled', (t) => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'iptv-vod-seed-'));
+  t.after(() => fs.rmSync(dataDir, { recursive: true, force: true }));
+
+  assert.equal(vod.ensureDefaultSources(dataDir), true);
+  const registry = vod.loadSourcesSync(dataDir);
+  assert.equal(registry.defaultsSeeded, true);
+  assert.equal(registry.bundledSourcesEnabled, true);
+  assert.ok(registry.sources.length > 0);
+  assert.ok(registry.sources.every((source) => source.enabled === true));
+});
+
+test('upgrade enables only bundled VOD sources once and preserves custom-source choices', (t) => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'iptv-vod-migrate-'));
+  t.after(() => fs.rmSync(dataDir, { recursive: true, force: true }));
+  const knownApi = DEFAULT_SOURCES[0].api;
+  const registryPath = path.join(dataDir, 'vod-sources.json');
+  fs.writeFileSync(registryPath, JSON.stringify({
+    version: 1,
+    defaultsSeeded: true,
+    sources: [
+      { id: 'bundled-1', name: 'Bundled source', api: knownApi, enabled: false },
+      { id: 'custom-1', name: 'Custom disabled source', api: 'https://custom.example/api.php/provide/vod', enabled: false },
+      { id: 'custom-2', name: 'Custom enabled source', api: 'https://custom2.example/api.php/provide/vod', enabled: true },
+    ],
+  }));
+
+  assert.equal(vod.ensureDefaultSources(dataDir), true);
+  let registry = vod.loadSourcesSync(dataDir);
+  assert.equal(registry.bundledSourcesEnabled, true);
+  assert.equal(registry.sources.find((source) => source.id === 'bundled-1').enabled, true);
+  assert.equal(registry.sources.find((source) => source.id === 'custom-1').enabled, false);
+  assert.equal(registry.sources.find((source) => source.id === 'custom-2').enabled, true);
+
+  // The migration is one-time: an operator can subsequently disable a bundled source.
+  const sources = registry.sources.map((source) => source.id === 'bundled-1' ? { ...source, enabled: false } : source);
+  vod.saveSources(dataDir, sources);
+  assert.equal(vod.ensureDefaultSources(dataDir), false);
+  registry = vod.loadSourcesSync(dataDir);
+  assert.equal(registry.sources.find((source) => source.id === 'bundled-1').enabled, false);
 });
