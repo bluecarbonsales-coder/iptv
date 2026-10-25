@@ -27,11 +27,31 @@ async function loadSources(dataDir) {
   return { sources: [] };
 }
 
-function saveSources(dataDir, sources) {
+function saveSources(dataDir, sources, metadata = {}) {
   fs.mkdirSync(dataDir, { recursive: true });
-  const tmp = sourcesPath(dataDir) + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify({ sources }, null, 2));
-  fs.renameSync(tmp, sourcesPath(dataDir));
+  const target = sourcesPath(dataDir);
+  const tmp = target + '.tmp';
+  let current = {};
+  try {
+    const raw = JSON.parse(fs.readFileSync(target, 'utf8'));
+    if (raw && !Array.isArray(raw) && typeof raw === 'object') current = raw;
+  } catch {}
+  fs.writeFileSync(tmp, JSON.stringify({ ...current, ...metadata, sources }, null, 2));
+  fs.renameSync(tmp, target);
+}
+
+function ensureSourcesEnabled(dataDir) {
+  const registry = loadSourcesSync(dataDir);
+  if (registry.allSourcesEnabledOnce === true) return false;
+  let changed = false;
+  for (const source of registry.sources) {
+    if (source.enabled !== true) {
+      source.enabled = true;
+      changed = true;
+    }
+  }
+  saveSources(dataDir, registry.sources, { allSourcesEnabledOnce: true });
+  return changed;
 }
 
 // Re-read + merge status fields only, so a source added while a background refresh is
@@ -270,6 +290,7 @@ module.exports = {
   loadSources,
   loadSourcesSync,
   saveSources,
+  ensureSourcesEnabled,
   mergeStatuses,
   newId,
   parseRegistrySources,
