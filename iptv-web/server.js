@@ -25,6 +25,9 @@ const { createApi } = require('./lib/api');
 const { serveStatic } = require('./lib/static');
 const { send, sendJson, isPrivateIp, readBody } = require('./lib/util');
 const radioSourceStore = require('./lib/radio-sources');
+const sourceLib = require('./lib/sources');
+const vodLib = require('./lib/vod');
+const platformApiDocs = require('./lib/platform-api-docs');
 const hls = require('./lib/hls');
 const img = require('./lib/img');
 const refreshLib = require('./lib/refresh');
@@ -316,6 +319,222 @@ app.post('/api/refresh', refreshGuard);
 app.get('/hls', hls.handler);
 app.head('/hls', hls.handler);
 app.get('/img', img.handler);
+
+/*
+ * Unified platform API: use /api/v1 for one entry point.
+ * Old routes remain available so existing pages and integrations keep working.
+ */
+app.get('/api/v1', (req, res) => sendJson(req, res, 200, platformApiDocs.describeApi()));
+app.get('/api/v1/openapi.json', (req, res) => sendJson(req, res, 200, platformApiDocs.buildOpenApi()));
+app.get('/api/v1/health', api.health);
+
+function normalizeUnifiedSourceType(raw) {
+  const type = String(raw || '').toLowerCase();
+  if (type === 'radio') return 'radio';
+  if (type === 'iptv' || type === 'live') return 'iptv';
+  if (['theatre', 'theater', 'movie', 'movies', 'vod'].includes(type)) return 'theatre';
+  throw Object.assign(new Error('Source type must be radio, iptv, or theatre.'), { statusCode: 400 });
+}
+
+function unifiedSourceList(type) {
+  if (type === 'radio') return radioSourceStore.list(DATA_DIR);
+  if (type === 'iptv') {
+    return sourceLib.loadSourcesSync(DATA_DIR).sources.map((source) => ({
+      id: source.id,
+      type: 'iptv',
+      name: source.name,
+      url: vodLib.redactUrl(source.url),
+      enabled: source.enabled !== false,
+      count: source.lastCount || 0,
+      streams: source.lastStreamCount || 0,
+      updated: source.lastUpdated || null,
+      error: source.lastError || null,
+    }));
+  }
+  return vodLib.loadSourcesSync(DATA_DIR).sources.map((source) => ({
+    ...vodLib.publicSource(source),
+    type: 'theatre',
+  }));
+}
+
+app.get('/api/v1/sources', adminRoute((req, res) => {
+  sendJson(req, res, 200, {
+    sources: {
+      radio: unifiedSourceList('radio'),
+      iptv: unifiedSourceList('iptv'),
+      theatre: unifiedSourceList('theatre'),
+    },
+  });
+}));
+
+app.get('/api/v1/sources/:type', adminRoute((req, res, params, query) => {
+  try {
+    const type = normalizeUnifiedSourceType(params.type);
+    if (type === 'radio') return sendJson(req, res, 200, { sources: unifiedSourceList(type) });
+    if (type === 'iptv') return api.sourceList(req, res, params, query);
+    return api.listVodSources(req, res, params, query);
+  } catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message }); }
+}));
+
+app.post('/api/v1/sources/:type/enable-all', adminRoute(async (req, res, params) => {
+  try {
+    const type = normalizeUnifiedSourceType(params.type);
+    if (type === 'radio') return sendJson(req, res, 200, { sources: radioSourceStore.enableAll(DATA_DIR) });
+    if (type === 'iptv') return api.enableAllSources(req, res);
+    return api.enableAllVodSources(req, res);
+  } catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message }); }
+}));
+
+app.post('/api/v1/sources/theatre/import', adminRoute((req, res, params, query) => api.importVodSourceList(req, res, params, query)));
+app.post('/api/v1/sources/movies/import', adminRoute((req, res, params, query) => api.importVodSourceList(req, res, params, query)));
+
+app.post('/api/v1/sources/:type', adminRoute(async (req, res, params, query) => {
+  try {
+    const type = normalizeUnifiedSourceType(params.type);
+    if (type === 'radio') {
+      const body = JSON.parse(await readBody(req, 16384));
+      const source = radioSourceStore.add(DATA_DIR, body);
+      return sendJson(req, res, 201, { source, sources: unifiedSourceList(type) });
+    }
+    if (type === 'iptv') return api.addSource(req, res, params, query);
+    return api.addVodSource(req, res, params, query);
+  } catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message || 'Could not add source.' }); }
+}));
+
+app.patch('/api/v1/sources/:type/:id', adminRoute(async (req, res, params, query) => {
+  try {
+    const type = normalizeUnifiedSourceType(params.type);
+    if (type === 'radio') {
+      const body = JSON.parse(await readBody(req, 16384));
+      const source = radioSourceStore.update(DATA_DIR, params.id, body);
+      return sendJson(req, res, 200, { source, sources: unifiedSourceList(type) });
+    }
+    if (type === 'iptv') return api.updateSource(req, res, params, query);
+    return api.updateVodSource(req, res, params, query);
+  } catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message || 'Could not update source.' }); }
+}));
+
+app.delete('/api/v1/sources/:type/:id', adminRoute((req, res, params, query) => {
+  try {
+    const type = normalizeUnifiedSourceType(params.type);
+    if (type === 'radio') {
+      radioSourceStore.remove(DATA_DIR, params.id);
+      return sendJson(req, res, 200, { ok: true, sources: unifiedSourceList(type) });
+    }
+    if (type === 'iptv') return api.deleteSource(req, res, params);
+    return api.deleteVodSource(req, res, params);
+  } catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message || 'Could not delete source.' }); }
+}));
+
+// Media APIs use one naming scheme below /api/v1.
+app.get('/api/v1/iptv/meta', api.meta);
+app.get('/api/v1/iptv/channels', api.channels);
+app.get('/api/v1/iptv/channels/:id', api.channel);
+app.get('/api/v1/iptv/playlist', api.playlist);
+app.get('/api/v1/iptv/playlist.m3u', api.playlistProxied);
+app.get('/api/v1/iptv/export.m3u', api.exportM3u);
+app.post('/api/v1/iptv/refresh', adminRoute((req, res) => api.refreshNow(req, res)));
+
+app.get('/api/v1/radio/stations', radio.stations);
+app.get('/api/v1/radio/options', radio.listOptions);
+app.get('/api/v1/radio/resolve/:uuid', radio.resolveStation);
+app.get('/api/v1/radio/stream/:ticket', radio.stream);
+
+app.get('/api/v1/theatre/titles', api.vodSearch);
+app.get('/api/v1/theatre/titles/:sourceId/:vodId', api.vodDetail);
+
+// Homepage shortcuts and settings share the same admin login under this API.
+app.get('/api/v1/portal/services', portal.list);
+app.get('/api/v1/portal/availability', resourceAvailability.handler);
+app.post('/api/v1/portal/services', adminRoute((req, res, params, query) => portal.add(req, res, params, query)));
+app.patch('/api/v1/portal/services/:id', adminRoute((req, res, params, query) => portal.update(req, res, params, query)));
+app.delete('/api/v1/portal/services/:id', adminRoute((req, res, params, query) => portal.remove(req, res, params, query)));
+app.get('/api/v1/navigation', adminRoute((req, res) => {
+  try { sendJson(req, res, 200, navigationConfig.read()); }
+  catch (err) { sendJson(req, res, err.statusCode || 500, { error: err.message || 'Could not read navigation settings.' }); }
+}));
+app.put('/api/v1/navigation', adminRoute(async (req, res) => {
+  try {
+    const body = JSON.parse(await readBody(req, 32768));
+    sendJson(req, res, 200, navigationConfig.replace(body));
+  } catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message || 'Could not save navigation settings.' }); }
+}));
+
+app.get('/api/v1/metadata/search', metadata.search);
+app.get('/api/v1/metadata/tvmaze', metadata.tvmazeSearch);
+app.get('/api/v1/metadata/title', metadata.title);
+
+// Mail API aliases retain Mail Workspace's own login/session and mailbox rules.
+app.get('/api/v1/mail/session', mail.session);
+app.post('/api/v1/mail/login', mail.login);
+app.post('/api/v1/mail/logout', mail.logout);
+app.get('/api/v1/mail/accounts', mail.accountsList);
+app.post('/api/v1/mail/accounts', mail.accountsAdd);
+app.post('/api/v1/mail/accounts/bulk-password', mail.accountsBulkPassword);
+app.delete('/api/v1/mail/accounts/:id', mail.accountsDelete);
+app.post('/api/v1/mail/accounts/:id/test', mail.accountTest);
+app.get('/api/v1/mail/folders', mail.folders);
+app.get('/api/v1/mail/messages', mail.messages);
+app.get('/api/v1/mail/message', mail.message);
+app.post('/api/v1/mail/send', mail.send);
+app.get('/api/v1/mail/drafts', mail.draftsList);
+app.post('/api/v1/mail/drafts', mail.draftsCreate);
+app.delete('/api/v1/mail/drafts/:id', mail.draftsDelete);
+app.post('/api/v1/mail/drafts/:id/send', mail.draftsSend);
+app.get('/api/v1/mail/contacts', mail.contactsList);
+app.post('/api/v1/mail/contacts', mail.contactsAdd);
+app.patch('/api/v1/mail/contacts/:id', mail.contactsUpdate);
+app.delete('/api/v1/mail/contacts/:id', mail.contactsDelete);
+app.get('/api/v1/mail/audit', mail.auditList);
+
+// Advanced agent operations use the same /api/v1 prefix and their existing X-Agent-Token.
+app.get('/api/v1/agent/openapi.json', agent.openApi);
+app.get('/api/v1/agent/capabilities', agent.capabilities);
+app.get('/api/v1/agent/status', agent.status);
+app.get('/api/v1/agent/settings', agent.settingsView);
+app.patch('/api/v1/agent/settings', agent.settingsUpdate);
+app.get('/api/v1/agent/audit', agent.auditLog);
+app.post('/api/v1/agent/tasks/run', agent.runTask);
+app.get('/api/v1/agent/sources/iptv', agent.liveList);
+app.post('/api/v1/agent/sources/iptv', agent.liveAdd);
+app.patch('/api/v1/agent/sources/iptv/:id', agent.liveUpdate);
+app.delete('/api/v1/agent/sources/iptv/:id', agent.liveDelete);
+app.get('/api/v1/agent/sources/theatre', agent.vodList);
+app.post('/api/v1/agent/sources/theatre', agent.vodAdd);
+app.post('/api/v1/agent/sources/theatre/import', agent.vodImport);
+app.patch('/api/v1/agent/sources/theatre/:id', agent.vodUpdate);
+app.delete('/api/v1/agent/sources/theatre/:id', agent.vodDelete);
+app.get('/api/v1/agent/theatre/search', agent.vodSearch);
+app.get('/api/v1/agent/theatre/titles/:sourceId/:vodId', agent.vodDetail);
+app.get('/api/v1/agent/theatre/archive/search', agent.archiveSearch);
+app.get('/api/v1/agent/theatre/commons/search', agent.commonsSearch);
+app.get('/api/v1/agent/navigation', agent.navigationGet);
+app.put('/api/v1/agent/navigation', agent.navigationReplace);
+app.get('/api/v1/agent/portal/services', agent.portalList);
+app.post('/api/v1/agent/portal/services', agent.portalAdd);
+app.patch('/api/v1/agent/portal/services/:id', agent.portalUpdate);
+app.delete('/api/v1/agent/portal/services/:id', agent.portalDelete);
+app.get('/api/v1/agent/discovery/visitor-trends', agent.visitorTrends);
+app.get('/api/v1/agent/project/status', agent.projectStatus);
+app.get('/api/v1/agent/project/tree', agent.projectTree);
+app.get('/api/v1/agent/project/file', agent.projectFile);
+app.post('/api/v1/agent/project/commit', agent.projectCommit);
+app.post('/api/v1/agent/project/branch', agent.projectBranch);
+app.post('/api/v1/agent/project/pr', agent.projectPullRequest);
+app.post('/api/v1/agent/project/pr/:number/merge', agent.projectMerge);
+app.post('/api/v1/agent/project/dispatch', agent.projectDispatch);
+app.get('/api/v1/agent/project/actions', agent.projectActions);
+app.get('/api/v1/agent/project/checks/:sha', agent.projectChecks);
+app.get('/api/v1/agent/mail/openapi.json', mail.agentOpenApi);
+app.get('/api/v1/agent/mail/accounts', mail.agentAccounts);
+app.get('/api/v1/agent/mail/folders', mail.agentFolders);
+app.get('/api/v1/agent/mail/messages', mail.agentMessages);
+app.get('/api/v1/agent/mail/message', mail.agentMessage);
+app.get('/api/v1/agent/mail/contacts', mail.agentContacts);
+app.get('/api/v1/agent/mail/drafts', mail.agentDrafts);
+app.post('/api/v1/agent/mail/drafts', mail.agentDraftCreate);
+app.post('/api/v1/agent/mail/drafts/:id/send', mail.agentDraftSend);
+
 app.use(staticHandler);
 
 const server = http.createServer((req, res) => {
