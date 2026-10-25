@@ -231,6 +231,8 @@ app.post('/api/agent/v1/mail/drafts/:id/send', mail.agentDraftSend);
 
 // Movie metadata search and title enrichment (API keys remain server-side).
 app.get('/api/metadata/search', metadata.search);
+app.get('/api/metadata/discover', metadata.discover);
+app.get('/api/metadata/index', metadata.index);
 app.get('/api/metadata/tvmaze', metadata.tvmazeSearch);
 app.get('/api/metadata/title', metadata.title);
 
@@ -487,6 +489,8 @@ app.put('/api/v1/navigation', adminRoute(async (req, res) => {
 }));
 
 app.get('/api/v1/metadata/search', metadata.search);
+app.get('/api/v1/metadata/discover', metadata.discover);
+app.get('/api/v1/metadata/index', metadata.index);
 app.get('/api/v1/metadata/tvmaze', metadata.tvmazeSearch);
 app.get('/api/v1/metadata/title', metadata.title);
 
