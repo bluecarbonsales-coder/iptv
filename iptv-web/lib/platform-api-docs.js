@@ -151,7 +151,10 @@ function buildOpenApi() {
     };
     if (auth === 'admin') operation.security = [{ AdminLogin: [] }];
     if (auth === 'agent') operation.security = [{ AgentToken: [] }];
-    if (auth === 'mail') operation.description = summary + '. Uses the Mail Workspace session after POST /mail/login.';
+    if (auth === 'mail') {
+      operation.description = summary + '. Uses the Mail Workspace session after POST /mail/login.';
+      operation.security = [{ MailSession: [] }];
+    }
     const pathParameters = [...key.matchAll(/\{([^}]+)\}/g)].map((match) => ({
       name: match[1], in: 'path', required: true, schema: { type: 'string' },
     }));
