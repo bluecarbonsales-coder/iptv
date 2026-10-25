@@ -16,7 +16,7 @@ Set these in the deployment environment, not in prompts, chats, browser URLs, or
 - `VOD_SOURCE_LIST_URLS`: the default maintained TVboxorg registry is preconfigured on a fresh deployment; set comma/newline-separated URLs here to replace it with your own registry set.
 - `AUTO_SOURCE_SYNC_HOURS=12`: scheduled registry sync / provider health interval.
 
-Use HTTP Basic admin credentials (`ADMIN_USERNAME` / `ADMIN_PASSWORD`, the same as `/admin.html`) for protected `/api/agent/v1/*` requests. X-Agent-Token and Bearer-token API authentication are disabled. Keep the service behind private Cloudflare Access or equivalent access control; its Docker port must stay bound to loopback.
+Use HTTP Basic admin credentials (`ADMIN_USERNAME` / `ADMIN_PASSWORD`, the same as `/admin.html`) for protected `/api/agent/v1/*` requests. X-Agent-Token and Bearer-token authentication are disabled. With curl, use `-u "$ADMIN_USERNAME:$ADMIN_PASSWORD"`; never put credentials in a URL. Keep the service behind private Cloudflare Access or equivalent access control; its Docker port must stay bound to loopback.
 
 Start each session with:
 
@@ -32,7 +32,7 @@ Run a maintenance cycle with:
 
 ```http
 POST /api/agent/v1/tasks/run
-X-Agent-Token: <secret>
+Authorization: Basic <base64(ADMIN_USERNAME:ADMIN_PASSWORD)>
 Content-Type: application/json
 
 {"task":"maintain_sources"}
