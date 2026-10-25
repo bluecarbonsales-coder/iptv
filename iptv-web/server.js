@@ -111,6 +111,7 @@ const sourceAvailability = createResourceAvailability({
   },
   timeoutMs: 2500,
   concurrency: 12,
+  maxChecks: 900,
   refreshMs: 60_000,
 });
 const radio = createRadioApi({ dataDir: DATA_DIR });
