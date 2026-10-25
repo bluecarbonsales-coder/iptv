@@ -50,7 +50,7 @@ test('server exposes basic username/password protected APIs for each source type
   assert.match(server, /app\.get\('\/api\/v1\/sources',/);
   assert.match(server, /app\.get\('\/api\/v1\/sources\/health',/);
   assert.match(server, /app\.put\('\/api\/v1\/settings\/media',/);
-  assert.match(server, /API tokens are disabled/);
+  assert.match(server, /token authentication is disabled/);
   assert.match(server, /app\.post\('\/api\/v1\/sources\/:type',/);
   assert.match(server, /app\.patch\('\/api\/v1\/sources\/:type\/:id',/);
   assert.match(server, /app\.delete\('\/api\/v1\/sources\/:type\/:id',/);
