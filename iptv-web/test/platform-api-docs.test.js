@@ -13,6 +13,8 @@ test('the platform has one common API base and a machine-readable OpenAPI docume
   assert.equal(spec.servers[0].url, '/api/v1');
   assert.ok(spec.components.securitySchemes.AdminLogin);
   assert.ok(spec.paths['/agent/status'].get.security[0].AdminLogin);
+  assert.equal(spec.components.securitySchemes.AgentToken, undefined);
+  assert.equal(spec.components.securitySchemes.MailSession.name, 'mail_workspace_session');
   assert.ok(spec.paths['/sources']);
 });
 
