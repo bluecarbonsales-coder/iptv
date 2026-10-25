@@ -19,3 +19,16 @@ The portal seeds the following community-maintained playlist URLs into the persi
 - A source being enabled does not guarantee every channel is reachable, compatible with the user's network, or authorized for redistribution. Check the source's terms and local law.
 
 To change community defaults, edit `data/community-playlist-sources.json`. The entrypoint re-merges the defaults at every container start; the normal live playlist refresh fetches the latest content from the upstream URLs.
+
+
+## Optional music search and downloader
+
+The media stack includes a separate `music-dl` service using the upstream
+[go-music-dl](https://github.com/guohuiyuan/go-music-dl) container image. It is
+linked into Theatre at `/music/` through the internal Docker network proxy;
+the service itself is published only on host loopback (`127.0.0.1:8081`) and
+uses its own named `music-data` volume. The service is independent of the IPTV
+playlist and VOD catalogues. Preserve `music-data` across upgrades.
+
+Use this tool only for music you are authorized to access and download. Upstream
+music platform availability and download permissions vary by source and region.
