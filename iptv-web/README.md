@@ -30,7 +30,7 @@ The root path `/` is now a configurable service portal, not a player-specific la
 
 The initial directory includes the player, known Nafisa service shortcuts, and examples such as ChatGPT, GitHub, Cloudflare, YouTube, and Wikipedia. Edit or delete any example to match the services you actually use. It also includes **SeedHub** and the official **Streambert** project link under *Media resources*. SeedHub is a web catalog; Streambert is a desktop-app repository—not an Apple CMS/MacCMS VOD API—so these are external shortcuts rather than falsely advertised native providers. Service definitions persist in `DATA_DIR/portal-services.json` (in Docker, `/data/portal-services.json`), separate from the image and preserved with the existing data volume.
 
-To manage homepage shortcuts, choose **Manage links** and use the shortcut-management token configured in the server environment. This is only for links on the homepage. To manage media sources, open **`/admin.html`** and use **`admin / 0809`**; Radio, IPTV, and Theatre source management does not need an API token. The shortcut-management token is kept only in page memory and is not written to local storage. Management calls use the API below:
+To manage homepage shortcuts, use the unified `/api/v1/portal/services` endpoints from the Settings API tab and sign in with the Settings admin username/password. Token-only calls to the old `/api/portal/services` mutations are no longer accepted. To manage media sources, open **`/admin.html`** and use **`admin / 0809`**; Radio, IPTV, and Theatre source management does not need an API token. The shortcut-management token is kept only in page memory and is not written to local storage. Management calls use the API below:
 
 | Route | Purpose |
 |---|---|
@@ -189,26 +189,13 @@ The original endpoints listed below remain available for backward compatibility.
 | `GET /api/sources` | disabled legacy token route; use `/api/v1/sources` with admin login |
 | `POST /api/sources` | disabled legacy token route; use `/api/v1/sources/iptv` with admin login |
 | `PATCH /api/sources/:id` | disabled legacy token route; use `/api/v1/sources/iptv/:id` with admin login |
-| `DELETE /api/sources/:id` | delete a resource (requires `X-Source-Token`) |
+| `DELETE /api/sources/:id` | disabled legacy token route; use `/api/v1/sources/iptv/:id` with admin login |
 | `GET /api/playlist.m3u?u=` | the same playlist rewritten through `/hls` |
 | `GET /api/export.m3u` | current filters as a downloadable playlist (`&proxy=1` to relay) |
 | `POST /api/refresh` | re-download the iptv-org API and rebuild the catalogue |
 | `GET /hls?u=&r=&ua=` | HLS manifest + segment relay (see above) |
 | `GET /img?u=` | channel-logo relay with a disk cache |
-| `GET /api/agent/v1/openapi.json` | OpenAPI schema for agent control |
-| `GET /api/agent/v1/capabilities` | capabilities, autonomy policy, source limits |
-| `GET /api/agent/v1/status` | live catalog, source/provider health, automation status |
-| `GET /api/agent/v1/audit?limit=50` | recent automation/agent audit events |
-| `GET /api/agent/v1/project/status` | repository identity, permissions, workflows and GitHub-token readiness |
-| `GET /api/agent/v1/project/tree?path=&ref=` | inspect a branch's repository tree |
-| `GET /api/agent/v1/project/file?path=&ref=` | read any tracked repository file |
-| `POST /api/agent/v1/project/commit` | commit multi-file edits/deletions to any branch and optionally open a PR |
-| `POST /api/agent/v1/project/branch` | create a project branch |
-| `POST /api/agent/v1/project/pr` | create a pull request |
-| `POST /api/agent/v1/project/pr/:number/merge` | merge a pull request after validation |
-| `GET /api/agent/v1/project/actions?branch=` | inspect CI/deployment runs |
-| `GET /api/agent/v1/project/checks/:sha` | inspect commit checks |
-| `POST /api/agent/v1/project/dispatch` | trigger a configured GitHub Actions workflow, including deployment |
+Legacy `/api/agent/v1/*` routes previously listed in this section are disabled (HTTP 410) because they depended on API tokens. Use `/api/v1/agent/*` with the same admin username and password as Settings. Repository/GitHub operations still need the server-side GitHub integration configured, but API callers do not send GitHub or agent tokens.
 
 | `GET /api/agent/v1/archive/search?q=&type=` | search Internet Archive public-domain/CC candidates |
 | `GET /api/agent/v1/commons/search?q=&type=` | search open-license video files on Wikimedia Commons |
