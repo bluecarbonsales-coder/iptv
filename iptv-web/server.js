@@ -578,7 +578,22 @@ app.get('/api/v1/agent/mail/drafts', unifiedAgent(mail.agentDrafts));
 app.post('/api/v1/agent/mail/drafts', unifiedAgent(mail.agentDraftCreate));
 app.post('/api/v1/agent/mail/drafts/:id/send', unifiedAgent(mail.agentDraftSend));
 
-app.use(staticHandler);
+app.use(async (req, res) => {
+  const pathname = (() => {
+    try { return new URL(req.url, 'http://localhost').pathname; }
+    catch { return req.url.split('?')[0]; }
+  })();
+  if (req.method === 'OPTIONS' && (pathname === '/api/v1' || pathname.startsWith('/api/v1/'))) {
+    res.writeHead(204, {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PATCH, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Agent-Token, X-Source-Token, X-Refresh-Token',
+      'Access-Control-Max-Age': '600',
+    });
+    return res.end();
+  }
+  return staticHandler(req, res);
+});
 
 const server = http.createServer((req, res) => {
   const started = Date.now();
