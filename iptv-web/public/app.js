@@ -25,6 +25,7 @@
     view: 'all',
     q: '',
     country: '',
+    language: 'eng',
     cats: new Set(),
     minQuality: 0,
     sort: 'name',
@@ -90,6 +91,11 @@
     const hit = (state.meta && state.meta.countries ? state.meta.countries : []).find((c) => c.code === code);
     return hit ? hit.name : code;
   }
+  function languageLabel(code) {
+    if (!code) return '';
+    const hit = (state.meta && state.meta.languages ? state.meta.languages : []).find((language) => language.code === code);
+    return hit ? hit.name : code.toUpperCase();
+  }
 
   /* ------------------------------------------------------------------ meta */
   async function loadMeta() {
@@ -112,6 +118,16 @@
         .map((c) => `<option value="${esc(c.code)}">${c.flag || ''} ${esc(c.name)} · ${c.count}</option>`)
         .join('');
     countrySel.value = cur;
+
+    const languageSel = $('#language');
+    const languages = m.languages || [];
+    if (!languages.some((language) => language.code === state.language) && languages.length && state.language === 'eng') {
+      state.language = languages[0].code;
+    }
+    languageSel.innerHTML = `<option value="">${esc(t('allLanguages'))}</option>` + languages
+      .map((language) => `<option value="${esc(language.code)}">${esc(language.name)} · ${language.count}</option>`)
+      .join('');
+    languageSel.value = state.language;
 
     const cats = $('#cats');
     const active = state.cats;
@@ -149,6 +165,7 @@
     const p = new URLSearchParams();
     if (state.q) p.set('q', state.q);
     if (state.country) p.set('country', state.country);
+    if (state.language) p.set('language', state.language);
     if (state.cats.size) p.set('category', Array.from(state.cats).join(','));
     if (state.minQuality) p.set('minQuality', state.minQuality);
     if (state.hasLogo) p.set('hasLogo', '1');
@@ -266,6 +283,7 @@
     const n = state.total.toLocaleString();
     $('#resultCount').innerHTML = `<b>${n}</b> ${t('channels')}`;
     if (state.q) bits.push(`<span class="af">🔎 <b>${esc(state.q)}</b></span>`);
+    if (state.language) bits.push(`<span class="af">🌐 <b>${esc(languageLabel(state.language))}</b></span>`);
     if (state.country) bits.push(`<span class="af">${flagFor(state.country)} <b>${esc(countryLabel(state.country))}</b></span>`);
     for (const c of state.cats) bits.push(`<span class="af"><b>${esc(c)}</b></span>`);
     if (state.minQuality) bits.push(`<span class="af"><b>${state.minQuality}p+</b></span>`);
@@ -303,7 +321,7 @@
       <div class="thumb">${logo ? `<img loading="lazy" src="${esc(logo)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'ini',textContent:'${esc(initials(it.name))}'}))">` : `<div class="ini">${esc(initials(it.name))}</div>`}</div>
       <div class="meta">
         <div class="nm" title="${esc(it.name)}">${esc(it.name)}</div>
-        <div class="sub">${it.country ? `<span>${flagFor(it.country)} ${esc(it.country)}</span>` : ''}${badges.join('')}</div>
+        <div class="sub">${(it.languages || []).length ? `<span>${esc(it.languages.slice(0, 2).map(languageLabel).join(' · '))}</span>` : ''}${it.country ? `<span class="muted">${flagFor(it.country)} ${esc(countryLabel(it.country))}</span>` : ''}${badges.join('')}</div>
       </div>
       <button class="fav${fav ? ' on' : ''}" data-fav="${esc(it.id)}" title="${t('tabFavorites')}">${fav ? '★' : '☆'}</button>
     </article>`;
@@ -361,6 +379,7 @@
     if (state.view !== 'all') p.set('v', state.view);
     if (state.q) p.set('q', state.q);
     if (state.country) p.set('c', state.country);
+    if (state.language && state.language !== 'eng') p.set('lang', state.language);
     if (state.cats.size) p.set('g', Array.from(state.cats).join(','));
     if (state.minQuality) p.set('q2', state.minQuality);
     if (state.hasLogo) p.set('l', '1');
@@ -378,6 +397,7 @@
       $('#q').value = state.q;
     }
     if (p.get('c')) state.country = p.get('c');
+    if (p.has('lang')) state.language = p.get('lang');
     if (p.get('g')) state.cats = new Set(p.get('g').split(',').filter(Boolean));
     if (p.get('q2')) {
       state.minQuality = parseInt(p.get('q2'), 10) || 0;
@@ -488,7 +508,6 @@
        .map((s, i) => `<option value="${i}">${i + 1}. ${esc(s.title || s.quality || 'auto')}${s.labels && s.labels.length ? ' · ' + esc(s.labels.join('/')) : ''} — ${esc((s.url || '').slice(0, 58))}</option>`)
       .join('');
     sel.value = '0';
-    $('#pOpen').href = player.sources[0].url;
     pushRecent(item.id);
     play(0);
   }
@@ -539,7 +558,6 @@
     const video = $('#video');
     const relay = $('#pProxy').checked;
     const target = relay ? proxyUrl(src) : src.url;
-    $('#pOpen').href = relay ? proxyUrl(src) : src.url;
     $('#pQuality').innerHTML = '<option value="-1">Auto</option>';
     setStatus(src.quality ? `${src.quality} · ${relay ? 'relay' : 'direct'}` : relay ? 'relay' : 'direct');
 
@@ -772,6 +790,10 @@
       state.country = e.target.value;
       applyFilters();
     });
+    $('#language').addEventListener('change', (e) => {
+      state.language = e.target.value;
+      applyFilters();
+    });
     $('#countrySearch').addEventListener('input', (e) => {
       const term = e.target.value.toLowerCase();
       $$('#country option').forEach((o) => {
@@ -798,12 +820,14 @@
     $('#resetFilters').onclick = () => {
       state.q = '';
       state.country = '';
+      state.language = 'eng';
       state.cats.clear();
       state.minQuality = 0;
       state.hasLogo = false;
       state.sort = 'name';
       $('#q').value = '';
       $('#country').value = '';
+      $('#language').value = 'eng';
       $('#minQuality').value = '0';
       $('#sort').value = 'name';
       $('#optLogo').checked = false;

@@ -8,7 +8,20 @@ const path = require('path');
 const zlib = require('zlib');
 const { QUALITY_HEIGHT } = require('./catalog');
 
-const FILES = ['channels.json', 'streams.json', 'logos.json', 'categories.json', 'countries.json'];
+const FILES = ['channels.json', 'streams.json', 'logos.json', 'categories.json', 'countries.json', 'languages.json'];
+
+const LANGUAGE_PRIORITY = [
+  'eng', 'zho', 'hin', 'spa', 'ara', 'fra', 'ben', 'por', 'ind', 'urd', 'rus',
+  'deu', 'jpn', 'pan', 'jav', 'kor', 'vie', 'mar', 'tel', 'tam', 'tur', 'ita',
+  'fas', 'pol', 'ukr', 'nld', 'tha', 'swa', 'nep', 'ell', 'swe', 'hau', 'amh', 'yor',
+];
+const LANGUAGE_ALIASES = { chi: 'zho', cmn: 'zho', fre: 'fra', ger: 'deu', dut: 'nld', per: 'fas', gre: 'ell', cze: 'ces', rum: 'ron', slo: 'slk', alb: 'sqi', may: 'msa', bur: 'mya', tib: 'bod', ice: 'isl', wel: 'cym' };
+function languageRank(code) {
+  const normalized = String(code || '').trim().toLowerCase();
+  const canonical = LANGUAGE_ALIASES[normalized] || normalized;
+  const index = LANGUAGE_PRIORITY.indexOf(canonical);
+  return index < 0 ? LANGUAGE_PRIORITY.length : index;
+}
 
 const SOURCES = [
   'https://iptv-org.github.io/api/',
@@ -56,6 +69,7 @@ function pickLogo(logosForChannel) {
 function build(api, stats) {
   const countries = new Map((api['countries.json'] || []).map((c) => [c.code, c]));
   const categories = new Map((api['categories.json'] || []).map((c) => [c.id, c]));
+  const languages = new Map((api['languages.json'] || []).map((language) => [String(language.code || '').toLowerCase(), language]));
 
   const logosByChannel = new Map();
   for (const l of api['logos.json'] || []) {
@@ -110,6 +124,7 @@ function build(api, stats) {
       name: ch.name,
       alt: (ch.alt_names || []).slice(0, 4),
       country: ch.country || null,
+      languages: [...new Set((Array.isArray(ch.languages) ? ch.languages : []).map((code) => String(code || '').trim().toLowerCase()).filter((code) => /^[a-z]{2,3}$/.test(code)))],
       cats: ch.categories || [],
       nsfw: !!ch.is_nsfw,
       network: ch.network || null,
@@ -126,11 +141,13 @@ function build(api, stats) {
 
   // meta: only the facets that actually occur, with counts
   const cCount = new Map();
+  const languageCount = new Map();
   const catCount = new Map();
   const qCount = new Map();
   let streamTotal = 0;
   for (const c of channels) {
     if (c.country) cCount.set(c.country, (cCount.get(c.country) || 0) + 1);
+    for (const language of c.languages || []) languageCount.set(language, (languageCount.get(language) || 0) + 1);
     for (const cat of c.cats) catCount.set(cat, (catCount.get(cat) || 0) + 1);
     for (const s of c.streams) {
       streamTotal++;
@@ -150,6 +167,15 @@ function build(api, stats) {
         count,
       }))
       .sort((a, b) => a.name.localeCompare(b.name)),
+    languages: [...languageCount.entries()]
+      .map(([code, count]) => ({
+        code,
+        name: (languages.get(code) || {}).name || code.toUpperCase(),
+        count,
+        rank: languageRank(code),
+      }))
+      .sort((a, b) => a.rank - b.rank || b.count - a.count || a.name.localeCompare(b.name))
+      .map(({ rank, ...language }) => language),
     categories: [...catCount.entries()]
       .map(([id, count]) => ({ id, name: (categories.get(id) || {}).name || id, count }))
       .sort((a, b) => b.count - a.count),
