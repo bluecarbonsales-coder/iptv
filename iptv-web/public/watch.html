@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>IPTV Web — watch free live TV from iptv-org</title>
-    <meta name="description" content="Browse 10,000+ free live TV channels from the iptv-org project and watch them right in your browser." />
+    <title>IPTV — Browse channels by language</title>
+    <meta name="description" content="Browse IPTV channels by language, beginning with the world's most widely used languages, and watch streams embedded in your browser." />
     <meta name="theme-color" content="#0b0d12" />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%233b82f6'/%3E%3Cpath d='M12 9.5v13l11-6.5z' fill='white'/%3E%3C/svg%3E" />
     <link rel="stylesheet" href="/app.css" />
@@ -50,6 +50,12 @@
       <aside class="sidebar" id="sidebar">
         <div class="side-block" id="channelFilters">
           <div class="side-head"><span data-i18n="filters">Filters</span><button class="link-btn" id="resetFilters" data-i18n="reset">Reset</button></div>
+
+          <label class="field">
+            <span data-i18n="language">Language</span>
+            <select id="language"><option value="eng">English</option></select>
+            <p class="hint">Choose a language to browse its channels. Languages are ordered by broad worldwide usage, then channel count.</p>
+          </label>
 
           <label class="field">
             <span data-i18n="country">Country</span>
@@ -138,7 +144,7 @@
       <main class="main" id="main">
         <div class="mobile-section-nav">
           <label class="field"><span class="sr-only">Section</span><select id="mobileView" aria-label="Browse section">
-            <option value="all">Live channels</option>
+            <option value="all">IPTV channels</option>
 
             <option value="favorites">Favourites</option>
             <option value="recent">Recent</option>
@@ -171,7 +177,6 @@
             <button class="icon-btn" id="pFav" title="Favourite">☆</button>
             <button class="icon-btn" id="pReload" title="Reload stream">⟳</button>
             <button class="icon-btn" id="pCopy" title="Copy stream URL">⧉</button>
-            <a class="icon-btn" id="pOpen" target="_blank" rel="noopener" title="Open stream in a new tab">↗</a>
           </div>
         </div>
 
