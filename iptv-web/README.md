@@ -134,6 +134,8 @@ The whole site is available under one base path:
 - **Full API definition:** `/api/v1/openapi.json`
 - **Absolute base URL:** `https://iptv.nafisainternational.com/api/v1` (replace the domain when self-hosting)
 
+The common API supports browser CORS preflight (`OPTIONS`) so another web app can call it. Public reads and playback are open; management endpoints use the same admin Basic login as Settings.
+
 The Settings page at `/admin.html` has an **API** tab. It lists the endpoint groups and includes a small request tester. You can also connect another app to these endpoints directly.
 
 Source management and advanced endpoints under `/api/v1` use the same simple login as the Settings page. Send HTTP Basic authentication using the admin username and password documented at the top of this README. The username/password can be changed with `ADMIN_USERNAME` and `ADMIN_PASSWORD`. Normal public reading and playback endpoints do not require that login. Mail endpoints use the Mail Workspace login/session. Older `/api/agent/v1/*` URLs remain available for existing integrations and continue to use `X-Agent-Token`.
