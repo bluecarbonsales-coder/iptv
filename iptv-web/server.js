@@ -122,7 +122,7 @@ function refreshGuard(req, res, params, query) {
   return api.refreshNow(req, res, params, query);
 }
 
-// Agent-native API: header-authenticated, machine-readable, audited, and autonomy-gated.
+// Agent API: uses the same admin login as Settings; token and bearer authentication are disabled.
 app.get('/api/agent/v1/openapi.json', agent.openApi);
 app.get('/api/agent/v1/project/status', agent.projectStatus);
 app.get('/api/agent/v1/project/tree', agent.projectTree);
