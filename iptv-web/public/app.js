@@ -36,7 +36,7 @@
     pages: 1,
     items: [],
     meta: null,
-    proxy: LS.get('iptvweb.proxy', true),
+    proxy: LS.get('iptvweb.proxy', false),
     favorites: LS.get('iptvweb.fav', []),
     recent: LS.get('iptvweb.recent', []),
     playlists: LS.get('iptvweb.playlists', []),
@@ -416,6 +416,7 @@
     index: 0,
     item: null,
     autoTried: 0,
+    isVod: false,
   };
 
   async function buildSources(item) {
@@ -461,7 +462,13 @@
     player.item = item;
     player.index = 0;
     player.autoTried = 0;
+    player.isVod = !!item.vod;
     $('#player').hidden = false;
+    $('#episodeBar').hidden = !player.isVod;
+    $('#sourceControl').hidden = player.isVod;
+    $('#playbackOptions').open = false;
+    $('#pEpisode').innerHTML = '';
+    $('#pProxy').checked = !!state.proxy;
     $('#pName').textContent = item.name;
     $('#pSub').textContent = [item.year || null, item.remarks || null, item.sourceName || null, item.country ? countryLabel(item.country) : null, (item.cats || []).join(', ')].filter(Boolean).join(' · ');
     $('#pLogo').hidden = !item.logo;
@@ -485,9 +492,15 @@
     }
     const sel = $('#pSource');
     sel.innerHTML = player.sources
-       .map((s, i) => `<option value="${i}">${i + 1}. ${esc(s.title || s.quality || 'auto')}${s.labels && s.labels.length ? ' · ' + esc(s.labels.join('/')) : ''} — ${esc((s.url || '').slice(0, 58))}</option>`)
+      .map((s, i) => `<option value="${i}">${i + 1}. ${esc(s.title || s.quality || 'Source ' + (i + 1))}${s.labels && s.labels.length ? ' · ' + esc(s.labels.join('/')) : ''}</option>`)
       .join('');
     sel.value = '0';
+    const episodeSel = $('#pEpisode');
+    episodeSel.innerHTML = player.sources.map((s, i) => {
+      const title = s.title || ('Episode ' + (i + 1));
+      return `<option value="${i}">${i + 1}. ${esc(title)}</option>`;
+    }).join('');
+    $('#episodeCount').textContent = player.isVod ? `${player.sources.length} episodes` : '';
     $('#pOpen').href = player.sources[0].url;
     pushRecent(item.id);
     play(0);
@@ -536,12 +549,20 @@
     if (!src) return;
     player.index = index;
     destroyHls();
+    if (player.isVod) $('#pEpisode').value = String(index);
+    else $('#pSource').value = String(index);
+    $('#episodePrev').disabled = index <= 0;
+    $('#episodeNext').disabled = index >= player.sources.length - 1;
 
     const video = $('#video');
     const relay = $('#pProxy').checked;
     const target = relay ? proxyUrl(src) : src.url;
     $('#pOpen').href = relay ? proxyUrl(src) : src.url;
     $('#pQuality').innerHTML = '<option value="-1">Auto</option>';
+    if (player.isVod) {
+      const episodeTitle = src.title || ('Episode ' + (index + 1));
+      $('#pSub').textContent = [player.item && player.item.sourceName, episodeTitle, (index + 1) + ' / ' + player.sources.length].filter(Boolean).join(' · ');
+    }
     setStatus(src.quality ? `${src.quality} · ${relay ? 'relay' : 'direct'}` : relay ? 'relay' : 'direct');
 
     if (!relay && /^http:\/\//i.test(src.url) && location.protocol === 'https:') {
@@ -871,7 +892,7 @@
       LS.set('iptvweb.proxy', state.proxy);
       $('#optProxy').checked = state.proxy;
       updateProxyNote();
-      play(player.index);
+      if (player.item) play(player.index);
     });
 
     $('#channelPagination').addEventListener('click', (event) => {
@@ -1142,6 +1163,13 @@
       }
     };
     $('#pSource').addEventListener('change', (e) => play(parseInt(e.target.value, 10) || 0));
+    $('#pEpisode').addEventListener('change', (e) => play(parseInt(e.target.value, 10) || 0));
+    $('#episodePrev').addEventListener('click', () => {
+      if (player.sources.length) play(Math.max(0, player.index - 1));
+    });
+    $('#episodeNext').addEventListener('click', () => {
+      if (player.sources.length) play(Math.min(player.sources.length - 1, player.index + 1));
+    });
     $('#pQuality').addEventListener('change', (e) => {
       if (player.hls) {
         const v = parseInt(e.target.value, 10);
