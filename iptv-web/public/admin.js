@@ -228,8 +228,6 @@
     }
     const headers = {};
     if (state.auth) headers.Authorization = 'Basic ' + state.auth;
-    const agentToken = $('#apiAgentToken').value.trim();
-    if (agentToken) headers['X-Agent-Token'] = agentToken;
     const bodyText = $('#apiBody').value.trim();
     let body;
     if (['POST', 'PATCH', 'PUT'].includes(method) && bodyText) {
