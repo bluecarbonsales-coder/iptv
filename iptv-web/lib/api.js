@@ -405,7 +405,9 @@ function createApi(catalog, refresh, dataDir) {
 
     const registry = vodLib.loadSourcesSync(sourceDataDir);
     const sources = registry.sources.filter((s) => s.enabled !== false && (kind === 'all' || s.kind === kind || s.kind === 'all'));
-    const archiveSearch = sources.length === 0 && !['series', 'documentary'].includes(kind)
+    // Always include the license-filtered Archive catalogue for movie/anime searches.
+    // It remains available even when configured providers return no results or fail.
+    const archiveSearch = !['series', 'documentary'].includes(kind)
       ? archiveLib.search(term, kind, 30)
       : null;
     const [results, archiveResults] = await Promise.all([
@@ -453,10 +455,10 @@ function createApi(catalog, refresh, dataDir) {
       }
     });
 
-    // With no operator-configured VOD provider enabled, use the Internet Archive's
-    // explicitly public-domain / compatible Creative Commons catalogue as a fallback.
-    // We never automatically enable third-party scrape APIs; the Archive source is
-    // license-filtered and does not replace any provider the operator configured.
+    // Internet Archive is a built-in, always-on source for movie/anime searches.
+    // Its own metadata must declare public-domain or compatible Creative Commons rights.
+    // Configured providers are still searched alongside it; unverified third-party
+    // scrape APIs are not automatically enabled by this change.
     if (archiveResult) {
       if (archiveResult.status !== 'fulfilled') {
         errors.push({ source: 'Internet Archive (open-license fallback)', error: String(archiveResult.reason && archiveResult.reason.message || 'archive search failed').slice(0, 180) });
