@@ -119,7 +119,7 @@ play fine through it.
 - **M3U export** — `/api/export.m3u` mirrors the current filters, and can emit either the
   original stream URLs or relay URLs (`&proxy=1`) for use in VLC/Kodi.
 - **Bilingual UI** — English / 简体中文.
-- **Service portal homepage** — configurable service directory at `/`, with `/watch.html` preserving the IPTV player; persistent links, category filters, search, and token-protected link management.
+- **Service portal homepage** — configurable service directory at `/`, with `/watch.html` preserving the IPTV player; persistent links, category filters, search, and link management through Settings.
 - **Resource availability and fastest-response recommendation** — a status badge on every home-page shortcut, HTTP latency checks, and an automatically updated recommendation among the media resources.
 - **World radio** — `/radio.html`, searchable Radio Browser directory, station filters, persistent favorites, HLS playback, and limited fallback relay for incompatible HTTP/HTTPS streams.
 - **No dependencies** — plain Node stdlib, no npm install, no build step.
