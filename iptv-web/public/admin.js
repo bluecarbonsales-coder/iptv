@@ -54,6 +54,10 @@
     const key = sourceHealthKey(section, source);
     let url = source.url || source.api || '';
     if (!url && section === 'radio' && source.id === 'radio-browser') url = 'https://de1.api.radio-browser.info/json/stats';
+    if (!url || url.includes('?[query-redacted]')) {
+      state.directHealth.set(key, { status: 'n/a', available: null, latencyMs: null });
+      return;
+    }
     try {
       const parsed = new URL(url, location.href);
       if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('unsupported URL');
