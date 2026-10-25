@@ -56,6 +56,7 @@ test('Settings compares browser and server source availability without agent-tok
   const api = fs.readFileSync(path.join(root, 'lib', 'api.js'), 'utf8');
   const agent = fs.readFileSync(path.join(root, 'lib', 'agent.js'), 'utf8');
   const portal = fs.readFileSync(path.join(root, 'lib', 'portal.js'), 'utf8');
+  const portalUi = fs.readFileSync(path.join(root, 'public', 'portal.js'), 'utf8');
   assert.match(html, /id="sourceHealthSummary"/);
   assert.match(html, /id="refreshSourceHealth"/);
   assert.match(js, /\/api\/v1\/sources\/health/);
@@ -66,6 +67,8 @@ test('Settings compares browser and server source availability without agent-tok
   assert.match(api, /Token-based source management has been disabled/);
   assert.match(agent, /Token-based agent access is disabled/);
   assert.match(portal, /Token-based portal management is disabled/);
+  assert.doesNotMatch(portalUi, /X-Source-Token|SOURCE_TOKEN|AGENT_API_TOKEN/);
+  assert.match(portalUi, /location\.assign\('\/admin\.html'\)/);
   assert.match(server, /app\.post\('\/api\/portal\/services', adminRoute\(portal\.add\)\)/);
   assert.match(server, /Sign in at \/admin\.html to refresh the catalogue\. Token access is disabled/);
 });
