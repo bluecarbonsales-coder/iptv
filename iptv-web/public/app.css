@@ -219,8 +219,9 @@ select option { background: var(--bg-2); }
 .loadmore { display: flex; justify-content: center; padding: 22px 0; }
 
 /* ---------- player ---------- */
-.player { position: fixed; inset: 0; background: rgba(4, 6, 10, 0.86); backdrop-filter: blur(6px); z-index: 60; display: grid; place-items: center; padding: 18px; }
-.player-shell { width: min(1180px, 100%); max-height: calc(100vh - 36px); display: flex; flex-direction: column; background: var(--bg-2); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; }
+.player { position: relative; inset: auto; width: min(1180px, calc(100% - 32px)); margin: 18px auto 28px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 16px; display: grid; place-items: center; padding: 10px; scroll-margin-top: 84px; }
+.player[hidden] { display: none !important; }
+.player-shell { width: 100%; max-height: none; display: flex; flex-direction: column; background: var(--bg-2); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; }
 .player-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
 .p-title { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
 .p-logo { width: 36px; height: 36px; object-fit: contain; background: #0e1118; border-radius: 8px; border: 1px solid var(--line); padding: 3px; }
@@ -306,3 +307,6 @@ select option { background: var(--bg-2); }
 
 .vod-record { display: inline-block; margin-top: 8px; font-size: 11.5px; color: var(--accent-2); position: relative; z-index: 2; }
 .vod-record:hover { text-decoration: underline; }
+
+/* Keep playback in the page flow; never cover the catalogue with a player overlay. */
+.player-shell { box-shadow: none; }
