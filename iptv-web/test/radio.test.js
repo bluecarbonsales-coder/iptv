@@ -207,5 +207,5 @@ test('custom radio stations appear in search and resolve to their saved stream U
   assert.equal(resolveRes.status, 200);
   const resolved = JSON.parse(resolveRes.body);
   assert.equal(resolved.url, station.url);
-  assert.match(resolved.proxyUrl, /^\\/api\\/radio\\/stream\\//);
+  assert.ok(resolved.proxyUrl.startsWith('/api/radio/stream/'));
 });
