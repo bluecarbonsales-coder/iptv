@@ -37,6 +37,9 @@ services:
       VOD_SOURCE_LIST_URLS: "${VOD_SOURCE_LIST_URLS:-https://raw.githubusercontent.com/TVboxorg/TVbox/main/dist/official.json}"
       MAX_VOD_SOURCES: "${MAX_VOD_SOURCES:-128}"
       MAX_SOURCES: "${MAX_SOURCES:-64}"
+      # Inject metadata provider credentials via the host .env; never bake them into source.
+      TMDB_API_KEY: "${TMDB_API_KEY:-}"
+      OMDB_API_KEY: "${OMDB_API_KEY:-}"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3920/healthz"]
       interval: 60s
