@@ -92,6 +92,27 @@ const watchHistory = createHistoryStore(DATA_DIR);
 const portal = createPortalApi({ dataDir: DATA_DIR });
 const agent = createAgentApi({ dataDir: DATA_DIR, catalog, refresh: refreshNow, api, automation, navigationConfig, visitorContext, portal });
 const resourceAvailability = createResourceAvailability({ getServices: portal.getServices });
+// Source checks are run against configured URLs only; fetch-upstream performs SSRF checks on every redirect.
+const sourceAvailability = createResourceAvailability({
+  getServices: () => {
+    const radioSources = radioSourceStore.list(DATA_DIR).map((source) => ({
+      id: 'radio:' + source.id,
+      name: source.name || source.id,
+      category: 'media resources',
+      url: source.url || (source.id === 'radio-browser' ? 'https://de1.api.radio-browser.info/json/stats' : ''),
+    }));
+    const iptvSources = sourceLib.loadSourcesSync(DATA_DIR).sources.map((source) => ({
+      id: 'iptv:' + source.id, name: source.name || source.id, category: 'media resources', url: source.url,
+    }));
+    const theatreSources = vodLib.loadSourcesSync(DATA_DIR).sources.map((source) => ({
+      id: 'theatre:' + source.id, name: source.name || source.id, category: 'media resources', url: source.api,
+    }));
+    return radioSources.concat(iptvSources, theatreSources);
+  },
+  timeoutMs: 2500,
+  concurrency: 12,
+  refreshMs: 60_000,
+});
 const radio = createRadioApi({ dataDir: DATA_DIR });
 const mail = createMailApi({ dataDir: DATA_DIR });
 const metadata = createMetadataApi();
@@ -113,44 +134,52 @@ function refreshGuard(req, res, params, query) {
   return sendJson(req, res, 403, { error: 'refresh is restricted', hint: 'send X-Refresh-Token' });
 }
 
+// Token-based legacy agent API routes are intentionally retained only as disabled compatibility stubs.
+function disabledLegacyAgent(req, res) {
+  return sendJson(req, res, 410, {
+    error: 'Token-based agent access is disabled.',
+    hint: 'Sign in at /admin.html and use the /api/v1 endpoints with the admin username and password.',
+  });
+}
+
 // Agent-native API: header-authenticated, machine-readable, audited, and autonomy-gated.
-app.get('/api/agent/v1/openapi.json', agent.openApi);
-app.get('/api/agent/v1/project/status', agent.projectStatus);
-app.get('/api/agent/v1/project/tree', agent.projectTree);
-app.get('/api/agent/v1/project/file', agent.projectFile);
-app.post('/api/agent/v1/project/commit', agent.projectCommit);
-app.post('/api/agent/v1/project/branch', agent.projectBranch);
-app.post('/api/agent/v1/project/pr', agent.projectPullRequest);
-app.post('/api/agent/v1/project/pr/:number/merge', agent.projectMerge);
-app.post('/api/agent/v1/project/dispatch', agent.projectDispatch);
-app.get('/api/agent/v1/project/actions', agent.projectActions);
-app.get('/api/agent/v1/project/checks/:sha', agent.projectChecks);
-app.get('/api/agent/v1/navigation', agent.navigationGet);
-app.get('/api/agent/v1/portal/services', agent.portalList);
-app.post('/api/agent/v1/portal/services', agent.portalAdd);
-app.patch('/api/agent/v1/portal/services/:id', agent.portalUpdate);
-app.delete('/api/agent/v1/portal/services/:id', agent.portalDelete);
-app.put('/api/agent/v1/navigation', agent.navigationReplace);
-app.get('/api/agent/v1/discovery/visitor-trends', agent.visitorTrends);
-app.get('/api/agent/v1/capabilities', agent.capabilities);
-app.get('/api/agent/v1/status', agent.status);
-app.get('/api/agent/v1/settings', agent.settingsView);
-app.patch('/api/agent/v1/settings', agent.settingsUpdate);
-app.get('/api/agent/v1/audit', agent.auditLog);
-app.post('/api/agent/v1/tasks/run', agent.runTask);
-app.get('/api/agent/v1/live/sources', agent.liveList);
-app.post('/api/agent/v1/live/sources', agent.liveAdd);
-app.patch('/api/agent/v1/live/sources/:id', agent.liveUpdate);
-app.delete('/api/agent/v1/live/sources/:id', agent.liveDelete);
-app.get('/api/agent/v1/vod/sources', agent.vodList);
-app.post('/api/agent/v1/vod/sources', agent.vodAdd);
-app.post('/api/agent/v1/vod/import', agent.vodImport);
-app.patch('/api/agent/v1/vod/sources/:id', agent.vodUpdate);
-app.delete('/api/agent/v1/vod/sources/:id', agent.vodDelete);
-app.get('/api/agent/v1/vod/search', agent.vodSearch);
-app.get('/api/agent/v1/vod/:sourceId/:vodId', agent.vodDetail);
-app.get('/api/agent/v1/archive/search', agent.archiveSearch);
-app.get('/api/agent/v1/commons/search', agent.commonsSearch);
+app.get('/api/agent/v1/openapi.json', disabledLegacyAgent);
+app.get('/api/agent/v1/project/status', disabledLegacyAgent);
+app.get('/api/agent/v1/project/tree', disabledLegacyAgent);
+app.get('/api/agent/v1/project/file', disabledLegacyAgent);
+app.post('/api/agent/v1/project/commit', disabledLegacyAgent);
+app.post('/api/agent/v1/project/branch', disabledLegacyAgent);
+app.post('/api/agent/v1/project/pr', disabledLegacyAgent);
+app.post('/api/agent/v1/project/pr/:number/merge', disabledLegacyAgent);
+app.post('/api/agent/v1/project/dispatch', disabledLegacyAgent);
+app.get('/api/agent/v1/project/actions', disabledLegacyAgent);
+app.get('/api/agent/v1/project/checks/:sha', disabledLegacyAgent);
+app.get('/api/agent/v1/navigation', disabledLegacyAgent);
+app.get('/api/agent/v1/portal/services', disabledLegacyAgent);
+app.post('/api/agent/v1/portal/services', disabledLegacyAgent);
+app.patch('/api/agent/v1/portal/services/:id', disabledLegacyAgent);
+app.delete('/api/agent/v1/portal/services/:id', disabledLegacyAgent);
+app.put('/api/agent/v1/navigation', disabledLegacyAgent);
+app.get('/api/agent/v1/discovery/visitor-trends', disabledLegacyAgent);
+app.get('/api/agent/v1/capabilities', disabledLegacyAgent);
+app.get('/api/agent/v1/status', disabledLegacyAgent);
+app.get('/api/agent/v1/settings', disabledLegacyAgent);
+app.patch('/api/agent/v1/settings', disabledLegacyAgent);
+app.get('/api/agent/v1/audit', disabledLegacyAgent);
+app.post('/api/agent/v1/tasks/run', disabledLegacyAgent);
+app.get('/api/agent/v1/live/sources', disabledLegacyAgent);
+app.post('/api/agent/v1/live/sources', disabledLegacyAgent);
+app.patch('/api/agent/v1/live/sources/:id', disabledLegacyAgent);
+app.delete('/api/agent/v1/live/sources/:id', disabledLegacyAgent);
+app.get('/api/agent/v1/vod/sources', disabledLegacyAgent);
+app.post('/api/agent/v1/vod/sources', disabledLegacyAgent);
+app.post('/api/agent/v1/vod/import', disabledLegacyAgent);
+app.patch('/api/agent/v1/vod/sources/:id', disabledLegacyAgent);
+app.delete('/api/agent/v1/vod/sources/:id', disabledLegacyAgent);
+app.get('/api/agent/v1/vod/search', disabledLegacyAgent);
+app.get('/api/agent/v1/vod/:sourceId/:vodId', disabledLegacyAgent);
+app.get('/api/agent/v1/archive/search', disabledLegacyAgent);
+app.get('/api/agent/v1/commons/search', disabledLegacyAgent);
 
 // Persistent home-page links; only reads are public, all mutations require an existing management token.
 app.get('/api/navigation', (req, res) => {
@@ -210,15 +239,15 @@ app.post('/api/mail/contacts', mail.contactsAdd);
 app.patch('/api/mail/contacts/:id', mail.contactsUpdate);
 app.delete('/api/mail/contacts/:id', mail.contactsDelete);
 app.get('/api/mail/audit', mail.auditList);
-app.get('/api/agent/v1/mail/openapi.json', mail.agentOpenApi);
-app.get('/api/agent/v1/mail/accounts', mail.agentAccounts);
-app.get('/api/agent/v1/mail/folders', mail.agentFolders);
-app.get('/api/agent/v1/mail/messages', mail.agentMessages);
-app.get('/api/agent/v1/mail/message', mail.agentMessage);
-app.get('/api/agent/v1/mail/contacts', mail.agentContacts);
-app.get('/api/agent/v1/mail/drafts', mail.agentDrafts);
-app.post('/api/agent/v1/mail/drafts', mail.agentDraftCreate);
-app.post('/api/agent/v1/mail/drafts/:id/send', mail.agentDraftSend);
+app.get('/api/agent/v1/mail/openapi.json', disabledLegacyAgent);
+app.get('/api/agent/v1/mail/accounts', disabledLegacyAgent);
+app.get('/api/agent/v1/mail/folders', disabledLegacyAgent);
+app.get('/api/agent/v1/mail/messages', disabledLegacyAgent);
+app.get('/api/agent/v1/mail/message', disabledLegacyAgent);
+app.get('/api/agent/v1/mail/contacts', disabledLegacyAgent);
+app.get('/api/agent/v1/mail/drafts', disabledLegacyAgent);
+app.post('/api/agent/v1/mail/drafts', disabledLegacyAgent);
+app.post('/api/agent/v1/mail/drafts/:id/send', disabledLegacyAgent);
 
 // Movie metadata search and title enrichment (API keys remain server-side).
 app.get('/api/metadata/search', metadata.search);
@@ -327,6 +356,7 @@ app.get('/img', img.handler);
 app.get('/api/v1', (req, res) => sendJson(req, res, 200, platformApiDocs.describeApi()));
 app.get('/api/v1/openapi.json', (req, res) => sendJson(req, res, 200, platformApiDocs.buildOpenApi()));
 app.get('/api/v1/health', api.health);
+app.get('/api/v1/sources/health', adminRoute((req, res) => sourceAvailability.handler(req, res)));
 
 function normalizeUnifiedSourceType(raw) {
   const type = String(raw || '').toLowerCase();
