@@ -1,9 +1,12 @@
-FROM node:22-alpine
+FROM node:24-alpine
+
+# Include FFmpeg for optional server-side media transcoding; no transcoding runs unless requested.
+RUN apk add --no-cache ffmpeg
 
 # Install reviewed IMAP, SMTP and MIME packages for the Mail Workspace.
 WORKDIR /app
 COPY package.json ./
-RUN npm install --omit=dev --no-audit --no-fund
+RUN npm ci --omit=dev --no-audit --no-fund
 ENV NODE_ENV=production \
     PORT=3920 \
     HOST=0.0.0.0 \
