@@ -1,13 +1,36 @@
 (() => {
   'use strict';
   const $ = (selector) => document.querySelector(selector);
-  const state = { auth: '', active: 'radio' };
+  const state = { auth: '', active: 'radio', sourceLists: { radio: [], iptv: [], theatre: [] }, sourceHealth: Object.create(null), directLatency: Object.create(null), healthTimer: null, directRunning: false };
   const routes = {
     radio: '/admin/api/radio/sources',
     iptv: '/admin/api/iptv/sources',
     theatre: '/admin/api/theatre/sources',
   };
   const labels = { radio: 'Radio', iptv: 'IPTV', theatre: 'Theatre' };
+  const healthKey = (section, id) => section + ':' + id;
+  const healthLabels = { online: 'Available', slow: 'Available · slow', restricted: 'Restricted', not_found: 'Not found', offline: 'Offline', unavailable: 'Unavailable', unknown: 'Unknown', checking: 'Checking…', disabled: 'Disabled' };
+  function renderHealthSummary(summary) {
+    const root = $('#sourceHealthSummary'); if (!root) return;
+    root.replaceChildren();
+    for (const section of ['all', 'radio', 'iptv', 'theatre']) {
+      const data = summary && summary[section]; if (!data) continue;
+      const card = make('div', 'health-card');
+      card.append(make('h3', '', section === 'all' ? 'All sources' : labels[section] + ' sources'));
+      card.append(make('div', 'health-count', data.available + ' available / ' + data.enabled + ' enabled'));
+      card.append(make('div', 'health-detail', data.unavailable + ' unavailable · ' + data.checking + ' checking · ' + data.disabled + ' disabled'));
+      root.append(card);
+    }
+  }
+  function renderSourceHealthLine(section, source) {
+    const key = healthKey(section, source.id), h = state.sourceHealth[key], network = state.directLatency[key];
+    const relay = h ? 'Server / relay: ' + (healthLabels[h.status] || h.status) +
+      (Number.isFinite(h.proxyLatencyMs) ? ' · ' + h.proxyLatencyMs + ' ms' : '') + (h.httpStatus ? ' · HTTP ' + h.httpStatus : '')
+      : (source.enabled === false ? 'Server / relay: disabled' : 'Server / relay: checking…');
+    const direct = network ? 'Current network: ' + (Number.isFinite(network.latencyMs) ? network.latencyMs + ' ms RTT' : network.status)
+      : (source.enabled === false ? 'Current network: disabled' : 'Current network: not measured yet');
+    return { relay, direct };
+  }
   const status = (section, message, error = false) => {
     const el = $('#' + section + 'Status');
     el.textContent = message || '';
@@ -59,6 +82,9 @@
         detail += source.enabled ? ' · enabled' : ' · disabled';
       }
       main.append(make('div', 'source-meta', detail));
+      const healthLines = renderSourceHealthLine(section, source);
+      main.append(make('div', 'source-health', healthLines.relay));
+      main.append(make('div', 'source-health', healthLines.direct));
       row.append(main);
       const actions = make('div', 'source-actions');
       const toggle = make('button', '', source.enabled ? 'Disable' : 'Enable');
@@ -85,12 +111,75 @@
     try {
       const data = await request(routes[section]);
       const sources = Array.isArray(data.sources) ? data.sources : [];
+      state.sourceLists[section] = sources;
       renderList(section, sources);
       status(section, sources.length + ' source(s).');
+      void loadHealth(false);
     } catch (error) {
       status(section, error.message, true);
     }
   }
+  async function loadHealth(force = false) {
+    try {
+      const response = await request('/api/v1/sources/health' + (force ? '?refresh=1' : ''));
+      state.sourceHealth = Object.create(null);
+      for (const item of response.statuses || []) state.sourceHealth[healthKey(item.type, item.id)] = item;
+      renderHealthSummary(response.summary || {});
+      for (const section of ['radio', 'iptv', 'theatre']) renderList(section, state.sourceLists[section] || []);
+      const node = $('#sourceHealthStatus');
+      node.classList.remove('error');
+      node.textContent = response.scanning ? 'Health checks are running on the server; this panel will update automatically.'
+        : 'Last server scan: ' + (response.scanCompletedAt ? new Date(response.scanCompletedAt).toLocaleString() : 'not completed') + '. Latency is response time, not video throughput.';
+      if (state.healthTimer) clearTimeout(state.healthTimer);
+      if (response.scanning) state.healthTimer = setTimeout(() => loadHealth(false), 2200);
+    } catch (error) {
+      $('#sourceHealthStatus').textContent = error.message;
+      $('#sourceHealthStatus').classList.add('error');
+    }
+  }
+
+  async function measureNetworkForSource(section, source) {
+    const key = healthKey(section, source.id);
+    if (source.enabled === false) { state.directLatency[key] = { status: 'disabled', latencyMs: null }; return; }
+    let target;
+    try { const parsed = new URL(source.url || source.api); target = parsed.origin + '/'; }
+    catch { state.directLatency[key] = { status: 'no HTTP(S) URL', latencyMs: null }; renderList(section, state.sourceLists[section] || []); return; }
+    const controller = new AbortController(), started = performance.now();
+    const timer = setTimeout(() => controller.abort(), 1800);
+    try {
+      await fetch(target, { method: 'HEAD', mode: 'no-cors', cache: 'no-store', credentials: 'omit', signal: controller.signal });
+      state.directLatency[key] = { status: 'measured', latencyMs: Math.max(0, Math.round(performance.now() - started)), checkedAt: Date.now() };
+    } catch (error) {
+      state.directLatency[key] = { status: error && error.name === 'AbortError' ? 'timeout' : 'blocked by browser/network', latencyMs: null, checkedAt: Date.now() };
+    } finally { clearTimeout(timer); renderList(section, state.sourceLists[section] || []); }
+  }
+
+  async function measureAllNetworkLatencies() {
+    if (state.directRunning) return;
+    state.directRunning = true;
+    const button = $('#checkAllSources'); button.disabled = true;
+    $('#sourceHealthStatus').textContent = 'Checking browser RTT to each enabled source host…';
+    try {
+      const tasks = ['radio', 'iptv', 'theatre'].flatMap(section => (state.sourceLists[section] || [])
+        .filter(source => source.enabled !== false).map(source => ({ section, source })));
+      let cursor = 0; const concurrency = Math.min(12, tasks.length);
+      async function worker() {
+        while (cursor < tasks.length) { const item = tasks[cursor++]; await measureNetworkForSource(item.section, item.source); }
+      }
+      await Promise.all(Array.from({ length: concurrency }, worker));
+      $('#sourceHealthStatus').textContent = 'Browser RTT check finished. Blocked checks are a browser/source restriction, not proof the source is offline; server relay checks are shown separately.';
+    } finally { state.directRunning = false; button.disabled = false; }
+  }
+
+  async function loadMediaSettings() {
+    try {
+      const data = await request('/api/v1/settings/media');
+      $('#defaultProxy').checked = data.defaultProxy !== false;
+      $('#mediaSettingsStatus').textContent = 'Current default: ' + ($('#defaultProxy').checked ? 'server relay on' : 'direct playback preferred') + '.';
+      $('#mediaSettingsStatus').classList.remove('error');
+    } catch (error) { $('#mediaSettingsStatus').textContent = error.message; $('#mediaSettingsStatus').classList.add('error'); }
+  }
+
   async function mutateThenReload(section, url, options, message) {
     status(section, message || 'Saving changes…');
     try {
@@ -150,6 +239,8 @@
           if (['POST', 'PATCH', 'PUT'].includes(endpoint.method)) {
             if (requestPath === '/api/v1/sources/radio') $('#apiBody').value = JSON.stringify({ name: 'Example Radio', url: 'https://radio.example/stream.mp3', language: 'English' }, null, 2);
             else if (requestPath === '/api/v1/sources/iptv') $('#apiBody').value = JSON.stringify({ name: 'My IPTV playlist', url: 'https://example.com/playlist.m3u' }, null, 2);
+            else if (requestPath === '/api/v1/settings/media') $('#apiBody').value = JSON.stringify({ defaultProxy: true }, null, 2);
+            else if (requestPath === '/api/v1/settings/media') $('#apiBody').value = JSON.stringify({ defaultProxy: true }, null, 2);
             else if (requestPath === '/api/v1/sources/theatre') $('#apiBody').value = JSON.stringify({ name: 'My Theatre provider', api: 'https://example.com/api.php/provide/vod', kind: 'all' }, null, 2);
             else if (!$('#apiBody').value.trim()) $('#apiBody').value = '{}';
           }
@@ -197,6 +288,8 @@
       $('#password').value = '';
       for (const section of Object.keys(routes)) load(section);
       loadApiIndex();
+      loadHealth(false);
+      loadMediaSettings();
     } catch (error) {
       state.auth = '';
       $('#loginStatus').textContent = 'Login failed: ' + error.message;
@@ -223,6 +316,22 @@
     }
   });
   $('#reloadApiIndex').addEventListener('click', loadApiIndex);
+  $('#checkAllSources').addEventListener('click', async () => {
+    await Promise.all(['radio', 'iptv', 'theatre'].map(section => load(section)));
+    await loadHealth(true);
+    await measureAllNetworkLatencies();
+  });
+  $('#saveMediaSettings').addEventListener('click', async () => {
+    const button = $('#saveMediaSettings'); button.disabled = true;
+    $('#mediaSettingsStatus').textContent = 'Saving playback defaults…';
+    $('#mediaSettingsStatus').classList.remove('error');
+    try {
+      const data = await request('/api/v1/settings/media', { method: 'PUT', body: JSON.stringify({ defaultProxy: $('#defaultProxy').checked }) });
+      $('#mediaSettingsStatus').textContent = 'Saved. New page loads will use ' + (data.defaultProxy ? 'server relay' : 'direct playback') + ' by default.';
+    } catch (error) {
+      $('#mediaSettingsStatus').textContent = error.message; $('#mediaSettingsStatus').classList.add('error');
+    } finally { button.disabled = false; }
+  });
   $('#clearApiResponse').addEventListener('click', () => {
     $('#apiResponse').textContent = 'API response will appear here.';
     $('#apiRequestStatus').textContent = '';

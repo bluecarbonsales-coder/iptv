@@ -23,7 +23,10 @@ const { Router } = require('./lib/router');
 const { Catalog } = require('./lib/catalog');
 const { createApi } = require('./lib/api');
 const { serveStatic } = require('./lib/static');
-const { send, sendJson, isPrivateIp, readBody } = require('./lib/util');
+const { send, sendJson, readBody } = require('./lib/util');
+const { matchesAdminCredentials } = require('./lib/admin-auth');
+const { createMediaSettings } = require('./lib/media-settings');
+const { createSourceHealth } = require('./lib/source-health');
 const radioSourceStore = require('./lib/radio-sources');
 const sourceLib = require('./lib/sources');
 const vodLib = require('./lib/vod');
@@ -92,6 +95,14 @@ const watchHistory = createHistoryStore(DATA_DIR);
 const portal = createPortalApi({ dataDir: DATA_DIR });
 const agent = createAgentApi({ dataDir: DATA_DIR, catalog, refresh: refreshNow, api, automation, navigationConfig, visitorContext, portal });
 const resourceAvailability = createResourceAvailability({ getServices: portal.getServices });
+const mediaSettings = createMediaSettings(DATA_DIR);
+const sourceHealth = createSourceHealth({
+  getSources: () => ({
+    radio: radioSourceStore.list(DATA_DIR).map(s => ({ id: s.id, name: s.name, url: s.url, enabled: s.enabled !== false })),
+    iptv: sourceLib.loadSourcesSync(DATA_DIR).sources.map(s => ({ id: s.id, name: s.name, url: s.url, enabled: s.enabled !== false })),
+    theatre: vodLib.loadSourcesSync(DATA_DIR).sources.map(s => ({ id: s.id, name: s.name, url: s.api, enabled: s.enabled !== false })),
+  }),
+});
 const radio = createRadioApi({ dataDir: DATA_DIR });
 const mail = createMailApi({ dataDir: DATA_DIR });
 const metadata = createMetadataApi();
@@ -100,17 +111,10 @@ const staticHandler = serveStatic(PUBLIC_DIR);
 // POST /api/refresh drags 18 MB from iptv-org: allow it freely from the host itself,
 // require the shared token for anything that arrived through the reverse proxy.
 function refreshGuard(req, res, params, query) {
-  const viaProxy = !!req.headers['x-forwarded-for'] || !!req.headers['x-real-ip'];
-  const remote = (req.socket.remoteAddress || '').replace(/^::ffff:/, '');
-  const local = remote === '127.0.0.1' || remote === '::1' || isPrivateIp(remote);
-  const token = process.env.REFRESH_TOKEN || '';
-  if (!viaProxy && local) return api.refreshNow(req, res, params, query);
-  const given = req.headers['x-refresh-token'];
-  const tokenMatches = typeof given === 'string' && token &&
-    Buffer.from(given).length === Buffer.from(token).length &&
-    require('crypto').timingSafeEqual(Buffer.from(given), Buffer.from(token));
-  if (tokenMatches) return api.refreshNow(req, res, params, query);
-  return sendJson(req, res, 403, { error: 'refresh is restricted', hint: 'send X-Refresh-Token' });
+  if (!adminCredentialsMatch(req)) return sendJson(req, res, 401, { error: 'Please sign in with the admin username and password.' });
+  req.adminAuthenticated = true;
+  res.setHeader('Cache-Control', 'no-store');
+  return api.refreshNow(req, res, params, query);
 }
 
 // Agent-native API: header-authenticated, machine-readable, audited, and autonomy-gated.
@@ -231,14 +235,7 @@ const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '0809';
 
 function adminCredentialsMatch(req) {
-  const header = String(req.headers.authorization || '');
-  const match = /^Basic\s+(.+)$/i.exec(header);
-  if (!match) return false;
-  let decoded;
-  try { decoded = Buffer.from(match[1], 'base64').toString('utf8'); } catch { return false; }
-  const split = decoded.indexOf(':');
-  if (split < 0) return false;
-  return decoded.slice(0, split) === ADMIN_USERNAME && decoded.slice(split + 1) === ADMIN_PASSWORD;
+  return matchesAdminCredentials(req, { username: ADMIN_USERNAME, password: ADMIN_PASSWORD });
 }
 
 function adminRoute(handler) {
@@ -367,6 +364,12 @@ app.get('/api/v1/sources', adminRoute((req, res) => {
   });
 }));
 
+app.get('/api/v1/sources/health', adminRoute((req, res) => {
+  const force = new URL(req.url, 'http://localhost').searchParams.get('refresh') === '1';
+  sourceHealth.startScan(force).catch(error => log('source health scan failed:', error && error.message || error));
+  return sendJson(req, res, 200, sourceHealth.getSnapshot(), { 'Cache-Control': 'no-store' });
+}));
+
 app.get('/api/v1/sources/:type', adminRoute((req, res, params, query) => {
   try {
     const type = normalizeUnifiedSourceType(params.type);
@@ -424,6 +427,18 @@ app.delete('/api/v1/sources/:type/:id', adminRoute((req, res, params, query) => 
     if (type === 'iptv') return api.deleteSource(req, res, params);
     return api.deleteVodSource(req, res, params);
   } catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message || 'Could not delete source.' }); }
+}));
+
+// Playback defaults are shared across all embedded player pages.
+app.get('/api/v1/settings/media', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  sendJson(req, res, 200, mediaSettings.read());
+});
+app.put('/api/v1/settings/media', adminRoute(async (req, res) => {
+  try {
+    const body = JSON.parse(await readBody(req, 8192));
+    sendJson(req, res, 200, mediaSettings.save(body), { 'Cache-Control': 'no-store' });
+  } catch (error) { sendJson(req, res, error.statusCode || 400, { error: error.message || 'Could not save playback settings.' }); }
 }));
 
 // Media APIs use one naming scheme below /api/v1.
@@ -587,7 +602,7 @@ app.use(async (req, res) => {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PATCH, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Agent-Token, X-Source-Token, X-Refresh-Token',
+      'Access-Control-Allow-Headers': 'Authorization, Content-Type',
       'Access-Control-Max-Age': '600',
     });
     return res.end();
@@ -627,7 +642,7 @@ server.on('clientError', (err, socket) => {
 server.listen(PORT, HOST, () => {
   log(`IPTV Web listening on http://${HOST}:${PORT}  (data: ${DATA_DIR})`);
   automation.start();
-  if (!process.env.AGENT_API_TOKEN) log('agent API disabled: configure AGENT_API_TOKEN to enable Hermes/agent control endpoints');
+  log('Agent, source and portal management APIs use the shared HTTP Basic admin login; token authentication is disabled.');
   const age = catalog.meta.updated ? (Date.now() - Date.parse(catalog.meta.updated)) / 3.6e6 : Infinity;
   const missingLanguageIndex = !Array.isArray(catalog.meta.languages) || catalog.channels.some((channel) => !Array.isArray(channel.languages));
   if (!catalog.ready || missingLanguageIndex || (REFRESH_HOURS > 0 && age > REFRESH_HOURS)) {

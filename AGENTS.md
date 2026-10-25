@@ -11,13 +11,12 @@ Before editing CI, Docker Compose, server deployment, proxy routing, or persiste
 Set these in the deployment environment, not in prompts, chats, browser URLs, or logs:
 
 - `IPTV_BASE_URL`: the private HTTPS URL of the deployment.
-- `AGENT_API_TOKEN`: a long, random secret dedicated to the agent API.
 - `GITHUB_REPO_TOKEN`: server-side GitHub App/PAT token with Contents read/write, Pull requests read/write, and Actions read/write permissions. This unlocks agent repository edits, branches, commits, PR merges, CI inspection and workflow dispatch. It must never be returned by the API or committed to Git.
 - `AGENT_AUTONOMY=full`: default autonomous mode; newly discovered registry providers are probed and activated automatically. `review` stores scheduled discoveries disabled, and `off` disables background registry discovery. Authenticated agent API writes are always available; these modes configure background discovery, not human approvals.
 - `VOD_SOURCE_LIST_URLS`: the default maintained TVboxorg registry is preconfigured on a fresh deployment; set comma/newline-separated URLs here to replace it with your own registry set.
 - `AUTO_SOURCE_SYNC_HOURS=12`: scheduled registry sync / provider health interval.
 
-Send `X-Agent-Token: $AGENT_API_TOKEN` on every `/api/agent/v1/*` request. `Authorization: Bearer …` also works. Never put tokens in query parameters. Keep the service behind private Cloudflare Access or equivalent access control; the service's Docker port is intended to stay bound to loopback.
+Use HTTP Basic admin credentials (`ADMIN_USERNAME` / `ADMIN_PASSWORD`, the same as `/admin.html`) for protected `/api/agent/v1/*` requests. X-Agent-Token and Bearer-token API authentication are disabled. Keep the service behind private Cloudflare Access or equivalent access control; its Docker port must stay bound to loopback.
 
 Start each session with:
 
@@ -116,7 +115,7 @@ For recurring source discovery, the default TVboxorg registry is already configu
 
 ## 5. Hermes CLI
 
-For convenient one-command operations from the repository checkout, use `iptv-web/tools/agentctl.js`. It needs `IPTV_BASE_URL` and `AGENT_API_TOKEN` in Hermes' process environment. Examples:
+For convenient one-command operations from the repository checkout, use `iptv-web/tools/agentctl.js`. It needs `IPTV_BASE_URL`, `IPTV_ADMIN_USERNAME` and `IPTV_ADMIN_PASSWORD` in Hermes' process environment. Examples:
 
 ```bash
 node iptv-web/tools/agentctl.js capabilities
@@ -128,7 +127,7 @@ node iptv-web/tools/agentctl.js commons-search public domain animation
 node iptv-web/tools/agentctl.js settings-patch '{"sourceListUrls":["https://registry.example/sources.json"],"autoSourceSyncHours":12,"autonomy":"full"}'
 ```
 
-Store the token in your service/agent secret manager instead of committing it or including it in a prompt. The CLI does not need a new dependency and returns machine-readable JSON.
+Store the admin password in the host's protected environment, not in source code or URLs. The CLI does not need a new dependency and returns machine-readable JSON.
 
 ## 6. Reviewability and audit
 

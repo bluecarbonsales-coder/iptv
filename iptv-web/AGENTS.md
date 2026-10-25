@@ -121,7 +121,7 @@ Hermes is the only intended configuration editor for the production portal. Do n
 - Existing `/api/agent/v1/live/sources` and `/api/agent/v1/vod/sources` routes for TV and VOD providers.
 - `GET /api/agent/v1/discovery/visitor-trends` for privacy-preserving aggregate demand signals.
 
-The source-management APIs intentionally require `X-Agent-Token`; do not re-enable writes using `SOURCE_TOKEN` or `REFRESH_TOKEN`. Keep `AGENT_API_TOKEN` in the deployment environment and never expose it to browser code.
+Source, portal, refresh and agent API management uses HTTP Basic `ADMIN_USERNAME` / `ADMIN_PASSWORD`, the same login as `/admin.html`. `X-Agent-Token`, `X-Source-Token`, `X-Refresh-Token`, `SOURCE_TOKEN`, `REFRESH_TOKEN` and `AGENT_API_TOKEN` authentication are disabled. Never place the admin password in a URL or browser source.
 
 Visitor discovery is opt-in. The public form accepts a broad country code, optional region, language and interest category. The collector stores aggregate daily counts only, retains at most 30 days and only reports groups with at least three requests. Do not add raw IP logging, exact GPS coordinates, street addresses, user IDs, or per-person browsing history. Hermes should use the trends to prioritize official, public-domain and open-license resources—not to infer redistribution rights.
 

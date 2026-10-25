@@ -16,6 +16,9 @@ test('the platform has one common API base and a machine-readable OpenAPI docume
   assert.equal(spec.components.securitySchemes.AgentToken, undefined);
   assert.equal(spec.components.securitySchemes.MailSession.name, 'mail_workspace_session');
   assert.ok(spec.paths['/sources']);
+  assert.ok(spec.paths['/sources/health'].get.security[0].AdminLogin);
+  assert.ok(spec.paths['/settings/media'].get);
+  assert.ok(spec.paths['/settings/media'].put.security[0].AdminLogin);
 });
 
 test('the common API documents source CRUD for radio, IPTV and Theatre', () => {

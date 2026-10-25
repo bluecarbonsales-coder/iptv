@@ -13,6 +13,10 @@ test('source manager has three separate source tabs and simple default login', (
   assert.match(html, /data-tab="iptv"/);
   assert.match(html, /data-tab="theatre"/);
   assert.match(html, /data-tab="api"/);
+  assert.match(html, /id="sourceHealthSummary"/);
+  assert.match(html, /id="checkAllSources"/);
+  assert.match(html, /id="defaultProxy"/);
+  assert.match(html, /id="saveMediaSettings"/);
   assert.match(html, /id="apiTryForm"/);
   assert.match(html, /id="apiEndpointGroups"/);
   assert.doesNotMatch(html, /id="apiAgentToken"|Optional agent token/i);
@@ -44,6 +48,9 @@ test('server exposes basic username/password protected APIs for each source type
   assert.match(server, /app\.get\('\/api\/v1',/);
   assert.match(server, /app\.get\('\/api\/v1\/openapi\.json',/);
   assert.match(server, /app\.get\('\/api\/v1\/sources',/);
+  assert.match(server, /app\.get\('\/api\/v1\/sources\/health',/);
+  assert.match(server, /app\.put\('\/api\/v1\/settings\/media',/);
+  assert.match(server, /token authentication is disabled/);
   assert.match(server, /app\.post\('\/api\/v1\/sources\/:type',/);
   assert.match(server, /app\.patch\('\/api\/v1\/sources\/:type\/:id',/);
   assert.match(server, /app\.delete\('\/api\/v1\/sources\/:type\/:id',/);

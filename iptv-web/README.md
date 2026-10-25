@@ -30,7 +30,7 @@ The root path `/` is now a configurable service portal, not a player-specific la
 
 The initial directory includes the player, known Nafisa service shortcuts, and examples such as ChatGPT, GitHub, Cloudflare, YouTube, and Wikipedia. Edit or delete any example to match the services you actually use. It also includes **SeedHub** and the official **Streambert** project link under *Media resources*. SeedHub is a web catalog; Streambert is a desktop-app repository—not an Apple CMS/MacCMS VOD API—so these are external shortcuts rather than falsely advertised native providers. Service definitions persist in `DATA_DIR/portal-services.json` (in Docker, `/data/portal-services.json`), separate from the image and preserved with the existing data volume.
 
-To manage homepage shortcuts, choose **Manage links** and use the shortcut-management token configured in the server environment. This is only for links on the homepage. To manage media sources, open **`/admin.html`** and use **`admin / 0809`**; Radio, IPTV, and Theatre source management does not need an API token. The shortcut-management token is kept only in page memory and is not written to local storage. Management calls use the API below:
+Manage homepage links, Radio, IPTV and Theatre sources, source health and playback defaults from **`/admin.html`**, using the shared admin login (`admin / 0809` by default). Protected API writes use HTTP Basic admin credentials; API-token and bearer-token authentication are disabled. Management calls use the API below:
 
 | Route | Purpose |
 |---|---|
@@ -38,7 +38,7 @@ To manage homepage shortcuts, choose **Manage links** and use the shortcut-manag
 | `GET /api/portal/availability?refresh=1` | Request an availability refresh (cooldown and in-flight scan limits still apply) |
 | `GET /api/portal/services` | Public service directory |
 | `GET /api/portal/services?manage=1` | Validate management access and return the directory |
-| `POST /api/portal/services` | Add a link (management token required) |
+| `POST /api/portal/services` | Add a link (HTTP Basic admin login required) |
 | `PATCH /api/portal/services/:id` | Edit a link (management token required) |
 | `DELETE /api/portal/services/:id` | Remove a link (management token required) |
 
@@ -119,7 +119,7 @@ play fine through it.
 - **M3U export** — `/api/export.m3u` mirrors the current filters, and can emit either the
   original stream URLs or relay URLs (`&proxy=1`) for use in VLC/Kodi.
 - **Bilingual UI** — English / 简体中文.
-- **Service portal homepage** — configurable service directory at `/`, with `/watch.html` preserving the IPTV player; persistent links, category filters, search, and token-protected link management.
+- **Service portal homepage** — configurable service directory at `/`, with `/watch.html` preserving the IPTV player; persistent links, category filters, search, and admin-password-protected link management.
 - **Resource availability and fastest-response recommendation** — a status badge on every home-page shortcut, HTTP latency checks, and an automatically updated recommendation among the media resources.
 - **World radio** — `/radio.html`, searchable Radio Browser directory, station filters, persistent favorites, HLS playback, and limited fallback relay for incompatible HTTP/HTTPS streams.
 - **No dependencies** — plain Node stdlib, no npm install, no build step.
@@ -138,7 +138,7 @@ The common API supports browser CORS preflight (`OPTIONS`) so another web app ca
 
 The Settings page at `/admin.html` has an **API** tab. It lists the endpoint groups and includes a small request tester. You can also connect another app to these endpoints directly.
 
-Source management and advanced endpoints under `/api/v1` use the same simple login as the Settings page. Send HTTP Basic authentication using the admin username and password documented at the top of this README. The username/password can be changed with `ADMIN_USERNAME` and `ADMIN_PASSWORD`. Normal public reading and playback endpoints do not require that login. Mail endpoints use the Mail Workspace login/session. Older `/api/agent/v1/*` URLs remain available for existing integrations and continue to use `X-Agent-Token`.
+Source management and advanced endpoints use HTTP Basic authentication with the same username/password as Settings (`ADMIN_USERNAME` and `ADMIN_PASSWORD`). Public read and playback routes remain open, and Mail Workspace uses its own session login. Legacy `/api/agent/v1/*` routes use the same Basic login. Header tokens and bearer-token access are disabled.
 
 The common source API covers all three source types:
 
@@ -180,15 +180,15 @@ The original endpoints listed below remain available for backward compatibility.
 | `GET /api/playlist?u=` | import an external M3U (server-side fetch + parse) |
 | `GET /api/vod?type=&q=` | search configured VOD APIs and the built-in Internet Archive adapter for `all`, `movies`, `series`, or `anime` (includes Internet Archive and Wikimedia Commons results) |
 | `GET /api/vod/:sourceId/:vodId` | resolve details and episodes for a VOD title |
-| `GET /api/vod/sources` | list VOD providers (requires `X-Source-Token`) |
-| `POST /api/vod/sources` | validate and add Apple CMS / MacCMS provider (requires `X-Source-Token`) |
-| `POST /api/vod/import` | import providers from an authorized LibreTV/MoonTV/TVBox-compatible JSON list URL (requires `X-Source-Token`) |
-| `PATCH /api/vod/sources/:id` | rename, re-categorize, or enable/disable a VOD provider (requires `X-Source-Token`) |
-| `DELETE /api/vod/sources/:id` | remove VOD provider (requires `X-Source-Token`) |
-| `GET /api/sources` | list persistent resources (requires `X-Source-Token`) |
-| `POST /api/sources` | validate and add a persistent resource (requires `X-Source-Token`) |
-| `PATCH /api/sources/:id` | rename, change URL, or enable/disable a resource (requires `X-Source-Token`) |
-| `DELETE /api/sources/:id` | delete a resource (requires `X-Source-Token`) |
+| `GET /api/vod/sources` | list VOD providers (requires HTTP Basic admin login) |
+| `POST /api/vod/sources` | validate and add Apple CMS / MacCMS provider (requires HTTP Basic admin login) |
+| `POST /api/vod/import` | import providers from an authorized LibreTV/MoonTV/TVBox-compatible JSON list URL (requires HTTP Basic admin login) |
+| `PATCH /api/vod/sources/:id` | rename, re-categorize, or enable/disable a VOD provider (requires HTTP Basic admin login) |
+| `DELETE /api/vod/sources/:id` | remove VOD provider (requires HTTP Basic admin login) |
+| `GET /api/sources` | list persistent resources (requires HTTP Basic admin login) |
+| `POST /api/sources` | validate and add a persistent resource (requires HTTP Basic admin login) |
+| `PATCH /api/sources/:id` | rename, change URL, or enable/disable a resource (requires HTTP Basic admin login) |
+| `DELETE /api/sources/:id` | delete a resource (requires HTTP Basic admin login) |
 | `GET /api/playlist.m3u?u=` | the same playlist rewritten through `/hls` |
 | `GET /api/export.m3u` | current filters as a downloadable playlist (`&proxy=1` to relay) |
 | `POST /api/refresh` | re-download the iptv-org API and rebuild the catalogue |
@@ -225,15 +225,15 @@ The original endpoints listed below remain available for backward compatibility.
 | `GET /api/radio/resolve/:uuid` | resolve station playback through Radio Browser's click-counter endpoint |
 | `GET /api/radio/stream/:ticket` | bounded audio relay using a short-lived ticket minted from a valid station UUID |
 | `GET /api/portal/services` | searchable-homepage service directory; reads are public |
-| `POST /api/portal/services` | add a homepage service shortcut (requires existing management token) |
-| `PATCH /api/portal/services/:id` | update a shortcut (requires existing management token) |
-| `DELETE /api/portal/services/:id` | remove a shortcut only (requires existing management token) |
+| `POST /api/portal/services` | add a homepage service shortcut (requires HTTP Basic admin login) |
+| `PATCH /api/portal/services/:id` | update a shortcut (requires HTTP Basic admin login) |
+| `DELETE /api/portal/services/:id` | remove a shortcut only (requires HTTP Basic admin login) |
 
-These token rules apply to the **legacy routes** in the table above. The new `/api/v1` entry is the recommended interface: use the same admin username/password as `/admin.html` for source and settings changes. There is no separate source-management token to enter in the new API tester. The advanced agent routes still use the configured `X-Agent-Token`, and old integrations using the original routes continue to work as before.
+All protected legacy routes use the same HTTP Basic admin login as Settings. API-token, X-Agent-Token, X-Source-Token, X-Refresh-Token and Bearer-token authentication are disabled. Use `/api/v1` for the documented common API. Mail data continues to use the Mail Workspace session.
 
 ## Agent operation and automation
 
-See the repository-root [`AGENTS.md`](../AGENTS.md) for exact Hermes workflows and API examples. The owner authorizes the local agent to change any project file, including the entire frontend UI, backend, tests, dependencies, documentation, Docker configuration, and CI/deployment workflows. Do not impose a code-path allowlist or approval gate. Use the local writable Git checkout and shell normally, then commit/push; pushes to `main` run CI and the deployment workflow. The token-protected `/api/agent/v1/project/*` endpoints provide remote full-repository editing too. Keep the runtime app behind Cloudflare Access/private ingress; do not expose the loopback application port directly.
+See the repository-root [`AGENTS.md`](../AGENTS.md) for exact Hermes workflows and API examples. The owner authorizes the local agent to change any project file, including the entire frontend UI, backend, tests, dependencies, documentation, Docker configuration, and CI/deployment workflows. Do not impose a code-path allowlist or approval gate. Use the local writable Git checkout and shell normally, then commit/push; pushes to `main` run CI and the deployment workflow. The Basic-authenticated `/api/agent/v1/project/*` endpoints provide remote full-repository editing too. Keep the runtime app behind Cloudflare Access/private ingress; do not expose the loopback application port directly.
 
 Configure `iptv-web/.env` from [`.env.example`](.env.example). Important settings:
 
@@ -299,7 +299,7 @@ deploy/              scripts used to stand the site up on the server
 
 ## Hermes / agent CLI
 
-The dependency-free `tools/agentctl.js` CLI wraps the authenticated agent API and returns JSON for automation. Set `IPTV_BASE_URL` and `AGENT_API_TOKEN` in your Hermes service environment; do not store the token in the repository or a prompt. For a **local agent on the deployment server**, see [`AGENTS.md`](AGENTS.md): give its OS account write access to the real project checkout plus the privileges needed to run tests, rebuild Docker, and deploy. Local filesystem editing—including all UI files—does not require `GITHUB_REPO_TOKEN`; that secret is only needed for remote GitHub operations through the HTTP API.
+The dependency-free `tools/agentctl.js` CLI wraps the authenticated agent API and returns JSON for automation. Set `IPTV_BASE_URL`, `IPTV_ADMIN_USERNAME` and `IPTV_ADMIN_PASSWORD` in your Hermes service environment; token-based API authentication is disabled. For a **local agent on the deployment server**, see [`AGENTS.md`](AGENTS.md): give its OS account write access to the real project checkout plus the privileges needed to run tests, rebuild Docker, and deploy. Local filesystem editing—including all UI files—does not require `GITHUB_REPO_TOKEN`; that secret is only needed for remote GitHub operations through the HTTP API.
 
 ```bash
 node iptv-web/tools/agentctl.js capabilities
@@ -363,6 +363,6 @@ Mailbox credentials are encrypted at rest with AES-256-GCM in /data/mail-workspa
 
 Features: IMAP TLS 993, SMTP STARTTLS 587 or TLS 465, folder/message view, compose and send, alias-aware From addresses, drafts, address-book CRUD and audit events. Message HTML is not executed; attachments are listed but not downloaded in this initial UI.
 
-Agents use AGENT_API_TOKEN Bearer or X-Agent-Token authentication with GET /api/agent/v1/mail/openapi.json, /accounts, /folders, /messages, /message, /contacts and /drafts plus POST /drafts and /drafts/:id/send. Agent-created drafts require owner approval by default. Set EMAIL_AGENT_SEND_MODE=direct only if trusted agents should send unattended. Allowed mail hosts are restricted by EMAIL_ALLOWED_MAIL_HOSTS.
+Agents use the same HTTP Basic admin login with GET /api/agent/v1/mail/openapi.json, /accounts, /folders, /messages, /message, /contacts and /drafts plus POST /drafts and /drafts/:id/send. Agent-created drafts require owner approval by default. Set EMAIL_AGENT_SEND_MODE=direct only if trusted agents should send unattended. Allowed mail hosts are restricted by EMAIL_ALLOWED_MAIL_HOSTS.
 
 CI passing does not prove the live VPS has these environment values, that SMTP/IMAP connections work, or that this change is deployed.
