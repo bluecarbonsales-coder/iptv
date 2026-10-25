@@ -37,10 +37,10 @@ Manage homepage links, Radio, IPTV and Theatre sources, source health and playba
 | `GET /api/portal/availability` | Live HTTP availability and response latency for each portal shortcut; includes the fastest responding media-resource site |
 | `GET /api/portal/availability?refresh=1` | Request an availability refresh (cooldown and in-flight scan limits still apply) |
 | `GET /api/portal/services` | Public service directory |
-| `GET /api/portal/services?manage=1` | Validate management access and return the directory |
+| `GET /api/portal/services?manage=1` | Validate Settings admin login and return the directory |
 | `POST /api/portal/services` | Add a link (HTTP Basic admin login required) |
-| `PATCH /api/portal/services/:id` | Edit a link (management token required) |
-| `DELETE /api/portal/services/:id` | Remove a link (management token required) |
+| `PATCH /api/portal/services/:id` | Edit a link (HTTP Basic admin login required) |
+| `DELETE /api/portal/services/:id` | Remove a link (HTTP Basic admin login required) |
 
 Links accept same-site relative paths or absolute HTTP(S) URLs. Each card opens safely in a new tab. Removing a link only removes its shortcut; it does not modify or delete the linked service. Every card always shows a reachability state: local, online, slow, restricted, not found, offline, or checking. External sites are probed with a bounded HEAD request (falling back to a one-byte range GET when HEAD is blocked), SSRF-checked on every redirect, with caching and limited concurrency. The *Fastest responding media resource* banner compares SeedHub and Streambert by HTTP response latency measured from the application server; that is **not** an end-user speed test or a guarantee of media-stream throughput. HTTP 403/429 is reported as restricted/rate-limited instead of being mislabeled offline.
 
@@ -287,7 +287,7 @@ lib/commons-vod.js     Wikimedia Commons open-license video adapter
 lib/agent-settings.js persistent runtime settings that agents can update
 lib/registry-lock.js   serialized registry writes across agent/refresh operations
 lib/automation.js     scheduled provider discovery, health checks, and audit
-lib/agent.js          Hermes/agent API, OpenAPI schema, token auth and agent settings
+lib/agent.js          Shared admin-authenticated agent API, OpenAPI schema and settings
 tools/agentctl.js     dependency-free CLI for Hermes and other agents
 lib/m3u.js           M3U parser (server); public/js/m3u.js is the browser twin
 lib/static.js        static serving with etag + gzip
