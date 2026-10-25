@@ -12,7 +12,9 @@ function normalizeCode(value, max = 32) {
 
 function normalizeContext(input) {
   if (!input || input.consent !== true) throw Object.assign(new Error('explicit consent is required'), { statusCode: 400 });
-  const country = normalizeCode(input.country, 2);
+  const rawCountry = String(input.country || '').trim();
+  if (!/^[a-z]{2}$/i.test(rawCountry)) throw Object.assign(new Error('country must be an ISO-style two-letter code'), { statusCode: 400 });
+  const country = normalizeCode(rawCountry, 2);
   const region = normalizeCode(input.region, 40);
   const language = normalizeCode(input.language, 16);
   const category = normalizeCode(input.category, 24);
