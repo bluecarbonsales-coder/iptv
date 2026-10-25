@@ -433,6 +433,9 @@ app.get('/api/v1/iptv/channels/:id', api.channel);
 app.get('/api/v1/iptv/playlist', api.playlist);
 app.get('/api/v1/iptv/playlist.m3u', api.playlistProxied);
 app.get('/api/v1/iptv/export.m3u', api.exportM3u);
+app.get('/api/v1/iptv/hls', hls.handler);
+app.head('/api/v1/iptv/hls', hls.handler);
+app.get('/api/v1/iptv/image', img.handler);
 app.post('/api/v1/iptv/refresh', adminRoute((req, res) => api.refreshNow(req, res)));
 
 app.get('/api/v1/radio/stations', radio.stations);
@@ -444,7 +447,10 @@ app.get('/api/v1/theatre/titles', api.vodSearch);
 app.get('/api/v1/theatre/titles/:sourceId/:vodId', api.vodDetail);
 
 // Homepage shortcuts and settings share the same admin login under this API.
-app.get('/api/v1/portal/services', portal.list);
+app.get('/api/v1/portal/services', (req, res, params, query) => {
+  if (query.manage === '1') return adminRoute((innerReq, innerRes, innerParams, innerQuery) => portal.list(innerReq, innerRes, innerParams, innerQuery))(req, res, params, query);
+  return portal.list(req, res, params, query);
+});
 app.get('/api/v1/portal/availability', resourceAvailability.handler);
 app.post('/api/v1/portal/services', adminRoute((req, res, params, query) => portal.add(req, res, params, query)));
 app.patch('/api/v1/portal/services/:id', adminRoute((req, res, params, query) => portal.update(req, res, params, query)));
@@ -463,6 +469,30 @@ app.put('/api/v1/navigation', adminRoute(async (req, res) => {
 app.get('/api/v1/metadata/search', metadata.search);
 app.get('/api/v1/metadata/tvmaze', metadata.tvmazeSearch);
 app.get('/api/v1/metadata/title', metadata.title);
+
+app.get('/api/v1/history/:visitorId', (req, res, params) => {
+  try { sendJson(req, res, 200, { records: watchHistory.get(params.visitorId) }); }
+  catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message || 'Could not read history.' }); }
+});
+app.post('/api/v1/history/:visitorId', async (req, res, params) => {
+  try {
+    const body = JSON.parse(await readBody(req, 16384));
+    sendJson(req, res, 200, watchHistory.record(params.visitorId, body));
+  } catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message || 'Could not save history.' }); }
+});
+app.post('/api/v1/visitor/context', async (req, res) => {
+  const now = Date.now();
+  if (now - visitorContextWindowStart >= 60000) {
+    visitorContextWindowStart = now;
+    visitorContextRequests = 0;
+  }
+  if (visitorContextRequests >= 120) return sendJson(req, res, 429, { error: 'Visitor discovery submission limit reached; try again later.' });
+  visitorContextRequests++;
+  try {
+    const body = JSON.parse(await readBody(req, 4096));
+    sendJson(req, res, 200, visitorContext.record(body));
+  } catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message || 'Visitor context was not recorded.' }); }
+});
 
 // Mail API aliases retain Mail Workspace's own login/session and mailbox rules.
 app.get('/api/v1/mail/session', mail.session);
