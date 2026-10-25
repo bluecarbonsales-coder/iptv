@@ -31,6 +31,14 @@ test('Theatre falls back to an explicitly open-license movie source when none is
   });
   let calledWith = null;
   try {
+    // Explicitly represent an operator who has no enabled third-party providers.
+    // The normal startup migration enables bundled providers on upgrade.
+    fs.writeFileSync(path.join(dataDir, 'vod-sources.json'), JSON.stringify({
+      version: 1,
+      defaultsSeeded: true,
+      bundledSourcesEnabled: true,
+      sources: [],
+    }));
     archive.search = async (term, kind, limit) => {
       calledWith = { term, kind, limit };
       return [film];
