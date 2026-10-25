@@ -495,9 +495,23 @@ app.post('/api/v1/visitor/context', async (req, res) => {
 });
 
 // Mail API aliases retain Mail Workspace's own login/session and mailbox rules.
+// The normal legacy cookie path is /api/mail; rewrite it so login works with /api/v1/mail too.
+function unifiedMailSessionCookie(handler) {
+  return (req, res, params, query) => {
+    const originalSetHeader = res.setHeader.bind(res);
+    res.setHeader = (name, value) => {
+      if (String(name).toLowerCase() === 'set-cookie') {
+        const rewrite = (item) => String(item).replace(/;\\s*Path=\\/api\\/mail(?=;|$)/i, '; Path=/api/v1/mail');
+        value = Array.isArray(value) ? value.map(rewrite) : rewrite(value);
+      }
+      return originalSetHeader(name, value);
+    };
+    return handler(req, res, params || {}, query || {});
+  };
+}
 app.get('/api/v1/mail/session', mail.session);
-app.post('/api/v1/mail/login', mail.login);
-app.post('/api/v1/mail/logout', mail.logout);
+app.post('/api/v1/mail/login', unifiedMailSessionCookie(mail.login));
+app.post('/api/v1/mail/logout', unifiedMailSessionCookie(mail.logout));
 app.get('/api/v1/mail/accounts', mail.accountsList);
 app.post('/api/v1/mail/accounts', mail.accountsAdd);
 app.post('/api/v1/mail/accounts/bulk-password', mail.accountsBulkPassword);
