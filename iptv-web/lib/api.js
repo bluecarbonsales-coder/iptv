@@ -462,8 +462,27 @@ function createApi(catalog, refresh, dataDir) {
         logo: item.logo, category: item.group || '', kind: 'channel', vod: false, sortOrder: i,
       }));
       if (!items.length) return sendJson(req, res, 400, { error: 'no HTTP(S) channels found in this playlist' });
+      let registered = false;
+      await withLiveLock(() => {
+        const sources = sourceLib.loadSourcesSync(sourceDataDir).sources;
+        if (sources.some(source => source.url === playlistUrl)) return;
+        if (sources.length >= sourceLib.MAX_SOURCES) throw Object.assign(new Error('maximum ' + sourceLib.MAX_SOURCES + ' live sources reached'), { statusCode: 409 });
+        const candidate = {
+          id: sourceLib.newId(), name: sourceName, url: playlistUrl, enabled: true,
+          createdAt: new Date().toISOString(), lastCount: sourceLib.buildChannels({ id: sourceId, name: sourceName, url: playlistUrl }, parsed).length,
+          lastStreamCount: parsed.length, lastUpdated: new Date().toISOString(), lastError: null,
+        };
+        sources.push(candidate);
+        sourceLib.saveSources(sourceDataDir, sources);
+        registered = true;
+      });
+      let catalogRefresh = null;
+      if (registered) {
+        try { catalogRefresh = await refresh(); }
+        catch (err) { catalogRefresh = { error: String(err.message || err).slice(0, 180) }; }
+      }
       const result = mediaLibrary.upsert(sourceDataDir, items);
-      sendJson(req, res, 201, { ok: true, playlist: sourceName, imported: items.length, ...result });
+      sendJson(req, res, 201, { ok: true, playlist: sourceName, imported: items.length, sourceRegistered: true, catalogRefresh, ...result });
     } catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message || 'could not import playlist' }); }
   };
   const syncLibrary = async (req, res) => {
