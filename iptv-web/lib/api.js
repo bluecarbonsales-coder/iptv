@@ -35,6 +35,7 @@ async function mapLimit(items, limit, fn) {
 
 function createApi(catalog, refresh, dataDir) {
   const sourceDataDir = dataDir || require('path').join(__dirname, '..', 'data');
+  sourceLib.ensureSourcesEnabled(sourceDataDir);
   vodLib.ensureDefaultSources(sourceDataDir);
   const vodSearchCache = new Map();
   const liveLockKey = 'live-sources:' + sourceDataDir;
@@ -42,6 +43,7 @@ function createApi(catalog, refresh, dataDir) {
   const withLiveLock = (fn) => withFileLock(sourceLib.sourcesPath(sourceDataDir) + '.lock', () => withLock(liveLockKey, fn));
 
   function authorizeSourceWrite(req, res) {
+    if (req && req.adminAuthenticated === true) return true;
     const expected = process.env.AGENT_API_TOKEN || '';
     const given = req.headers['x-agent-token'];
     const tokenMatches = typeof given === 'string' && expected &&
@@ -60,6 +62,22 @@ function createApi(catalog, refresh, dataDir) {
     if (!authorizeSourceWrite(req, res)) return;
     const { sources } = sourceLib.loadSourcesSync(sourceDataDir);
     sendJson(req, res, 200, { sources: sources.map(publicSource) });
+  };
+
+  const enableAllSources = async (req, res) => {
+    if (!authorizeSourceWrite(req, res)) return;
+    try {
+      const count = await withLiveLock(() => {
+        const { sources } = sourceLib.loadSourcesSync(sourceDataDir);
+        for (const source of sources) source.enabled = true;
+        sourceLib.saveSources(sourceDataDir, sources, { allSourcesEnabledOnce: true });
+        return sources.length;
+      });
+      const stats = await refresh();
+      sendJson(req, res, 200, { ok: true, count, stats });
+    } catch (err) {
+      sendJson(req, res, err.statusCode || 500, { error: err.message || 'could not enable IPTV sources' });
+    }
   };
 
   const addSource = async (req, res) => {
@@ -149,6 +167,22 @@ function createApi(catalog, refresh, dataDir) {
     if (!authorizeSourceWrite(req, res)) return;
     const { sources } = vodLib.loadSourcesSync(sourceDataDir);
     sendJson(req, res, 200, { sources: sources.map(vodLib.publicSource) });
+  };
+
+  const enableAllVodSources = async (req, res) => {
+    if (!authorizeSourceWrite(req, res)) return;
+    try {
+      const count = await withLock(vodLockKey, () => {
+        const registry = vodLib.loadSourcesSync(sourceDataDir);
+        for (const source of registry.sources) source.enabled = true;
+        vodLib.saveSources(sourceDataDir, registry.sources, { allSourcesEnabledOnce: true });
+        return registry.sources.length;
+      });
+      vodSearchCache.clear();
+      sendJson(req, res, 200, { ok: true, count });
+    } catch (err) {
+      sendJson(req, res, err.statusCode || 500, { error: err.message || 'could not enable Theatre sources' });
+    }
   };
 
   const addVodSource = async (req, res) => {
@@ -720,7 +754,7 @@ function createApi(catalog, refresh, dataDir) {
     });
   };
 
-  return { meta, channels, channel, refreshNow, playlist, playlistProxied, exportM3u, health, sourceList, addSource, updateSource, deleteSource, listVodSources, addVodSource, importVodSourceList, updateVodSource, deleteVodSource, vodSearch, vodDetail, clearVodCache: () => vodSearchCache.clear() };
+  return { meta, channels, channel, refreshNow, playlist, playlistProxied, exportM3u, health, sourceList, addSource, updateSource, deleteSource, enableAllSources, listVodSources, addVodSource, importVodSourceList, updateVodSource, deleteVodSource, enableAllVodSources, vodSearch, vodDetail, clearVodCache: () => vodSearchCache.clear() };
 }
 
 module.exports = { createApi };
