@@ -9,11 +9,17 @@ const QUALITY_HEIGHT = (q) => {
   return m ? parseInt(m[1], 10) : 0;
 };
 
+function normalizeLanguageCode(value) {
+  const code = String(value || '').trim().toLowerCase();
+  const aliases = { chi: 'zho', cmn: 'zho', fre: 'fra', ger: 'deu', dut: 'nld', per: 'fas', gre: 'ell', cze: 'ces', rum: 'ron', slo: 'slk', alb: 'sqi', may: 'msa', bur: 'mya', tib: 'bod', ice: 'isl', wel: 'cym' };
+  return aliases[code] || code;
+}
+
 class Catalog {
   constructor(dataDir) {
     this.dataDir = dataDir;
     this.channels = [];
-    this.meta = { countries: [], categories: [], qualities: [], total: 0, streams: 0, updated: null };
+    this.meta = { countries: [], languages: [], categories: [], qualities: [], total: 0, streams: 0, updated: null };
     this.byId = new Map();
     this.loadedAt = 0;
   }
@@ -55,6 +61,7 @@ class Catalog {
     return {
       q: normalize(params.q || ''),
       countries: csv(params.country).map((c) => c.toUpperCase()),
+      languages: csv(params.language).map(normalizeLanguageCode),
       categories: csv(params.category).map((c) => c.toLowerCase()),
       minQuality: parseInt(params.minQuality, 10) || 0,
       // Nothing is hidden unless the caller asks: safe=1 drops adult channels, safe=0/absent
@@ -69,6 +76,7 @@ class Catalog {
   match(c, f) {
     if (f.hideAdult && c.nsfw) return false;
     if (f.adultOnly && !c.nsfw) return false;
+    if (f.languages.length && !f.languages.some((code) => (c.languages || []).map(normalizeLanguageCode).includes(code))) return false;
     if (f.countries.length && !f.countries.includes(c.country)) return false;
     if (f.categories.length && !f.categories.some((x) => (c.cats || []).includes(x))) return false;
     if (f.minQuality && c._best < f.minQuality) return false;
@@ -125,6 +133,7 @@ class Catalog {
       id: c.id,
       name: c.name,
       country: c.country,
+      languages: [...new Set((c.languages || []).map(normalizeLanguageCode).filter(Boolean))],
       cats: c.cats || [],
       logo: c.logo || null,
       q: bestQualityLabel(c),
