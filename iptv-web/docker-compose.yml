@@ -82,7 +82,7 @@ services:
       - music-data:/home/appuser/data
     environment:
       TZ: Asia/Tokyo
-    command: ["./music-dl", "web", "--port", "8080", "--no-browser"]
+    command: ["./music-dl", "web", "--port", "8080", "--base-path", "/music", "--no-browser"]
     logging:
       driver: json-file
       options:
