@@ -417,7 +417,13 @@ function createApi(catalog, refresh, dataDir) {
     const page = Math.max(1, Number.parseInt(query.page, 10) || 1);
     sendJson(req, res, 200, {
       total: combined.length, page, limit, pages: Math.max(1, Math.ceil(combined.length / limit)),
-      items: combined.slice((page - 1) * limit, page * limit),
+      items: combined.slice((page - 1) * limit, page * limit).map(item => ({
+        ...item,
+        // Never expose stored playback URLs or provider credentials through the public search index.
+        url: undefined,
+        detailUrl: undefined,
+        episodes: Array.isArray(item.episodes) ? item.episodes.map(episode => ({ title: episode.title })) : [],
+      })),
       updatedAt: saved.updatedAt, channelCatalogCount: catalog.channels.length,
     });
   };
