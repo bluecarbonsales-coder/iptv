@@ -1,10 +1,8 @@
 'use strict';
 
-// Public development/test configuration for the IPTV metadata adapters.
-// These values are visible to anyone who can read this repository.
-// Use environment secrets for production and rotate keys if quotas are abused.
-
+// Production credentials must be injected through the runtime environment.
+// Never commit TMDB/OMDb API keys into the repository or container image.
 module.exports = Object.freeze({
-  TMDB_API_KEY: '521e53596957b410b3e69b5eefb5cb00',
-  OMDB_API_KEY: 'dfa677fa',
+  TMDB_API_KEY: process.env.TMDB_API_KEY || '',
+  OMDB_API_KEY: process.env.OMDB_API_KEY || '',
 });
