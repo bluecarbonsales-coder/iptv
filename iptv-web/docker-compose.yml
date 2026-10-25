@@ -71,5 +71,24 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # Separate music service; only published on host loopback for Cloudflare Tunnel access.
+  music-dl:
+    image: guohuiyuan/go-music-dl:latest
+    container_name: music-dl
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8081:8080"
+    volumes:
+      - music-data:/home/appuser/data
+    environment:
+      TZ: Asia/Tokyo
+    command: ["./music-dl", "web", "--port", "8080", "--no-browser"]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 volumes:
   iptv-data:
+  music-data:
