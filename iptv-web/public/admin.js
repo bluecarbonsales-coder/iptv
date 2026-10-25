@@ -240,6 +240,7 @@
             if (requestPath === '/api/v1/sources/radio') $('#apiBody').value = JSON.stringify({ name: 'Example Radio', url: 'https://radio.example/stream.mp3', language: 'English' }, null, 2);
             else if (requestPath === '/api/v1/sources/iptv') $('#apiBody').value = JSON.stringify({ name: 'My IPTV playlist', url: 'https://example.com/playlist.m3u' }, null, 2);
             else if (requestPath === '/api/v1/settings/media') $('#apiBody').value = JSON.stringify({ defaultProxy: true }, null, 2);
+            else if (requestPath === '/api/v1/settings/media') $('#apiBody').value = JSON.stringify({ defaultProxy: true }, null, 2);
             else if (requestPath === '/api/v1/sources/theatre') $('#apiBody').value = JSON.stringify({ name: 'My Theatre provider', api: 'https://example.com/api.php/provide/vod', kind: 'all' }, null, 2);
             else if (!$('#apiBody').value.trim()) $('#apiBody').value = '{}';
           }

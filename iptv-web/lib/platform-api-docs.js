@@ -7,12 +7,16 @@ const ROUTES = [
   ['GET', '/health', 'Application health and catalogue counts', 'General', 'public'],
 
   ['GET', '/sources', 'List all Radio, IPTV and Theatre sources', 'Sources', 'admin'],
+  ['GET', '/sources/health', 'Check source availability and server-to-source latency', 'Sources', 'admin'],
   ['GET', '/sources/{type}', 'List sources of one type: radio, iptv, or theatre', 'Sources', 'admin'],
   ['POST', '/sources/{type}', 'Add a source to Radio, IPTV, or Theatre', 'Sources', 'admin'],
   ['POST', '/sources/{type}/enable-all', 'Enable every source of one type', 'Sources', 'admin'],
   ['POST', '/sources/theatre/import', 'Import a Theatre provider-list JSON URL or configuration', 'Sources', 'admin'],
   ['PATCH', '/sources/{type}/{id}', 'Edit or enable/disable one source', 'Sources', 'admin'],
   ['DELETE', '/sources/{type}/{id}', 'Delete one source', 'Sources', 'admin'],
+
+  ['GET', '/settings/media', 'Read embedded playback defaults', 'Settings', 'public'],
+  ['PUT', '/settings/media', 'Save default server-relay preference', 'Settings', 'admin'],
 
   ['GET', '/iptv/meta', 'IPTV catalogue facets and counts', 'IPTV', 'public'],
   ['GET', '/iptv/channels', 'Search and filter IPTV channels', 'IPTV', 'public'],
@@ -131,7 +135,7 @@ function describeApi() {
       public: 'No login required for public read and playback endpoints.',
       admin: 'Use HTTP Basic authentication with the admin username and password used by /admin.html (defaults: admin / 0809).',
       mail: 'Use the Mail Workspace login and its session cookie.',
-      agent: 'Unified /api/v1/agent endpoints use the same admin login. Legacy /api/agent/v1 endpoints still accept X-Agent-Token.',
+      agent: 'Unified and legacy /api/agent/v1 endpoints use the same HTTP Basic admin login. Header-token and bearer-token authentication are disabled.',
     },
     groups: Object.entries(groups).map(([name, endpoints]) => ({ name, endpoints })),
   };
