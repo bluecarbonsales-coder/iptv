@@ -285,8 +285,9 @@ server.listen(PORT, HOST, () => {
   automation.start();
   if (!process.env.AGENT_API_TOKEN) log('agent API disabled: configure AGENT_API_TOKEN to enable Hermes/agent control endpoints');
   const age = catalog.meta.updated ? (Date.now() - Date.parse(catalog.meta.updated)) / 3.6e6 : Infinity;
-  if (!catalog.ready || (REFRESH_HOURS > 0 && age > REFRESH_HOURS)) {
-    log(`catalogue missing or ${age === Infinity ? 'absent' : `${age.toFixed(1)}h`} old → refreshing in background`);
+  const missingLanguageIndex = !Array.isArray(catalog.meta.languages) || catalog.channels.some((channel) => !Array.isArray(channel.languages));
+  if (!catalog.ready || missingLanguageIndex || (REFRESH_HOURS > 0 && age > REFRESH_HOURS)) {
+    log(`catalogue ${!catalog.ready ? 'missing' : missingLanguageIndex ? 'missing language index' : `${age.toFixed(1)}h old`} → refreshing in background`);
     refreshNow().catch((e) => log('background refresh failed:', e.message));
   }
 });
