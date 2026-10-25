@@ -133,7 +133,7 @@ class Catalog {
       id: c.id,
       name: c.name,
       country: c.country,
-      languages: [...new Set((c.languages || []).map(normalizeLanguageCode).filter(Boolean))],
+      languages: [...new Set((c.languages || []).map((code) => String(code || '').trim().toLowerCase()).filter(Boolean))],
       cats: c.cats || [],
       logo: c.logo || null,
       q: bestQualityLabel(c),
