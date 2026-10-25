@@ -48,3 +48,29 @@ test('server exposes basic username/password protected APIs for each source type
   assert.match(server, /app\.patch\('\/api\/v1\/sources\/:type\/:id',/);
   assert.match(server, /app\.delete\('\/api\/v1\/sources\/:type\/:id',/);
 });
+
+test('Settings compares browser and server source availability without agent-token controls', () => {
+  const html = fs.readFileSync(path.join(root, 'public', 'admin.html'), 'utf8');
+  const js = fs.readFileSync(path.join(root, 'public', 'admin.js'), 'utf8');
+  const server = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
+  const api = fs.readFileSync(path.join(root, 'lib', 'api.js'), 'utf8');
+  assert.match(html, /id="sourceHealthSummary"/);
+  assert.match(html, /id="refreshSourceHealth"/);
+  assert.match(js, /\/api\/v1\/sources\/health/);
+  assert.match(js, /mode: 'no-cors'/);
+  assert.match(js, /Current network:/);
+  assert.match(server, /app\.get\('\/api\/v1\/sources\/health'/);
+  assert.match(server, /Token-based agent access is disabled/);
+  assert.match(api, /Token-based source management has been disabled/);
+});
+
+test('IPTV and Theatre playback render inline in the page rather than as fixed overlays', () => {
+  const css = fs.readFileSync(path.join(root, 'public', 'app.css'), 'utf8');
+  const app = fs.readFileSync(path.join(root, 'public', 'app.js'), 'utf8');
+  const theatre = fs.readFileSync(path.join(root, 'public', 'movies.html'), 'utf8');
+  assert.match(css, /\.player \{ position: relative; inset: auto;/);
+  assert.match(app, /\$\('#player'\)\.scrollIntoView/);
+  assert.match(theatre, /\.player-modal\{position:relative;inset:auto;/);
+  assert.match(theatre, /Embedded media player/);
+  assert.match(theatre, /\$\('#playerModal'\)\.scrollIntoView/);
+});
