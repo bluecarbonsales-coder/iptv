@@ -439,10 +439,16 @@ function createApi(catalog, refresh, dataDir) {
     let commonsOk = false;
     let commonsError = null;
     if (kind !== 'series') {
-      try {
-        const archiveItems = await archiveLib.search(term, kind, 30);
+      // Run independent public catalogues concurrently so a slow upstream does not
+      // make the user wait for the next provider to even begin.
+      const [archiveResult, commonsResult] = await Promise.allSettled([
+        archiveLib.search(term, kind, 30),
+        commonsLib.search(term, kind, 25),
+      ]);
+
+      if (archiveResult.status === 'fulfilled') {
         archiveOk = true;
-        for (const item of archiveItems) {
+        for (const item of archiveResult.value) {
           items.push({
             id: 'vod-archive-' + item.id,
             vod: true,
@@ -463,13 +469,13 @@ function createApi(catalog, refresh, dataDir) {
             pageUrl: item.pageUrl || null,
           });
         }
-      } catch (err) {
-        archiveError = String(err.message || 'Internet Archive search failed').slice(0, 180);
+      } else {
+        archiveError = String(archiveResult.reason && archiveResult.reason.message || 'Internet Archive search failed').slice(0, 180);
       }
-      try {
-        const commonsItems = await commonsLib.search(term, kind, 25);
+
+      if (commonsResult.status === 'fulfilled') {
         commonsOk = true;
-        for (const item of commonsItems) {
+        for (const item of commonsResult.value) {
           items.push({
             id: 'vod-commons-' + item.id,
             vod: true,
@@ -490,8 +496,8 @@ function createApi(catalog, refresh, dataDir) {
             pageUrl: item.pageUrl || null,
           });
         }
-      } catch (err) {
-        commonsError = String(err.message || 'Wikimedia Commons search failed').slice(0, 180);
+      } else {
+        commonsError = String(commonsResult.reason && commonsResult.reason.message || 'Wikimedia Commons search failed').slice(0, 180);
       }
     }
     const seen = new Set();

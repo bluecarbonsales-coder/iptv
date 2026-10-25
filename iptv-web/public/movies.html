@@ -36,12 +36,53 @@ function card(item){const p=poster(item);return '<article class="poster" tabinde
 function render(){const list=state.kind==='favorites'?state.items.filter(x=>state.watchlist.some(w=>w.id===x.id)):state.items;const pages=Math.max(1,Math.ceil(list.length/state.pageSize));state.page=Math.min(state.page,pages);const shown=list.slice((state.page-1)*state.pageSize,state.page*state.pageSize);$('#catalog').innerHTML=shown.length?shown.map(card).join(''):'<div class="empty">No titles returned. Try another category or check your configured catalogues in the service settings.</div>';renderPagination(pages);$('#count').textContent=list.length+' titles · page '+state.page+' of '+pages;$$('.chip').forEach(b=>b.classList.toggle('active',b.dataset.kind===state.kind));$$('.nav[data-section]').forEach(a=>a.classList.toggle('active',a.dataset.section===state.kind));$('#watchlistSection').hidden=state.kind==='favorites';$('#watchlist').innerHTML=state.items.filter(x=>state.watchlist.some(w=>w.id===x.id)).map(card).join('')||'<div class="empty">Save titles to build your watchlist.</div>'}
 function renderPagination(pages){const el=$('#pagination');if(pages<=1){el.innerHTML='';return}let html='<button class="page-btn" data-page="'+(state.page-1)+'" '+(state.page===1?'disabled':'')+'>‹</button>';const start=Math.max(1,Math.min(state.page-2,pages-4));const end=Math.min(pages,start+4);for(let p=start;p<=end;p++)html+='<button class="page-btn '+(p===state.page?'active':'')+'" data-page="'+p+'" aria-current="'+(p===state.page?'page':'false')+'">'+p+'</button>';html+='<button class="page-btn" data-page="'+(state.page+1)+'" '+(state.page===pages?'disabled':'')+'>›</button>';el.innerHTML=html}
 $('#pagination').addEventListener('click',e=>{const b=e.target.closest('[data-page]');if(!b||b.disabled)return;state.page=Number(b.dataset.page);render();$('#featured').scrollIntoView({behavior:'smooth',block:'start'})});
-async function load(){state.loading=true;state.page=1;$('#heroStatus').textContent='Searching configured catalogues…';$('#catalog').innerHTML='<div class="empty">Loading movies, series and animation…</div>';try{const p=new URLSearchParams();p.set('type',state.kind==='favorites'?'all':state.kind);if(state.q)p.set('q',state.q);const r=await fetch('/api/vod?'+p.toString(),{headers:{Accept:'application/json'}});if(!r.ok)throw new Error('Catalogue returned '+r.status);const data=await r.json();state.items=Array.isArray(data.items)?data.items:[];$('#heroStatus').textContent=data.items?.length?'Catalogue ready · '+data.items.length+' titles':'Catalogue connected · no matching titles';render();if(state.q)historyRequest('POST',{event:'search',query:state.q})}catch(e){$('#heroStatus').textContent='Catalogue unavailable';$('#catalog').innerHTML='<div class="empty">Could not load the catalogue. Check the server and configured VOD sources, then try again.<br><br>'+esc(e.message)+'</div>'}finally{state.loading=false}}
+let catalogController=null;
+let catalogLoadId=0;
+async function load(){
+  if(catalogController)catalogController.abort();
+  const controller=new AbortController();
+  catalogController=controller;
+  const loadId=++catalogLoadId;
+  let timeoutId;
+  state.loading=true;
+  state.page=1;
+  $('#heroStatus').textContent='Searching configured catalogues…';
+  $('#catalog').innerHTML='<div class="empty">Loading movies, series and animation…</div>';
+  try{
+    const p=new URLSearchParams();
+    p.set('type',state.kind==='favorites'?'all':state.kind);
+    if(state.q)p.set('q',state.q);
+    timeoutId=setTimeout(()=>controller.abort(),35000);
+    const r=await fetch('/api/vod?'+p.toString(),{headers:{Accept:'application/json'},signal:controller.signal});
+    if(!r.ok)throw new Error('Catalogue returned HTTP '+r.status);
+    const data=await r.json();
+    if(loadId!==catalogLoadId)return;
+    state.items=Array.isArray(data.items)?data.items:[];
+    const failed=(data.errors||[]).length;
+    $('#heroStatus').textContent=state.items.length
+      ?'Catalogue ready · '+state.items.length+' titles'+(failed?' · '+failed+' source(s) unavailable':'')
+      :'Catalogue connected · no matching titles';
+    render();
+    if(state.q)historyRequest('POST',{event:'search',query:state.q});
+  }catch(e){
+    if(loadId!==catalogLoadId)return;
+    const message=controller.signal.aborted
+      ?'Catalogue request timed out after 35 seconds. Some providers may be slow or unreachable.'
+      :(e.message||'Network request failed');
+    $('#heroStatus').textContent=controller.signal.aborted?'Catalogue request timed out':'Catalogue unavailable';
+    $('#catalog').innerHTML='<div class="empty">Could not finish loading the catalogue.<br><br>'+esc(message)+'<br><br><button class="btn primary" id="retryCatalog" type="button">↻ Retry catalogue</button></div>';
+    $('#count').textContent='';
+    $('#pagination').innerHTML='';
+  }finally{
+    clearTimeout(timeoutId);
+    if(loadId===catalogLoadId){state.loading=false;catalogController=null}
+  }
+}
 let searchTimer;$('#search').addEventListener('input',e=>{state.q=e.target.value.trim();clearTimeout(searchTimer);searchTimer=setTimeout(load,300)});
 $('#chips').onclick=e=>{const b=e.target.closest('[data-kind]');if(!b)return;state.kind=b.dataset.kind;load()};
 $$('.nav[data-section]').forEach(a=>a.onclick=e=>{e.preventDefault();state.kind=a.dataset.section;setDrawer(false);load();if(state.kind==='favorites'){$('#watchlistSection').hidden=true}});
 $('#explore').onclick=()=>$('#featured').scrollIntoView({behavior:'smooth'});$('#resume').onclick=async()=>{await loadHistory();const last=state.recent[0];if(last?.item){state.selected=last.item;state.resumeEpisode=last.episodeIndex||0;openTitle(last.item)}else toast('No server-saved viewing history yet')};
-$('#catalog').addEventListener('click',e=>{const c=e.target.closest('[data-id]');if(c)openTitle(c.dataset.id)});$('#watchlist').addEventListener('click',e=>{const c=e.target.closest('[data-id]');if(c)openTitle(c.dataset.id)});
+$('#catalog').addEventListener('click',e=>{if(e.target.closest('#retryCatalog')){load();return}const c=e.target.closest('[data-id]');if(c)openTitle(c.dataset.id)});$('#watchlist').addEventListener('click',e=>{const c=e.target.closest('[data-id]');if(c)openTitle(c.dataset.id)});
 function find(id){return state.items.find(x=>String(x.id)===String(id))||state.watchlist.find(x=>String(x.id)===String(id))}
 async function openTitle(id){const item=(id&&typeof id==='object')?id:find(id);if(!item)return;state.selected=item;/* Cards open the player directly; episode choices stay inside the player. */$('#detailTitle').textContent=item.name||'Untitled';$('#detailKind').textContent=kindLabel(item.kind);$('#detailMeta').textContent=[item.year,item.remarks,item.cats?.join(' · ')].filter(Boolean).join(' · ');$('#detailOverview').textContent=item.overview||'Choose an available playback option below.';$('#detailPoster').src=poster(item);$('#detailStatus').textContent='Loading title details…';$('#episodes').innerHTML='<span class="status">Loading playback options…</span>';updateSaveButton();try{const r=await fetch('/api/vod/'+encodeURIComponent(item.sourceId)+'/'+encodeURIComponent(item.vodId));const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not load title');state.detail=d;state.episodes=Array.isArray(d.episodes)?d.episodes:[];$('#detailStatus').textContent=state.episodes.length+' playback option(s) available';$('#episodes').innerHTML=state.episodes.map((ep,i)=>'<button class="episode" data-episode="'+i+'">'+esc(ep.title||('Episode '+(i+1)))+'</button>').join('')||'<span class="status">No playable episodes were returned for this title.</span>';$('#playFirst').disabled=!state.episodes.length;$('#episodeSelect').innerHTML=state.episodes.map((ep,i)=>'<option value="'+i+'">'+esc(ep.title||('Episode '+(i+1)))+'</option>').join('');if(state.episodes.length){const resume=Math.min(Number(state.resumeEpisode)||0,state.episodes.length-1);state.resumeEpisode=0;playEpisode(resume)}else{toast('No playable stream was returned for this title.')}}catch(e){toast('Could not load title: '+e.message)}}
 function updateSaveButton(){const on=state.watchlist.some(x=>x.id===state.selected?.id);$('#saveTitle').textContent=on?'♥ In watchlist':'♡ Add to watchlist'}
