@@ -177,7 +177,7 @@ function buildOpenApi() {
     components: {
       securitySchemes: {
         AdminLogin: { type: 'http', scheme: 'basic', description: 'Use the same username and password as /admin.html.' },
-        MailSession: { type: 'apiKey', in: 'cookie', name: 'mail_session', description: 'Log in through POST /mail/login first.' },
+        MailSession: { type: 'apiKey', in: 'cookie', name: 'mail_workspace_session', description: 'Log in through POST /mail/login first.' },
       },
     },
     paths,
