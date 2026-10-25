@@ -227,11 +227,7 @@ The original endpoints listed below remain available for backward compatibility.
 | `PATCH /api/portal/services/:id` | update a shortcut (requires existing management token) |
 | `DELETE /api/portal/services/:id` | remove a shortcut only (requires existing management token) |
 
-`POST /api/refresh` is accepted from the host itself without a token; anything arriving
-through the reverse proxy must send `X-Refresh-Token` matching `REFRESH_TOKEN`. Resource-management
-requests require `X-Source-Token`, matching `SOURCE_TOKEN` or (if unset) `REFRESH_TOKEN`.
-Enter that token in the Resource manager panel; it is held in the current browser tab only.
-Configure a strong random token in the deployment environment before exposing the UI publicly.
+These token rules apply to the **legacy routes** in the table above. The new `/api/v1` entry is the recommended interface: use the same admin username/password as `/admin.html` for source and settings changes. There is no separate source-management token to enter in the new API tester. The advanced agent routes still use the configured `X-Agent-Token`, and old integrations using the original routes continue to work as before.
 
 ## Agent operation and automation
 
