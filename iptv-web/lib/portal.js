@@ -135,17 +135,9 @@ function createPortalApi(options = {}) {
 
   function authorize(req, res) {
     if (req && req.adminAuthenticated === true) return true;
-    const expected = process.env.AGENT_API_TOKEN || '';
-    const given = req.headers['x-agent-token'];
-    const matches = typeof given === 'string' && expected &&
-      Buffer.from(given).length === Buffer.from(expected).length &&
-      crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expected));
-    if (matches) return true;
-    if (!expected) {
-      sendJson(req, res, 503, { error: 'portal configuration writes are disabled until AGENT_API_TOKEN is configured' });
-    } else {
-      sendJson(req, res, 403, { error: 'portal configuration writes are restricted to the authenticated Hermes agent API' });
-    }
+    sendJson(req, res, 401, {
+      error: 'Sign in at /admin.html. Token-based portal management is disabled.',
+    });
     return false;
   }
 
