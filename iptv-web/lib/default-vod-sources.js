@@ -196,6 +196,26 @@ module.exports = Object.freeze([
     "kind": "all",
     "enabled": true
   },
+
+  {
+    "name": "myIPTV GitHub",
+    "api": "https://github.com/suxuang/myIPTV",
+    "kind": "all",
+    "enabled": true
+  },
+  {
+    "name": "TVBox GitHub",
+    "api": "https://github.com/noimank/tvbox",
+    "kind": "all",
+    "enabled": true
+  },
+  {
+    "name": "SMZDM source reference",
+    "api": "https://post.m.smzdm.com/p/a95eg4qo/",
+    "kind": "all",
+    "enabled": true
+  }
+,
   {
     "name": "樱花资源",
     "api": "https://m3u8.apiyhzy.com/api.php/provide/vod",
