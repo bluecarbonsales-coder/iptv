@@ -7,6 +7,7 @@ const { parseM3U, isHlsManifest } = require('./m3u');
 const { readBody } = require('./util');
 const sourceLib = require('./sources');
 const vodLib = require('./vod');
+const { matchesAdminCredentials } = require('./admin-auth');
 const archiveLib = require('./archive-vod');
 const commonsLib = require('./commons-vod');
 const { withLock, withFileLock } = require('./registry-lock');
@@ -44,17 +45,8 @@ function createApi(catalog, refresh, dataDir) {
 
   function authorizeSourceWrite(req, res) {
     if (req && req.adminAuthenticated === true) return true;
-    const expected = process.env.AGENT_API_TOKEN || '';
-    const given = req.headers['x-agent-token'];
-    const tokenMatches = typeof given === 'string' && expected &&
-      Buffer.from(given).length === Buffer.from(expected).length &&
-      require('crypto').timingSafeEqual(Buffer.from(given), Buffer.from(expected));
-    if (tokenMatches) return true;
-    if (!expected) {
-      sendJson(req, res, 503, { error: 'source registry writes are disabled until AGENT_API_TOKEN is configured' });
-      return false;
-    }
-    sendJson(req, res, 403, { error: 'source registry writes are restricted to the authenticated Hermes agent API' });
+    if (matchesAdminCredentials(req)) { req.adminAuthenticated = true; return true; }
+    sendJson(req, res, 401, { error: 'Please sign in with the admin username and password. API tokens are disabled.' });
     return false;
   }
 

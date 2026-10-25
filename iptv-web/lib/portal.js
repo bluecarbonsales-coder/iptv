@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { readBody, sendJson } = require('./util');
+const { matchesAdminCredentials } = require('./admin-auth');
 
 const MAX_SERVICES = 200;
 const DEFAULT_SERVICES = [
@@ -135,17 +136,8 @@ function createPortalApi(options = {}) {
 
   function authorize(req, res) {
     if (req && req.adminAuthenticated === true) return true;
-    const expected = process.env.AGENT_API_TOKEN || '';
-    const given = req.headers['x-agent-token'];
-    const matches = typeof given === 'string' && expected &&
-      Buffer.from(given).length === Buffer.from(expected).length &&
-      crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expected));
-    if (matches) return true;
-    if (!expected) {
-      sendJson(req, res, 503, { error: 'portal configuration writes are disabled until AGENT_API_TOKEN is configured' });
-    } else {
-      sendJson(req, res, 403, { error: 'portal configuration writes are restricted to the authenticated Hermes agent API' });
-    }
+    if (matchesAdminCredentials(req)) { req.adminAuthenticated = true; return true; }
+    sendJson(req, res, 401, { error: 'Please sign in with the admin username and password. API tokens are disabled.' });
     return false;
   }
 
