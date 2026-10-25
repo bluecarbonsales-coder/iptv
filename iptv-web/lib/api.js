@@ -402,104 +402,53 @@ function createApi(catalog, refresh, dataDir) {
     const cacheKey = kind + '\u0000' + term.toLowerCase();
     const cached = vodSearchCache.get(cacheKey);
     if (cached && Date.now() - cached.time < 45000) return sendJson(req, res, 200, cached.payload);
+
     const registry = vodLib.loadSourcesSync(sourceDataDir);
     const sources = registry.sources.filter((s) => s.enabled !== false && (kind === 'all' || s.kind === kind || s.kind === 'all'));
     const results = await Promise.allSettled(sources.map((source) => vodLib.searchSource(source, term, 1)));
     const items = [];
     const errors = [];
+    const sourceCounts = sources.map(() => 0);
+    let filteredShortForm = 0;
+
     results.forEach((result, index) => {
       const source = sources[index];
-      if (result.status === 'fulfilled') {
-        for (const item of result.value) {
-          if (kind !== 'all' && source.kind === 'all' && item.kind !== kind) continue;
-          items.push({
-            id: 'vod-' + item.sourceId + '-' + item.id,
-            vod: true,
-            vodId: item.id,
-            sourceId: item.sourceId,
-            sourceName: item.sourceName,
-            name: item.name,
-            logo: item.logo,
-            country: null,
-            cats: [item.category || (kind === 'all' ? 'VOD' : kind)],
-            year: item.year,
-            remarks: item.remarks,
-            overview: item.overview,
-            streams: 1,
-            labels: [],
-            kind: item.kind,
-          });
-        }
-      } else {
+      if (result.status !== 'fulfilled') {
         errors.push({ source: source.name, error: String(result.reason && result.reason.message || 'provider failed').slice(0, 180) });
+        return;
+      }
+      for (const item of result.value) {
+        if (vodLib.isShortForm(item)) {
+          filteredShortForm++;
+          continue;
+        }
+        if (kind !== 'all' && source.kind === 'all' && item.kind !== kind) continue;
+        items.push({
+          id: 'vod-' + item.sourceId + '-' + item.id,
+          vod: true,
+          vodId: item.id,
+          sourceId: item.sourceId,
+          sourceName: item.sourceName,
+          name: item.name,
+          logo: item.logo,
+          country: null,
+          cats: [item.category || (kind === 'all' ? 'VOD' : kind)],
+          year: item.year,
+          remarks: item.remarks,
+          overview: item.overview,
+          streams: 1,
+          labels: [],
+          kind: item.kind,
+        });
+        sourceCounts[index]++;
       }
     });
-    let archiveOk = false;
-    let archiveError = null;
-    let commonsOk = false;
-    let commonsError = null;
-    if (kind !== 'series') {
-      // Run independent public catalogues concurrently so a slow upstream does not
-      // make the user wait for the next provider to even begin.
-      const [archiveResult, commonsResult] = await Promise.allSettled([
-        archiveLib.search(term, kind, 30),
-        commonsLib.search(term, kind, 25),
-      ]);
 
-      if (archiveResult.status === 'fulfilled') {
-        archiveOk = true;
-        for (const item of archiveResult.value) {
-          items.push({
-            id: 'vod-archive-' + item.id,
-            vod: true,
-            vodId: item.id,
-            sourceId: 'archive',
-            sourceName: item.sourceName,
-            name: item.name,
-            logo: item.logo,
-            country: null,
-            cats: [item.category || (item.kind === 'anime' ? 'Open-license animation' : 'Public-domain / CC films')],
-            year: item.year,
-            remarks: item.remarks,
-            overview: item.overview,
-            streams: 1,
-            labels: [],
-            kind: item.kind,
-            licenseUrl: item.licenseUrl || null,
-            pageUrl: item.pageUrl || null,
-          });
-        }
-      } else {
-        archiveError = String(archiveResult.reason && archiveResult.reason.message || 'Internet Archive search failed').slice(0, 180);
-      }
-
-      if (commonsResult.status === 'fulfilled') {
-        commonsOk = true;
-        for (const item of commonsResult.value) {
-          items.push({
-            id: 'vod-commons-' + item.id,
-            vod: true,
-            vodId: item.id,
-            sourceId: 'commons',
-            sourceName: item.sourceName,
-            name: item.name,
-            logo: item.logo,
-            country: null,
-            cats: [item.category || (item.kind === 'anime' ? 'Open-license animation' : 'Open-license video')],
-            year: item.year || '',
-            remarks: item.remarks,
-            overview: item.overview,
-            streams: 1,
-            labels: [],
-            kind: item.kind,
-            licenseUrl: item.licenseUrl || null,
-            pageUrl: item.pageUrl || null,
-          });
-        }
-      } else {
-        commonsError = String(commonsResult.reason && commonsResult.reason.message || 'Wikimedia Commons search failed').slice(0, 180);
-      }
-    }
+    // The main Movies catalogue is deliberately built from the owner's configured
+    // VOD providers only. Wikimedia Commons is a file/media repository, not a
+    // feature-film catalogue; broad empty searches there return arbitrary short
+    // clips. Internet Archive discovery remains available via the agent API but
+    // must not pollute the user's configured movie/series results.
     const seen = new Set();
     const unique = items.filter((item) => {
       const key = (item.name + '|' + (item.year || '')).toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]+/g, '');
@@ -507,13 +456,12 @@ function createApi(catalog, refresh, dataDir) {
       seen.add(key);
       return true;
     });
-    const providerSummary = sources.map((s, i) => ({ name: s.name, ok: results[i].status === 'fulfilled' }));
-    if (kind !== 'series') {
-      providerSummary.push({ name: 'Internet Archive (public domain / CC)', ok: archiveOk });
-      providerSummary.push({ name: 'Wikimedia Commons (open-license video)', ok: commonsOk });
-    }
-    if (archiveError) errors.push({ source: 'Internet Archive (public domain / CC)', error: archiveError });
-    if (commonsError) errors.push({ source: 'Wikimedia Commons (open-license video)', error: commonsError });
+    const providerSummary = sources.map((source, index) => ({
+      name: source.name,
+      ok: results[index].status === 'fulfilled',
+      received: results[index].status === 'fulfilled' ? results[index].value.length : 0,
+      count: sourceCounts[index],
+    }));
     const payload = {
       type: kind,
       total: unique.length,
@@ -522,9 +470,10 @@ function createApi(catalog, refresh, dataDir) {
       pages: 1,
       items: unique.slice(0, 240),
       providers: providerSummary,
+      filteredShortForm,
       errors,
     };
-    if ((sources.length || archiveOk) && errors.length === 0) {
+    if (sources.length > 0 && errors.length === 0) {
       vodSearchCache.set(cacheKey, { time: Date.now(), payload });
       if (vodSearchCache.size > 100) vodSearchCache.delete(vodSearchCache.keys().next().value);
     }
