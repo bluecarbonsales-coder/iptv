@@ -2,7 +2,7 @@
   'use strict';
 
   const $ = (selector, root) => (root || document).querySelector(selector);
-  const state = { services: [], category: 'All', query: '', canManage: false, token: '', editingId: null, availability: {}, availabilityScanning: false, fastestResource: null, availabilityScanCompletedAt: null };
+  const state = { services: [], category: 'All', query: '', canManage: false, editingId: null, availability: {}, availabilityScanning: false, fastestResource: null, availabilityScanCompletedAt: null };
   let availabilityTimer = null;
   const grid = $('#serviceGrid');
   const categoryList = $('#categoryList');
@@ -37,7 +37,6 @@
   function headers(json) {
     const result = {};
     if (json) result['Content-Type'] = 'application/json';
-    if (state.token) result['X-Source-Token'] = state.token;
     return result;
   }
   function filteredServices() {
@@ -272,32 +271,11 @@
     }
   }
   async function unlock() {
-    state.token = $('#manageToken').value.trim();
-    if (!state.token) { showToast('Enter your management token first.'); return; }
-    $('#unlockButton').disabled = true;
-    status.textContent = 'Checking access…';
-    status.className = 'status';
-    try {
-      const data = await request('/api/portal/services?manage=1', { headers: headers(false) });
-      state.services = Array.isArray(data.services) ? data.services : [];
-      state.canManage = true;
-      $('#manageToken').value = '';
-      status.textContent = 'Link management enabled for this page session.';
-      status.className = 'status ok';
-      buildCategories();
-      renderServices();
-      showToast('Service management unlocked.');
-    } catch (error) {
-      state.token = '';
-      status.textContent = error.message;
-      status.className = 'status error';
-    } finally {
-      $('#unlockButton').disabled = false;
-    }
+    location.assign('/admin.html');
   }
+
   function lock() {
     state.canManage = false;
-    state.token = '';
     status.textContent = 'Management locked.';
     status.className = 'status';
     renderServices();
@@ -383,11 +361,10 @@
     $('#btnManage').addEventListener('click', () => {
       $('#unlockPanel').hidden = false;
       $('#unlockPanel').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-      $('#manageToken').focus();
-      $('#manageStatus').textContent = 'Use SOURCE_TOKEN, REFRESH_TOKEN or AGENT_API_TOKEN from the server environment.';
+      location.assign('/admin.html');
       $('#manageStatus').className = 'status';
     });
-    $('#unlockForm').addEventListener('submit', (event) => { event.preventDefault(); unlock(); });
+    $('#unlockForm').addEventListener('submit', (event) => { event.preventDefault(); location.assign('/admin.html'); });
     $('#hideUnlock').addEventListener('click', () => { $('#unlockPanel').hidden = true; });
     $('#btnLock').addEventListener('click', lock);
     $('#btnAdd').addEventListener('click', () => openEditor());
