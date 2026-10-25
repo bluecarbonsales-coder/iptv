@@ -84,10 +84,11 @@ function remove(dataDir, id) {
   write(dataDir, { items: next });
   return true;
 }
+function allItems(dataDir) { return read(dataDir).items.map(({ searchText, ...item }) => item); }
 function stats(dataDir) {
   const items = read(dataDir).items;
   const byType = {};
   for (const item of items) byType[item.kind] = (byType[item.kind] || 0) + 1;
   return { total: items.length, byType, updatedAt: read(dataDir).updatedAt };
 }
-module.exports = { filePath, upsert, search, remove, stats, safeItem, MAX_ITEMS };
+module.exports = { filePath, upsert, search, allItems, remove, stats, safeItem, MAX_ITEMS };
