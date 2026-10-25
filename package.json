@@ -1,0 +1,13 @@
+{
+  "name": "iptv-project",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Root shortcuts for the IPTV web application in iptv-web/",
+  "scripts": {
+    "setup": "npm --prefix iptv-web run setup",
+    "dev": "npm --prefix iptv-web run dev",
+    "start": "npm --prefix iptv-web run start",
+    "test": "npm --prefix iptv-web test",
+    "install:app": "npm --prefix iptv-web ci"
+  }
+}
