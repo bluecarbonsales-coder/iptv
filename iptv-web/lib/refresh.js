@@ -11,7 +11,7 @@ const { QUALITY_HEIGHT } = require('./catalog');
 const FILES = ['channels.json', 'streams.json', 'logos.json', 'categories.json', 'countries.json', 'languages.json'];
 
 const LANGUAGE_PRIORITY = [
-  'eng', 'zho', 'hin', 'spa', 'ara', 'fra', 'ben', 'por', 'rus', 'urd', 'ind',
+  'eng', 'zho', 'hin', 'spa', 'ara', 'fra', 'ben', 'por', 'ind', 'urd', 'rus',
   'deu', 'jpn', 'pan', 'jav', 'kor', 'vie', 'mar', 'tel', 'tam', 'tur', 'ita',
   'fas', 'pol', 'ukr', 'nld', 'tha', 'swa', 'nep', 'ell', 'swe', 'hau', 'amh', 'yor',
 ];
