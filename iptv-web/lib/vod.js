@@ -28,7 +28,23 @@ function ensureDefaultSources(dataDir) {
     registry = JSON.parse(fs.readFileSync(target, 'utf8'));
     if (!Array.isArray(registry.sources)) registry.sources = [];
   } catch {}
-  if (registry.defaultsSeeded === true) return false;
+
+  // One-time migration for installations that already seeded these operator-listed
+  // providers while they were disabled. Run this only once so the operator can
+  // disable individual providers again from the source manager afterward.
+  if (registry.defaultsSeeded === true) {
+    if (registry.defaultSourcesEnabled === true) return false;
+    let changed = false;
+    for (const source of registry.sources) {
+      if (source.importedFrom === 'operator-provided initial list' && source.enabled !== true) {
+        source.enabled = true;
+        changed = true;
+      }
+    }
+    saveSources(dataDir, registry.sources);
+    return changed;
+  }
+
   const now = new Date().toISOString();
   const existing = new Set(registry.sources.map((source) => source.api));
   const seeded = DEFAULT_SOURCES.slice(0, MAX_VOD_SOURCES).filter((source) => {
@@ -55,7 +71,12 @@ function saveSources(dataDir, sources) {
   fs.mkdirSync(dataDir, { recursive: true });
   const target = registryPath(dataDir);
   const temp = target + '.tmp';
-  fs.writeFileSync(temp, JSON.stringify({ version: 1, defaultsSeeded: true, sources }, null, 2), { mode: 0o600 });
+  fs.writeFileSync(temp, JSON.stringify({
+    version: 1,
+    defaultsSeeded: true,
+    defaultSourcesEnabled: true,
+    sources,
+  }, null, 2), { mode: 0o600 });
   fs.renameSync(temp, target);
 }
 function newId() {
