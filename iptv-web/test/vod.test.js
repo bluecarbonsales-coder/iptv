@@ -28,6 +28,13 @@ test('classifies movies, series, and anime using common source labels', () => {
   assert.equal(vod.classify({ type_name: 'Science' }), 'all');
 });
 
+test('filters obvious trailers and short clips without matching unrelated title words', () => {
+  assert.equal(vod.isShortForm({ name: 'The Example Movie Official Trailer', category: '电影' }), true);
+  assert.equal(vod.isShortForm({ name: 'City News', category: '短视频' }), true);
+  assert.equal(vod.isShortForm({ name: 'Short Circuit', category: '科幻电影' }), false);
+  assert.equal(vod.isShortForm({ name: 'A Feature Film', category: '电影' }), false);
+});
+
 test('parses alternate play-source groups and deduplicates episodes', () => {
   const items = vod.parseEpisodes({
     vod_play_from: 'line1$$$line2',
