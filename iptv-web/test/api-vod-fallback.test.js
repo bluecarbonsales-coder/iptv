@@ -37,6 +37,7 @@ test('Theatre falls back to an explicitly open-license movie source when none is
       version: 1,
       defaultsSeeded: true,
       defaultSourcesEnabled: true,
+      allSourcesEnabledOnce: true,
       sources: [],
     }));
     archive.search = async (term, kind, limit) => {
