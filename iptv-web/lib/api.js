@@ -405,10 +405,19 @@ function createApi(catalog, refresh, dataDir) {
 
     const registry = vodLib.loadSourcesSync(sourceDataDir);
     const sources = registry.sources.filter((s) => s.enabled !== false && (kind === 'all' || s.kind === kind || s.kind === 'all'));
-    const results = await Promise.allSettled(sources.map((source) => vodLib.searchSource(source, term, 1)));
+    const archiveSearch = sources.length === 0 && !['series', 'documentary'].includes(kind)
+      ? archiveLib.search(term, kind, 30)
+      : null;
+    const [results, archiveResults] = await Promise.all([
+      Promise.allSettled(sources.map((source) => vodLib.searchSource(source, term, 1))),
+      archiveSearch ? Promise.allSettled([archiveSearch]) : Promise.resolve([]),
+    ]);
+    const archiveResult = archiveResults[0] || null;
     const items = [];
     const errors = [];
     const sourceCounts = sources.map(() => 0);
+    let archiveCount = 0;
+    let archiveReceived = 0;
     let filteredShortForm = 0;
 
     results.forEach((result, index) => {
@@ -444,11 +453,42 @@ function createApi(catalog, refresh, dataDir) {
       }
     });
 
-    // The main Movies catalogue is deliberately built from the owner's configured
-    // VOD providers only. Wikimedia Commons is a file/media repository, not a
-    // feature-film catalogue; broad empty searches there return arbitrary short
-    // clips. Internet Archive discovery remains available via the agent API but
-    // must not pollute the user's configured movie/series results.
+    // With no operator-configured VOD provider enabled, use the Internet Archive's
+    // explicitly public-domain / compatible Creative Commons catalogue as a fallback.
+    // We never automatically enable third-party scrape APIs; the Archive source is
+    // license-filtered and does not replace any provider the operator configured.
+    if (archiveResult) {
+      if (archiveResult.status !== 'fulfilled') {
+        errors.push({ source: 'Internet Archive (open-license fallback)', error: String(archiveResult.reason && archiveResult.reason.message || 'archive search failed').slice(0, 180) });
+      } else {
+        archiveReceived = archiveResult.value.length;
+        for (const item of archiveResult.value) {
+          const shortForm = vodLib.isShortForm(item);
+          if (shortForm) filteredShortForm++;
+          if (shortForm || (kind !== 'all' && item.kind !== kind)) continue;
+          items.push({
+            id: 'vod-archive-' + item.id,
+            vod: true,
+            vodId: item.id,
+            sourceId: 'archive',
+            sourceName: item.sourceName || 'Internet Archive (open-license)',
+            name: item.name,
+            logo: item.logo || null,
+            country: null,
+            cats: [item.category || (kind === 'all' ? item.kind : kind)],
+            year: item.year || '',
+            remarks: item.remarks || 'Open-license video',
+            overview: item.overview || '',
+            pageUrl: item.pageUrl || null,
+            licenseUrl: item.licenseUrl || null,
+            streams: 1,
+            labels: [],
+            kind: item.kind,
+          });
+          archiveCount++;
+        }
+      }
+    }
     const seen = new Set();
     const unique = items.filter((item) => {
       const key = (item.name + '|' + (item.year || '')).toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]+/g, '');
@@ -462,6 +502,12 @@ function createApi(catalog, refresh, dataDir) {
       received: results[index].status === 'fulfilled' ? results[index].value.length : 0,
       count: sourceCounts[index],
     }));
+    if (archiveResult) providerSummary.push({
+      name: 'Internet Archive (open-license fallback)',
+      ok: archiveResult.status === 'fulfilled',
+      received: archiveReceived,
+      count: archiveCount,
+    });
     const payload = {
       type: kind,
       total: unique.length,
@@ -473,7 +519,7 @@ function createApi(catalog, refresh, dataDir) {
       filteredShortForm,
       errors,
     };
-    if (sources.length > 0 && errors.length === 0) {
+    if (errors.length === 0) {
       vodSearchCache.set(cacheKey, { time: Date.now(), payload });
       if (vodSearchCache.size > 100) vodSearchCache.delete(vodSearchCache.keys().next().value);
     }
