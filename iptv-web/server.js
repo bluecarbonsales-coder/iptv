@@ -501,7 +501,7 @@ function unifiedMailSessionCookie(handler) {
     const originalSetHeader = res.setHeader.bind(res);
     res.setHeader = (name, value) => {
       if (String(name).toLowerCase() === 'set-cookie') {
-        const rewrite = (item) => String(item).replace(/;\\s*Path=\\/api\\/mail(?=;|$)/i, '; Path=/api/v1/mail');
+        const rewrite = (item) => String(item).replace(/;\s*Path=\/api\/mail(?=;|$)/i, '; Path=/api/v1/mail');
         value = Array.isArray(value) ? value.map(rewrite) : rewrite(value);
       }
       return originalSetHeader(name, value);
