@@ -401,7 +401,7 @@ function createApi(catalog, refresh, dataDir) {
     const normalizeSearch = value => String(value || '').normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
     const q = normalizeSearch(query.q || '');
     const words = q.split(' ').filter(Boolean);
-    const type = query.type || 'all';
+    const type = ['all', 'channel', 'movies', 'series', 'anime', 'documentary', 'video'].includes(query.type) ? query.type : 'all';
     const channelItems = (type === 'all' || type === 'channel') ? catalog.channels
       .filter(channel => !q || words.every(word => (channel._s || normalizeSearch(channel.name)).includes(word)))
       .map(channel => ({
