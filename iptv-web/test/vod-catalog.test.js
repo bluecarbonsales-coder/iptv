@@ -25,7 +25,7 @@ function invoke(handler, query) {
   });
 }
 
-test('Movies catalogue uses configured providers and excludes short clips and public-catalogue noise', async (t) => {
+test('Movies catalogue combines configured providers with the open-license source and excludes short clips', async (t) => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'iptv-vod-catalog-'));
   const registryFile = path.join(dataDir, 'vod-sources.json');
   fs.writeFileSync(registryFile, JSON.stringify({
@@ -79,9 +79,10 @@ test('Movies catalogue uses configured providers and excludes short clips and pu
   assert.equal(result.statusCode, 200);
   assert.deepEqual(result.body.items.map((item) => item.name), ['A Feature Film']);
   assert.equal(result.body.filteredShortForm, 2);
-  assert.deepEqual(result.body.providers, [{
-    name: 'Configured film provider', ok: true, received: 3, count: 1,
-  }]);
-  assert.equal(archiveCalls, 0);
+  assert.deepEqual(result.body.providers, [
+    { name: 'Configured film provider', ok: true, received: 3, count: 1 },
+    { name: 'Internet Archive (open-license fallback)', ok: true, received: 0, count: 0 },
+  ]);
+  assert.equal(archiveCalls, 1);
   assert.equal(commonsCalls, 0);
 });
