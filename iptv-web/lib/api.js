@@ -160,14 +160,12 @@ function createApi(catalog, refresh, dataDir) {
       const apiUrl = vodLib.normalizeApiUrl(body.api);
       const kind = vodLib.KINDS.has(body.kind) ? body.kind : 'all';
       if (!name) return sendJson(req, res, 400, { error: 'provider name is required' });
+      // Registration is deliberately metadata-only: do not probe or fetch the source here.
       const source = {
         id: vodLib.newId(), name, api: apiUrl, kind, enabled: body.enabled !== false,
         addedAt: new Date().toISOString(), lastChecked: null, lastError: null,
+        lastItemCount: null, listAction: 'videolist',
       };
-      const probe = await vodLib.probeSource(source);
-      source.lastChecked = new Date().toISOString();
-      source.lastItemCount = probe.count;
-      source.listAction = probe.action;
       await withLock(vodLockKey, () => {
         const current = vodLib.loadSourcesSync(sourceDataDir).sources;
         if (current.length >= vodLib.MAX_VOD_SOURCES) throw Object.assign(new Error('VOD provider limit reached'), { statusCode: 409 });
@@ -176,7 +174,7 @@ function createApi(catalog, refresh, dataDir) {
         vodLib.saveSources(sourceDataDir, current);
       });
       vodSearchCache.clear();
-      sendJson(req, res, 201, { source: vodLib.publicSource(source), probe });
+      sendJson(req, res, 201, { source: vodLib.publicSource(source), registered: true, probed: false });
     } catch (err) {
       sendJson(req, res, err.statusCode || 400, { error: err.message || 'could not add VOD provider' });
     }
