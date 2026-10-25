@@ -13,7 +13,7 @@
   let loadSequence = 0;
   let activeTicket = 0;
   const SPOKEN_LANGUAGE_PRIORITY = [
-    'english', 'chinese', 'mandarin', 'hindi', 'spanish', 'arabic', 'french', 'bengali', 'portuguese', 'russian', 'urdu', 'indonesian',
+    'english', 'chinese', 'mandarin', 'hindi', 'spanish', 'arabic', 'french', 'bengali', 'portuguese', 'indonesian', 'urdu', 'russian',
     'german', 'japanese', 'punjabi', 'javanese', 'korean', 'vietnamese', 'marathi', 'telugu', 'tamil', 'turkish', 'italian', 'persian',
     'polish', 'ukrainian', 'dutch', 'thai', 'swahili', 'nepali', 'greek', 'swedish', 'hausa', 'amharic', 'yoruba',
   ];
