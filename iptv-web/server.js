@@ -124,14 +124,10 @@ function refreshGuard(req, res, params, query) {
   const viaProxy = !!req.headers['x-forwarded-for'] || !!req.headers['x-real-ip'];
   const remote = (req.socket.remoteAddress || '').replace(/^::ffff:/, '');
   const local = remote === '127.0.0.1' || remote === '::1' || isPrivateIp(remote);
-  const token = process.env.REFRESH_TOKEN || '';
+  // Keep local systemd/CLI refresh jobs working, but use Settings login for all remote/manual calls.
   if (!viaProxy && local) return api.refreshNow(req, res, params, query);
-  const given = req.headers['x-refresh-token'];
-  const tokenMatches = typeof given === 'string' && token &&
-    Buffer.from(given).length === Buffer.from(token).length &&
-    require('crypto').timingSafeEqual(Buffer.from(given), Buffer.from(token));
-  if (tokenMatches) return api.refreshNow(req, res, params, query);
-  return sendJson(req, res, 403, { error: 'refresh is restricted', hint: 'send X-Refresh-Token' });
+  if (adminCredentialsMatch(req)) return api.refreshNow(req, res, params, query);
+  return sendJson(req, res, 401, { error: 'Sign in at /admin.html to refresh the catalogue. Token access is disabled.' });
 }
 
 // Token-based legacy agent API routes are intentionally retained only as disabled compatibility stubs.
@@ -212,7 +208,11 @@ app.post('/api/visitor/context', async (req, res) => {
   } catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message || 'visitor context was not recorded' }); }
 });
 app.get('/api/portal/availability', resourceAvailability.handler);
-app.get('/api/portal/services', portal.list);
+app.get('/api/portal/services', (req, res, params, query) => {
+  const manage = new URL(req.url, 'http://localhost').searchParams.get('manage') === '1';
+  if (manage) return adminRoute(portal.list)(req, res, params, query);
+  return portal.list(req, res, params, query);
+});
 app.post('/api/portal/services', adminRoute(portal.add));
 app.patch('/api/portal/services/:id', adminRoute(portal.update));
 app.delete('/api/portal/services/:id', adminRoute(portal.remove));
