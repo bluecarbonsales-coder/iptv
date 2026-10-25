@@ -12,7 +12,7 @@ test('the platform has one common API base and a machine-readable OpenAPI docume
   assert.equal(spec.openapi, '3.1.0');
   assert.equal(spec.servers[0].url, '/api/v1');
   assert.ok(spec.components.securitySchemes.AdminLogin);
-  assert.ok(spec.components.securitySchemes.AgentToken);
+  assert.ok(spec.paths['/agent/status'].get.security[0].AdminLogin);
   assert.ok(spec.paths['/sources']);
 });
 
@@ -44,5 +44,5 @@ test('the common API lists the main platform areas and advanced agents separatel
   assert.ok(spec.paths['/radio/stations'].get);
   assert.ok(spec.paths['/theatre/titles'].get);
   assert.ok(spec.paths['/mail/login'].post);
-  assert.ok(spec.paths['/agent/status'].get.security);
+  assert.ok(spec.paths['/agent/status'].get.security[0].AdminLogin);
 });
