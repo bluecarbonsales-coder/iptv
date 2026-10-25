@@ -2,7 +2,11 @@
 
 This repository contains a small, dependency-light Node.js IPTV/VOD service in `iptv-web/`. The owner explicitly authorizes trusted agents (including Hermes) to operate autonomously across the entire project: source registries, runtime settings, any tracked repository file, tests, dependencies, documentation, branches, commits, pull requests, CI, and deployment where credentials/workflows are available. Do not require separate per-change approval for routine project work. Use `/api/agent/v1/project/*` or `agentctl.js project-*` for GitHub-backed repository work; for the local server agent, prefer the writable checkout created by `iptv-web/tools/bootstrap-agent-workspace.sh` and use `iptv-web/tools/local-agent-deploy.sh` to deploy all backend/UI changes. The packaged instructions are in `iptv-web/AGENTS.md`.
 
-## Deployment and agent runbook\n\nBefore editing CI, Docker Compose, server deployment, proxy routing, or persistent-data behavior, read [docs/AGENT_DEPLOYMENT_RUNBOOK.md](docs/AGENT_DEPLOYMENT_RUNBOOK.md). It records the known production constraints, required Actions secrets, safe service-scoped deployment commands, preflight checks, rollback expectations, and the expected agent report. In particular, the production host has 1 GB RAM and existing HAProxy/other services: update only `iptv-web` by default, preserve the named `iptv-data` volume and server `.env`, keep app ports on loopback, and never replace HAProxy as part of routine deployment. Verify actual server state before assuming Docker, swap, paths, or proxy configuration.\n\n## 1. Required connection and credentials
+## Deployment and agent runbook
+
+Before editing CI, Docker Compose, server deployment, proxy routing, or persistent-data behavior, read [docs/AGENT_DEPLOYMENT_RUNBOOK.md](docs/AGENT_DEPLOYMENT_RUNBOOK.md). It records the known production constraints, required Actions secrets, safe service-scoped deployment commands, preflight checks, rollback expectations, and the expected agent report. In particular, the production host has 1 GB RAM and existing HAProxy/other services: update only `iptv-web` by default, preserve the named `iptv-data` volume and server `.env`, keep app ports on loopback, and never replace HAProxy as part of routine deployment. Verify actual server state before assuming Docker, swap, paths, or proxy configuration.
+
+## 1. Required connection and credentials
 
 Set these in the deployment environment, not in prompts, chats, browser URLs, or logs:
 
