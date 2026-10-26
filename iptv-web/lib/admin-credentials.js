@@ -14,8 +14,8 @@ function safeEqual(left, right) {
 }
 function validateUsername(username) {
   if (typeof username !== 'string' || username.trim() !== username ||
-      username.length < 1 || username.length > USERNAME_MAX || /[\r\n:\x00-\x1f]/.test(username)) {
-    const error = new Error('Username must be 1–128 characters and cannot contain colons or control characters.');
+      username.length < 1 || username.length > USERNAME_MAX || /[^\x21-\x7e]/.test(username) || username.includes(':')) {
+    const error = new Error('Username must be 1–128 printable ASCII characters without spaces or colons.');
     error.statusCode = 400; throw error;
   }
 }
