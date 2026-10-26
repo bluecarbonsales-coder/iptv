@@ -37,6 +37,9 @@
     pages: 1,
     items: [],
     meta: null,
+    countries: [],
+    pendingLoad: false,
+    pendingReset: false,
     proxy: true,
     favorites: LS.get('iptvweb.fav', []),
     recent: LS.get('iptvweb.recent', []),
@@ -142,6 +145,18 @@
     }
   }
 
+  function renderCountryOptions() {
+    const countrySel = $('#country');
+    const term = String($('#countrySearch').value || '').trim().toLocaleLowerCase();
+    const countries = state.countries || [];
+    const filtered = term ? countries.filter((country) => (country.name + ' ' + country.code).toLocaleLowerCase().includes(term)) : countries;
+    countrySel.innerHTML = '<option value="">Choose a country…</option>' + filtered
+      .map((country) => `<option value="${esc(country.code)}">${country.flag || ''} ${esc(country.name)} · ${country.count}</option>`)
+      .join('');
+    countrySel.value = filtered.some((country) => country.code === state.country) ? state.country : '';
+    countrySel.disabled = countries.length === 0;
+  }
+
   function renderMeta() {
     const m = state.meta || {};
     const countrySel = $('#country');
@@ -158,10 +173,8 @@
       const china = list.find((c) => /^china$/i.test(c.name));
       state.country = china ? china.code : '';
     }
-    countrySel.innerHTML =
-      `<option value="">Choose a country…</option>` +
-      list.map((c) => `<option value="${esc(c.code)}">${c.flag || ''} ${esc(c.name)} · ${c.count}</option>`).join('');
-    countrySel.value = state.country;
+    state.countries = list;
+    renderCountryOptions();
 
     const languageSel = $('#language');
     const languages = m.languages || [];
@@ -230,7 +243,11 @@
   async function load(reset) {
     if (state.view === 'playlists') return renderPlaylistsView();
     if (isVodView(state.view)) return loadVod(reset);
-    if (state.loading) return;
+    if (state.loading) {
+      state.pendingLoad = true;
+      state.pendingReset = state.pendingReset || !!reset;
+      return;
+    }
     state.loading = true;
     if (reset) {
       if (!state.keepPage) state.page = 1;
@@ -270,11 +287,24 @@
     } finally {
       state.loading = false;
       state.keepPage = false;
+      flushPendingLoad();
     }
   }
 
+  function flushPendingLoad() {
+    if (!state.pendingLoad) return;
+    const reset = state.pendingReset;
+    state.pendingLoad = false;
+    state.pendingReset = false;
+    load(reset);
+  }
+
   async function loadVod(reset) {
-    if (state.loading) return;
+    if (state.loading) {
+      state.pendingLoad = true;
+      state.pendingReset = state.pendingReset || !!reset;
+      return;
+    }
     state.loading = true;
     if (reset) {
       if (!state.keepPage) state.page = 1;
@@ -320,6 +350,7 @@
     } finally {
       state.loading = false;
       state.keepPage = false;
+      flushPendingLoad();
     }
   }
 
@@ -907,19 +938,15 @@
 
     $('#country').addEventListener('change', (e) => {
       state.country = e.target.value;
+      $('#countrySearch').value = '';
+      renderCountryOptions();
       applyFilters();
     });
     $('#language').addEventListener('change', (e) => {
       state.language = e.target.value;
       applyFilters();
     });
-    $('#countrySearch').addEventListener('input', (e) => {
-      const term = e.target.value.toLowerCase();
-      $$('#country option').forEach((o) => {
-        if (!o.value) return;
-        o.hidden = term && !o.textContent.toLowerCase().includes(term);
-      });
-    });
+    $('#countrySearch').addEventListener('input', () => renderCountryOptions());
     $('#sort').addEventListener('change', (e) => {
       state.sort = e.target.value;
       applyFilters();
@@ -938,14 +965,16 @@
     });
     $('#resetFilters').onclick = () => {
       state.q = '';
-      state.country = 'chn';
+      const defaultCountry = state.countries.find((country) => /^china$/i.test(country.name));
+      state.country = defaultCountry ? defaultCountry.code : '';
       state.language = '';
       state.cats.clear();
       state.minQuality = 0;
       state.hasLogo = false;
       state.sort = 'name';
       $('#q').value = '';
-      $('#country').value = state.country;
+      $('#countrySearch').value = '';
+      renderCountryOptions();
       $('#language').value = '';
       $('#minQuality').value = '0';
       $('#sort').value = 'name';
