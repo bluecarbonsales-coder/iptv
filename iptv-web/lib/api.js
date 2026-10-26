@@ -424,7 +424,7 @@ function createApi(catalog, refresh, dataDir) {
   };
 
   const librarySearch = (req, res, params, query) => {
-    const q = String(query.q || '').normalize('NFKC').toLocaleLowerCase().replace(/[^\\p{L}\\p{N}]+/gu, ' ').trim();
+    const q = String(query.q || '').normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
     const words = q.split(' ').filter(Boolean);
     const type = ['all', 'channel', 'movies', 'series', 'anime', 'documentary', 'video'].includes(query.type) ? query.type : 'all';
     const channels = (type === 'all' || type === 'channel' ? catalog.channels : []).filter(channel => {
@@ -435,7 +435,14 @@ function createApi(catalog, refresh, dataDir) {
       kind: 'channel', sourceId: 'iptv-org', sourceName: 'Live channel catalog',
       category: (channel.cats || []).join(', '), year: '', episodes: [],
     }));
-    const saved = mediaLibrary.search(sourceDataDir, { q, type, limit: 100, page: 1 }).items;
+    const saved = mediaLibrary.allItems(sourceDataDir).filter(item => {
+      const kind = item.kind || 'channel';
+      const kindMatch = type === 'all' || kind === type || (type === 'movies' && kind === 'video');
+      const text = String([item.name, item.overview, item.year, item.category, item.sourceName,
+        ...(Array.isArray(item.episodes) ? item.episodes.map(ep => ep && ep.title || '') : [])].join(' '))
+        .normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ');
+      return kindMatch && (!words.length || words.every(word => text.includes(word)));
+    });
     const merged = [...channels, ...saved].sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
     const limit = Math.max(1, Math.min(100, Number.parseInt(query.limit, 10) || 48));
     const page = Math.max(1, Number.parseInt(query.page, 10) || 1);
