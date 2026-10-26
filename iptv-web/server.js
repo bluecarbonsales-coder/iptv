@@ -687,6 +687,7 @@ app.use(async (req, res) => {
 });
 
 const server = http.createServer((req, res) => {
+  req.ownerAuthenticated = Boolean(ownerSession(req));
   const started = Date.now();
   res.on('finish', () => {
     if (process.env.QUIET_LOGS === '1') return;
