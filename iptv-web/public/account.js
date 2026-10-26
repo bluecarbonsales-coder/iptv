@@ -11,19 +11,23 @@
     const style = document.createElement('style');
     style.textContent = `
       #ownerAccountRoot{font:14px/1.5 system-ui,-apple-system,sans-serif;color:#f6f4f0}
-      .portal-toolbar{position:relative;z-index:60;display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px clamp(14px,3vw,32px);background:rgba(11,13,18,.94);border-bottom:1px solid #282c38;backdrop-filter:blur(16px);font:13px/1.4 system-ui,-apple-system,sans-serif}
-      .portal-links{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+      body{padding-top:58px!important}
+      body>header{top:58px!important}
+      .portal-toolbar{position:fixed;inset:0 0 auto;z-index:1000;height:58px;display:flex;align-items:center;gap:12px;flex-wrap:nowrap;padding:7px clamp(10px,2vw,26px);background:rgba(11,13,18,.97);border-bottom:1px solid #282c38;backdrop-filter:blur(16px);font:13px/1.4 system-ui,-apple-system,sans-serif;transition:transform .2s ease;will-change:transform}
+      .portal-toolbar.is-hidden{transform:translateY(-105%)}
+      .portal-links{display:flex;align-items:center;gap:4px;flex:1 1 auto;min-width:0;flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none}
+      .portal-links::-webkit-scrollbar{display:none}
       .portal-links a{display:inline-flex;align-items:center;padding:8px 11px;border:1px solid transparent;border-radius:10px;color:#a3a5b2;text-decoration:none;white-space:nowrap}
       .portal-links a:hover,.portal-links a.active{color:#f6f4f0;background:#ffffff09;border-color:#e8c78b45}
-      .portal-account-slot{margin-left:auto;display:flex;align-items:center;justify-content:flex-end;min-width:0}
+      .portal-account-slot{margin-left:auto;display:flex;align-items:center;justify-content:flex-end;min-width:0;flex:0 0 auto}
       .portal-toolbar [hidden],header nav[hidden]{display:none!important}
-      .portal-toolbar .owner-bar{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+      .portal-toolbar .owner-bar{display:flex;gap:6px;align-items:center;flex-wrap:nowrap}
       .portal-toolbar .owner-pill,.portal-toolbar .owner-bar button{border:1px solid #37394a;background:#151722;color:#f6f4f0;border-radius:10px;padding:8px 11px;cursor:pointer;font:inherit}
       .portal-toolbar .owner-pill{font-size:12px;color:#e8c78b;white-space:nowrap}
       .portal-toolbar .owner-bar button:hover{border-color:#e8c78b;color:#f5deb0}
       .portal-toolbar .owner-bar .owner-signin{background:#e8c78b;color:#17130b;border-color:#e8c78b;font-weight:800}
       .portal-toolbar .owner-bar .owner-signin:hover{background:#f5deb0;color:#17130b}
-      @media(max-width:760px){.portal-toolbar{gap:8px;padding:9px 12px}.portal-account-slot{margin-left:0;width:100%;justify-content:flex-start}.portal-links a{padding:7px 9px}.portal-links{width:100%}}
+      @media(max-width:760px){body{padding-top:58px!important}body>header{top:58px!important}.portal-toolbar{height:58px;gap:7px;padding:7px 8px}.portal-account-slot{margin-left:auto;width:auto;justify-content:flex-end}.portal-links{width:auto;flex:1 1 auto}.portal-links a{padding:7px 8px;font-size:12px}.portal-toolbar .owner-pill{max-width:100px;overflow:hidden;text-overflow:ellipsis}.portal-toolbar .owner-bar{gap:4px}.portal-toolbar .owner-pill,.portal-toolbar .owner-bar button{padding:7px 8px;font-size:11px}.portal-toolbar.is-hidden{transform:none}}
       #ownerAccountRoot .owner-gate{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;padding:20px;background:rgba(5,6,10,.96);backdrop-filter:blur(18px)}
       #ownerAccountRoot .owner-card{width:min(440px,100%);padding:28px;border:1px solid #37394a;border-radius:22px;background:#11131b;box-shadow:0 24px 90px #0009}
       #ownerAccountRoot h2{margin:0 0 8px;font-size:24px}#ownerAccountRoot p{color:#a9adbb}
@@ -72,6 +76,25 @@
       pageHeader.querySelectorAll('nav:not(.tabs)').forEach(nav => { nav.hidden = true; });
       pageHeader.insertAdjacentElement('afterend', toolbar);
     } else document.body.prepend(toolbar);
+    // Keep the shared service/account bar at the same viewport position on every page.
+    let hideTimer = 0;
+    const revealToolbar = () => {
+      toolbar.classList.remove('is-hidden');
+      if (hideTimer) clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => {
+        if (window.scrollY > 30 && !toolbar.matches(':hover') && !toolbar.contains(document.activeElement)) toolbar.classList.add('is-hidden');
+      }, 1600);
+    };
+    const hideToolbar = () => {
+      if (window.matchMedia('(max-width: 760px)').matches) return;
+      if (window.scrollY > 30 && !toolbar.matches(':hover') && !toolbar.contains(document.activeElement)) toolbar.classList.add('is-hidden');
+    };
+    window.addEventListener('scroll', hideToolbar, { passive: true });
+    document.addEventListener('pointermove', event => { if (event.clientY < 24) revealToolbar(); }, { passive: true });
+    toolbar.addEventListener('pointerenter', revealToolbar);
+    toolbar.addEventListener('pointerleave', () => { if (window.scrollY > 30) hideTimer = setTimeout(hideToolbar, 700); });
+    toolbar.addEventListener('focusin', revealToolbar);
+    toolbar.addEventListener('focusout', () => { if (window.scrollY > 30) hideTimer = setTimeout(hideToolbar, 900); });
     accountSlot.appendChild(root.querySelector('#ownerBar'));
     const $ = id => document.getElementById(id);
     let username = '';
