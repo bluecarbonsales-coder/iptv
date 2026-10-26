@@ -5,7 +5,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { upstreamFetch, bodyToString } = require('./fetch-upstream');
+const { upstreamFetch, bodyToString, cancelBody } = require('./fetch-upstream');
 const { mimeFor } = require('./util');
 
 const CACHE_DIR = process.env.CACHE_DIR || path.join(__dirname, '..', 'data', 'imgcache');
@@ -75,9 +75,7 @@ async function handler(req, res, params, query) {
   const { response } = upstream;
   const ctype = response.headers.get('content-type') || '';
   if (!response.ok || !/image\//i.test(ctype)) {
-    try {
-      response.body && response.body.cancel && response.body.cancel();
-    } catch {}
+    await cancelBody(response);
     return placeholder(res, 404);
   }
 

@@ -112,9 +112,7 @@ async function upstreamFetch(rawUrl, opts = {}) {
 
     if ([301, 302, 303, 307, 308].includes(res.status)) {
       const loc = res.headers.get('location');
-      try {
-        res.body && res.body.cancel && res.body.cancel();
-      } catch {}
+      await cancelBody(res);
       if (!loc) {
         const e = new Error('redirect without location');
         e.statusCode = 502;
@@ -190,4 +188,14 @@ function pipeBody(res, out, opts = {}) {
   });
 }
 
-module.exports = { upstreamFetch, bodyToString, pipeBody, DEFAULT_UA };
+// Cancel a body we are not going to read. The `await` is the whole point: cancelling a stream
+// that has already been read (i.e. locked) REJECTS with ERR_INVALID_STATE per the Web Streams
+// spec, and an unhandled rejection terminates the process — a single 404 from an origin used to
+// take the whole portal offline. test/upstream-failure-resilience.test.js pins this.
+async function cancelBody(res) {
+  try {
+    await res?.body?.cancel();
+  } catch {}
+}
+
+module.exports = { upstreamFetch, bodyToString, pipeBody, cancelBody, DEFAULT_UA };

@@ -60,6 +60,15 @@ const REFRESH_HOURS = parseFloat(process.env.REFRESH_HOURS || '24');
 const catalog = new Catalog(DATA_DIR);
 const loaded = catalog.load();
 const log = (...a) => console.log(new Date().toISOString(), ...a);
+
+// Availability guards. This is a public portal: Node's default reaction to an unhandled
+// rejection or uncaught exception is to terminate, which drops every viewer mid-stream and
+// forces a full catalogue reload. One bad upstream status did exactly that (see
+// test/upstream-failure-resilience.test.js), so the trade-off here is deliberate — log loudly
+// and keep serving. The router already turns a throwing handler into a 500, so this net only
+// catches what escapes it. Remove these only if a supervisor with a crash budget is added.
+process.on('unhandledRejection', (reason) => log('unhandled rejection:', (reason && reason.stack) || reason));
+process.on('uncaughtException', (error) => log('uncaught exception:', (error && error.stack) || error));
 log(`catalog: ${loaded ? `${catalog.meta.total} channels / ${catalog.meta.streams} streams (updated ${catalog.meta.updated})` : 'NOT FOUND'}`);
 
 let refreshing = null;

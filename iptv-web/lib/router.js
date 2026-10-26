@@ -72,7 +72,23 @@ class Router {
     const m = this.match(req.method, pathname);
     if (!m) return next ? next() : false;
     const query = Object.fromEntries(new URL(req.url, 'http://localhost').searchParams);
-    await m.handler(req, res, m.params, query);
+    try {
+      await m.handler(req, res, m.params, query);
+    } catch (error) {
+      // A route must never be able to take the whole process down (an unhandled rejection from
+      // a handler terminates Node and drops every viewer). Log it, answer 500 while the response
+      // is still writable, otherwise just finish/close so the client fails fast instead of hanging.
+      console.error(new Date().toISOString(), 'route handler failed:', (error && error.stack) || error);
+      try {
+        if (!res.writableEnded) {
+          if (res.headersSent) res.end();
+          else {
+            res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({ error: 'internal error' }));
+          }
+        }
+      } catch {}
+    }
     return true;
   }
 }

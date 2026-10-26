@@ -7,7 +7,7 @@
 //  3. geo blocks / referrer checks - the origin wants a specific Referer or another IP
 // Relaying every manifest and segment through this server fixes 1 and 2 outright and
 // gives the server's network a chance at 3.
-const { upstreamFetch, bodyToString, pipeBody } = require('./fetch-upstream');
+const { upstreamFetch, bodyToString, pipeBody, cancelBody } = require('./fetch-upstream');
 const { resolveUrl, mimeFor } = require('./util');
 
 const MANIFEST_RE = /\.m3u8?($|\?|#)/i;
@@ -92,9 +92,9 @@ async function handler(req, res, params, query) {
   if (!response.ok) {
     // pass the status through, but explain it: the UI shows this text to the user
     const text = await bodyToString(response).catch(() => '');
-    try {
-      response.body && response.body.cancel && response.body.cancel();
-    } catch {}
+    // bodyToString() consumed (and therefore locked) the body: cancelling it here REJECTS, and
+    // an unhandled rejection kills the process — this is the line that took the portal down.
+    await cancelBody(response);
     return fail(res, response.status, {
       error: `upstream responded ${response.status}`,
       upstream: url,
