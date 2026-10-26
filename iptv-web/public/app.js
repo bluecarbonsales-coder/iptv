@@ -666,8 +666,8 @@
           url: target,
           type: directFile || nativeHls ? 'normal' : 'hls',
           pic: player.item && player.item.logo ? imgUrl(player.item.logo) : '',
-          customType,
         },
+        customType,
       });
       const video = player.dplayer.video;
       video.addEventListener('loadeddata', hideOverlay, { once: true });
