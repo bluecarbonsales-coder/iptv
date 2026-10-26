@@ -30,6 +30,7 @@ const { createAccountHistory } = require('./lib/account-history');
 const crypto = require('node:crypto');
 const { createMediaSettings } = require('./lib/media-settings');
 const { createSourceHealth } = require('./lib/source-health');
+const vodCatalogLib = require('./lib/vod-catalog');
 const radioSourceStore = require('./lib/radio-sources');
 const sourceLib = require('./lib/sources');
 const vodLib = require('./lib/vod');
@@ -410,6 +411,11 @@ app.get('/api/library', api.librarySearch);
 app.get('/api/library/stats', api.libraryStats);
 app.post('/api/library/items', api.saveLibraryItem);
 app.delete('/api/library/items/:id', api.deleteLibraryItem);
+// Theatre catalogue: browsable, paginated metadata index built from every enabled
+// provider (paged harvest) plus the open-licence Internet Archive collections.
+app.get('/api/vod/catalog', api.vodCatalogState);
+app.get('/api/vod/providers', api.vodProviders);
+app.post('/api/vod/refresh', adminRoute((req, res) => api.vodCatalogRefresh(req, res)));
 app.get('/api/vod', api.vodSearch);
 app.get('/api/vod/:sourceId/:vodId', api.vodDetail);
 app.post('/api/sources', api.addSource);
@@ -498,6 +504,11 @@ app.post('/api/v1/sources/:type/enable-all', adminRoute(async (req, res, params)
 
 app.post('/api/v1/sources/theatre/import', adminRoute((req, res, params, query) => api.importVodSourceList(req, res, params, query)));
 app.post('/api/v1/sources/movies/import', adminRoute((req, res, params, query) => api.importVodSourceList(req, res, params, query)));
+
+// Movie catalogue surfaces (see lib/vod-catalog.js).
+app.get('/api/v1/iptv/catalog', api.vodCatalogState);
+app.get('/api/v1/iptv/providers', api.vodProviders);
+app.post('/api/v1/iptv/catalog/refresh', adminRoute((req, res) => api.vodCatalogRefresh(req, res)));
 
 app.post('/api/v1/sources/:type', adminRoute(async (req, res, params, query) => {
   try {
@@ -781,6 +792,16 @@ server.on('clientError', (err, socket) => {
 server.listen(PORT, HOST, () => {
   log(`IPTV Web listening on http://${HOST}:${PORT}  (data: ${DATA_DIR})`);
   automation.start();
+  // Theatre catalogue: build the index shortly after boot, then keep it fresh.
+  // ensureFresh() is a no-op while the index is younger than VOD_CATALOG_REFRESH_MINUTES
+  // and single-flight, so this never stacks provider requests.
+  if (process.env.VOD_CATALOG_AUTOREFRESH !== '0') {
+    const kickCatalogue = () => vodCatalogLib.ensureFresh(DATA_DIR)
+      .then((summary) => { if (summary) log(`movie catalogue refreshed: ${summary.totals.stored} titles stored, ${summary.totals.providersOnline}/${summary.sources} providers online, ${summary.totals.providersBroken} broken (${summary.durationMs}ms)`); })
+      .catch((error) => log('movie catalogue refresh failed:', error && error.message || error));
+    setTimeout(kickCatalogue, 20000).unref();
+    setInterval(kickCatalogue, 10 * 60 * 1000).unref();
+  }
   log('Agent, source and portal management APIs use the shared HTTP Basic admin login; token authentication is disabled.');
   const age = catalog.meta.updated ? (Date.now() - Date.parse(catalog.meta.updated)) / 3.6e6 : Infinity;
   const missingLanguageIndex = !Array.isArray(catalog.meta.languages) || catalog.channels.some((channel) => !Array.isArray(channel.languages));

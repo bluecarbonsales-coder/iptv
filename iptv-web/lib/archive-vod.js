@@ -7,6 +7,38 @@ const SEARCH_ENDPOINT = 'https://archive.org/advancedsearch.php';
 const META_ENDPOINT = 'https://archive.org/metadata/';
 const MAX_BYTES = 4 * 1024 * 1024;
 const APPROVED_EXT = /\.(mp4|m4v|webm|ogv|ogg)$/i;
+// Open-license collections worth paging through instead of one broad
+// "mediatype:movies" query (which returns only the most-downloaded titles).
+// Rights still come from each item's own metadata: the query filter below only
+// pre-selects candidates, licenseInfo() decides what may be listed.
+const COLLECTIONS = [
+  { id: 'feature_films', label: 'Feature Films', kind: 'movies' },
+  { id: 'moviesandfilms', label: 'Movies and Films', kind: 'movies' },
+  { id: 'film_noir', label: 'Film Noir', kind: 'movies' },
+  { id: 'SciFi_Horror', label: 'Sci-Fi and Horror', kind: 'movies' },
+  { id: 'silent_films', label: 'Silent Films', kind: 'movies' },
+  { id: 'animationandcartoons', label: 'Animation and Cartoons', kind: 'anime' },
+  { id: 'classic_cartoons', label: 'Classic Cartoons', kind: 'anime' },
+  { id: 'documentaryfilms', label: 'Documentary Films', kind: 'documentary' },
+  { id: 'prelinger', label: 'Prelinger Archives', kind: 'documentary' },
+  { id: 'classic_tv', label: 'Classic TV', kind: 'series' },
+];
+const MAX_ROWS = 100;
+
+async function mapLimit(items, limit, fn) {
+  const result = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (true) {
+      const index = next++;
+      if (index >= items.length) return;
+      try { result[index] = { status: 'fulfilled', value: await fn(items[index], index) }; }
+      catch (reason) { result[index] = { status: 'rejected', reason }; }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, worker));
+  return result;
+}
 
 function cleanText(value) {
   const values = Array.isArray(value) ? value : [value];
@@ -73,18 +105,22 @@ async function fetchJson(url, maxBytes = MAX_BYTES) {
 function escapeLucene(value) {
   return String(value || '').replace(/[^\p{L}\p{N}\s.'-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 100).replace(/"/g, '');
 }
-async function search(query = '', type = 'all', limit = 30) {
-  if (!['all', 'movies', 'series', 'anime'].includes(type)) type = 'all';
-  if (type === 'series') return [];
+async function search(query = '', type = 'all', limit = 30, options = {}) {
+  if (!['all', 'movies', 'series', 'anime', 'documentary'].includes(type)) type = 'all';
   const params = new URLSearchParams();
   const term = escapeLucene(query);
-  const rights = '(licenseurl:http*publicdomain* OR licenseurl:http*zero* OR licenseurl:http*licenses/by* OR rights:"Public Domain")';
+  // Only the leading-wildcard forms are accepted by the Archive search parser:
+  // "licenseurl:http*licenses/by*" makes advancedsearch.php answer without a
+  // response.docs block (that silently emptied the open-license fallback before).
+  // Rights are still decided per item by licenseInfo(), which rejects NC/ND.
+  const rights = '(licenseurl:*publicdomain* OR licenseurl:*zero* OR licenseurl:*creativecommons* OR rights:"Public Domain")';
   const textFilter = term ? ' AND (title:"' + term + '" OR subject:"' + term + '")' : '';
-  params.set('q', 'mediatype:movies AND ' + rights + textFilter);
+  const collection = String(options.collection || '').replace(/[^A-Za-z0-9_.-]/g, '');
+  params.set('q', 'mediatype:movies AND ' + rights + (collection ? ' AND collection:' + collection : '') + textFilter);
   for (const field of ['identifier', 'title', 'year', 'date', 'description', 'creator', 'licenseurl', 'rights', 'subject']) params.append('fl[]', field);
-  params.set('sort[]', 'downloads desc');
-  params.set('rows', String(Math.max(1, Math.min(50, limit * 2))));
-  params.set('page', '1');
+  params.set('sort[]', options.sort || 'downloads desc');
+  params.set('rows', String(Math.max(1, Math.min(MAX_ROWS, options.rows || limit * 2))));
+  params.set('page', String(Math.max(1, Number.parseInt(options.page, 10) || 1)));
   params.set('output', 'json');
   const payload = await fetchJson(SEARCH_ENDPOINT + '?' + params.toString());
   const docs = payload && payload.response && Array.isArray(payload.response.docs) ? payload.response.docs : [];
@@ -100,6 +136,36 @@ async function search(query = '', type = 'all', limit = 30) {
   }
   return found;
 }
+// Page through the curated open-license collections so the persisted catalogue grows
+// past the handful of titles a single ranked query returns.
+async function harvest(options = {}) {
+  const kinds = Array.isArray(options.kinds) && options.kinds.length ? options.kinds : ['movies', 'anime', 'documentary'];
+  const pages = Math.max(1, Math.min(10, options.pages || 2));
+  const rows = Math.max(1, Math.min(MAX_ROWS, options.rows || 50));
+  const collections = (options.collections || COLLECTIONS).filter((collection) => kinds.includes(collection.kind));
+  const results = await mapLimit(collections, Math.max(1, Math.min(4, options.concurrency || 3)), async (collection) => {
+    const found = [];
+    for (let page = 1; page <= pages; page += 1) {
+      const items = await search('', collection.kind, rows, { page, rows, collection: collection.id, sort: options.sort });
+      for (const item of items) found.push({ ...item, collection: collection.id, collectionLabel: collection.label });
+      if (items.length < rows) break;
+    }
+    return found;
+  });
+  const byId = new Map();
+  const errors = [];
+  results.forEach((result, index) => {
+    if (!result || result.status !== 'fulfilled') {
+      errors.push({ collection: collections[index] && collections[index].id, error: String(result && result.reason && result.reason.message || 'collection search failed').slice(0, 160) });
+      return;
+    }
+    for (const item of result.value) if (!byId.has(item.id)) byId.set(item.id, item);
+  });
+  const items = [...byId.values()];
+  items.errors = errors;
+  return items;
+}
+
 function encodedPath(value) {
   return String(value || '').split('/').map((part) => encodeURIComponent(part)).join('/');
 }
@@ -141,4 +207,4 @@ async function getDetail(identifier) {
     fileName: file.name,
   };
 }
-module.exports = { SEARCH_ENDPOINT, META_ENDPOINT, APPROVED_EXT, cleanText, licenseInfo, identifierOf, classify, normalizedDoc, escapeLucene, search, playableFiles, getDetail };
+module.exports = { SEARCH_ENDPOINT, META_ENDPOINT, APPROVED_EXT, COLLECTIONS, MAX_ROWS, cleanText, licenseInfo, identifierOf, classify, normalizedDoc, escapeLucene, search, harvest, playableFiles, getDetail };
