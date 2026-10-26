@@ -16,7 +16,7 @@
       .portal-links a{display:inline-flex;align-items:center;padding:8px 11px;border:1px solid transparent;border-radius:10px;color:#a3a5b2;text-decoration:none;white-space:nowrap}
       .portal-links a:hover,.portal-links a.active{color:#f6f4f0;background:#ffffff09;border-color:#e8c78b45}
       .portal-account-slot{margin-left:auto;display:flex;align-items:center;justify-content:flex-end;min-width:0}
-      .portal-toolbar [hidden]{display:none!important}
+      .portal-toolbar [hidden],header nav[hidden]{display:none!important}
       .portal-toolbar .owner-bar{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
       .portal-toolbar .owner-pill,.portal-toolbar .owner-bar button{border:1px solid #37394a;background:#151722;color:#f6f4f0;border-radius:10px;padding:8px 11px;cursor:pointer;font:inherit}
       .portal-toolbar .owner-pill{font-size:12px;color:#e8c78b;white-space:nowrap}
