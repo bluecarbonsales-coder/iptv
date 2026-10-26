@@ -375,3 +375,8 @@ The shared owner account signs in across IPTV, Radio, Theatre, source settings a
 IPTV, Radio and Theatre viewing/listening events are saved in `DATA_DIR/account-media-history.json` and can be reviewed from the owner account's **History** button. History is server-side and remains available after browser storage is cleared or a new session is created. Existing local recent/favourites data remains browser-local.
 
 For HTTPS deployments, terminate TLS at the reverse proxy and forward `X-Forwarded-Proto: https` so the owner session cookie receives the Secure attribute. This account feature is code in the repository; it is not active on a running deployment until the branch is merged and deployed.
+
+
+### IPTV web player
+
+The embedded IPTV player uses DPlayer for its browser controls and hls.js for HLS streams. Direct MP4/WebM/audio files use browser-native playback, and browsers with native HLS support use their built-in HLS playback. The DPlayer stylesheet and script are pinned to version 1.27.1 on jsDelivr; if external CDN loading is undesirable, vendor those exact distribution assets locally before deploying. The existing source selector, proxy toggle, automatic fallback, status display, and HLS quality selector remain part of the page.
