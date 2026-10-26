@@ -40,6 +40,7 @@
     proxy: true,
     favorites: LS.get('iptvweb.fav', []),
     recent: LS.get('iptvweb.recent', []),
+    searchHistory: LS.get('iptvweb.searchHistory', []),
     playlists: LS.get('iptvweb.playlists', []),
     vodItems: LS.get('iptvweb.vod.items', []),
     loading: false,
@@ -67,6 +68,39 @@
     clearTimeout(toast._t);
     toast._t = setTimeout(() => (el.hidden = true), ms || 2200);
   }
+  function renderSearchHistory(filter) {
+    const panel = $('#searchHistory');
+    if (!panel) return;
+    const needle = String(filter || '').trim().toLocaleLowerCase();
+    const matches = state.searchHistory.filter((query) => !needle || query.toLocaleLowerCase().includes(needle));
+    if (!state.searchHistory.length) {
+      panel.innerHTML = '<div class="search-history-empty">No recent searches yet</div>';
+      panel.hidden = false;
+      return;
+    }
+    if (!matches.length) {
+      panel.innerHTML = '<div class="search-history-empty">No matching searches</div><div class="search-history-footer"><button type="button" data-search-clear>Clear history</button></div>';
+      panel.hidden = false;
+      return;
+    }
+    panel.innerHTML =
+      '<div class="search-history-head"><span>Recent searches</span><button type="button" data-search-clear>Clear all</button></div>' +
+      matches.slice(0, 10).map((query) =>
+        '<div class="search-history-row"><button type="button" class="search-history-query" role="option" data-search-query="' + esc(query) + '">' +
+        '<span aria-hidden="true">↺</span><span>' + esc(query) + '</span></button>' +
+        '<button type="button" class="search-history-remove" data-search-remove="' + esc(query) + '" aria-label="Remove ' + esc(query) + '" title="Remove">×</button></div>'
+      ).join('');
+    panel.hidden = false;
+  }
+
+  function saveSearchHistory(query) {
+    const value = String(query || '').trim().replace(/\s+/g, ' ').slice(0, 160);
+    if (value.length < 2) return;
+    state.searchHistory = [value].concat(state.searchHistory.filter((item) => item.toLocaleLowerCase() !== value.toLocaleLowerCase())).slice(0, 12);
+    LS.set('iptvweb.searchHistory', state.searchHistory);
+    renderSearchHistory($('#q').value);
+  }
+
   function imgUrl(u) {
     return u ? '/img?u=' + encodeURIComponent(u) : null;
   }
@@ -795,25 +829,69 @@
       if (e.key === 'Enter' && e.target.classList.contains('card')) openPlayer(state.items.find((x) => x.id === e.target.dataset.id));
     });
 
-    $('#searchForm').addEventListener('submit', (e) => {
+    const searchForm = $('#searchForm');
+    const searchInput = $('#q');
+    const searchPanel = $('#searchHistory');
+    searchForm.addEventListener('submit', (e) => {
       e.preventDefault();
-      state.q = $('#q').value.trim();
+      state.q = searchInput.value.trim();
+      saveSearchHistory(state.q);
+      searchPanel.hidden = true;
       applyFilters();
     });
     let deb;
-    $('#q').addEventListener('input', () => {
-      $('#clearSearch').hidden = !$('#q').value;
+    let historyDeb;
+    searchInput.addEventListener('focus', () => renderSearchHistory(searchInput.value));
+    searchInput.addEventListener('input', () => {
+      $('#clearSearch').hidden = !searchInput.value;
+      renderSearchHistory(searchInput.value);
       clearTimeout(deb);
+      clearTimeout(historyDeb);
       deb = setTimeout(() => {
-        state.q = $('#q').value.trim();
+        state.q = searchInput.value.trim();
         applyFilters();
       }, isVodView(state.view) ? 500 : 280);
+      historyDeb = setTimeout(() => saveSearchHistory(searchInput.value), 900);
+    });
+    searchPanel.addEventListener('click', (event) => {
+      const clear = event.target.closest('[data-search-clear]');
+      if (clear) {
+        state.searchHistory = [];
+        LS.set('iptvweb.searchHistory', []);
+        renderSearchHistory(searchInput.value);
+        return;
+      }
+      const remove = event.target.closest('[data-search-remove]');
+      if (remove) {
+        const query = remove.dataset.searchRemove;
+        state.searchHistory = state.searchHistory.filter((item) => item !== query);
+        LS.set('iptvweb.searchHistory', state.searchHistory);
+        renderSearchHistory(searchInput.value);
+        return;
+      }
+      const pick = event.target.closest('[data-search-query]');
+      if (pick) {
+        searchInput.value = pick.dataset.searchQuery;
+        state.q = searchInput.value.trim();
+        $('#clearSearch').hidden = !state.q;
+        saveSearchHistory(state.q);
+        searchPanel.hidden = true;
+        applyFilters();
+      }
+    });
+    searchInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') searchPanel.hidden = true;
+    });
+    document.addEventListener('click', (event) => {
+      if (!searchForm.contains(event.target)) searchPanel.hidden = true;
     });
     $('#clearSearch').onclick = () => {
-      $('#q').value = '';
+      searchInput.value = '';
       state.q = '';
       $('#clearSearch').hidden = true;
+      renderSearchHistory('');
       applyFilters();
+      searchInput.focus();
     };
 
     $('.tab').forEach((b) =>
