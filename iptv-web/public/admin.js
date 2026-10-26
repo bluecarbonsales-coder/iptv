@@ -261,6 +261,23 @@
     }
   }
 
+  async function loadApiControl() {
+    const statusNode = $('#apiControlStatus');
+    if (!statusNode) return;
+    statusNode.textContent = 'Loading API settings…';
+    statusNode.classList.remove('error');
+    try {
+      const data = await request('/admin/api/api-control');
+      $('#apiEnabled').checked = data.enabled !== false;
+      statusNode.textContent = data.enabled === false
+        ? 'API is disabled. The index, OpenAPI definition, health check, and admin controls remain available.'
+        : 'API is enabled.';
+    } catch (error) {
+      statusNode.textContent = error.message || 'Could not load API settings.';
+      statusNode.classList.add('error');
+    }
+  }
+
   async function loadApiIndex() {
     const statusNode = $('#apiIndexStatus');
     if (!statusNode) return;
@@ -294,6 +311,7 @@
       $('#password').value = '';
       for (const section of Object.keys(routes)) load(section);
       loadApiIndex();
+      loadApiControl();
       loadHealth(false);
       loadMediaSettings();
     } catch (error) {
@@ -364,6 +382,29 @@
     }
   });
   $('#reloadApiIndex').addEventListener('click', loadApiIndex);
+  $('#reloadApiControl').addEventListener('click', loadApiControl);
+  $('#saveApiControl').addEventListener('click', async () => {
+    const button = $('#saveApiControl');
+    const statusNode = $('#apiControlStatus');
+    button.disabled = true;
+    statusNode.classList.remove('error');
+    statusNode.textContent = 'Saving API settings…';
+    try {
+      const data = await request('/admin/api/api-control', {
+        method: 'PUT',
+        body: JSON.stringify({ enabled: $('#apiEnabled').checked }),
+      });
+      statusNode.textContent = data.enabled
+        ? 'Saved. The unified API is enabled.'
+        : 'Saved. Unified API endpoints are now disabled; index, OpenAPI, health, and admin controls remain available.';
+      await loadApiIndex();
+    } catch (error) {
+      statusNode.textContent = error.message || 'Could not save API settings.';
+      statusNode.classList.add('error');
+    } finally {
+      button.disabled = false;
+    }
+  });
   $('#checkAllSources').addEventListener('click', async () => {
     await Promise.all(['radio', 'iptv', 'theatre'].map(section => load(section)));
     await loadHealth(true);

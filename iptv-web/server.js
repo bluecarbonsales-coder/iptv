@@ -48,6 +48,7 @@ const { createMetadataApi } = require('./lib/metadata');
 const { createNavigationConfig } = require('./lib/navigation-config');
 const { createVisitorContext } = require('./lib/visitor-context');
 const { createHistoryStore } = require('./lib/watch-history');
+const { createApiControl } = require('./lib/api-control');
 
 const PORT = parseInt(process.env.PORT, 10) || 3920;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -135,6 +136,7 @@ const portal = createPortalApi({ dataDir: DATA_DIR });
 const agent = createAgentApi({ dataDir: DATA_DIR, catalog, refresh: refreshNow, api, automation, navigationConfig, visitorContext, portal });
 const resourceAvailability = createResourceAvailability({ getServices: portal.getServices });
 const mediaSettings = createMediaSettings(DATA_DIR);
+const apiControl = createApiControl(DATA_DIR);
 const sourceHealth = createSourceHealth({
   dataDir: DATA_DIR,
   getSources: () => ({
@@ -333,6 +335,15 @@ function adminRoute(handler) {
 }
 
 app.get('/admin/api/check', adminRoute((req, res) => sendJson(req, res, 200, { ok: true, username: ownerAuth.getUsername() })));
+app.get('/admin/api/api-control', adminRoute((req, res) => sendJson(req, res, 200, apiControl.read(), { 'Cache-Control': 'no-store' })));
+app.put('/admin/api/api-control', adminRoute(async (req, res) => {
+  try {
+    const body = JSON.parse(await readBody(req, 4096));
+    sendJson(req, res, 200, apiControl.save(body), { 'Cache-Control': 'no-store' });
+  } catch (error) {
+    sendJson(req, res, error.statusCode || 400, { error: error.message || 'Could not save API settings.' }, { 'Cache-Control': 'no-store' });
+  }
+}));
 app.post('/admin/api/credentials', adminRoute(async (req, res) => {
   try {
     const body = JSON.parse(await readBody(req, 8192));
@@ -742,6 +753,12 @@ const server = http.createServer((req, res) => {
     if (noisy && res.statusCode < 400) return;
     log(`${res.statusCode} ${req.method} ${u} ${Date.now() - started}ms`);
   });
+  const pathname = (() => { try { return new URL(req.url, 'http://localhost').pathname; } catch { return req.url.split('?')[0]; } })();
+  const unifiedApiPath = pathname === '/api/v1' || pathname.startsWith('/api/v1/');
+  const apiRecoveryPath = pathname === '/api/v1' || pathname === '/api/v1/openapi.json' || pathname === '/api/v1/health';
+  if (unifiedApiPath && req.method !== 'OPTIONS' && !apiRecoveryPath && !apiControl.read().enabled) {
+    return sendJson(req, res, 503, { error: 'The unified platform API is disabled by an administrator.', code: 'API_DISABLED' }, { 'Cache-Control': 'no-store' });
+  }
   app
     .handle(req, res, () => {
       sendJson(req, res, 404, { error: 'not found', path: req.url });
