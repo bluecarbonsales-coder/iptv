@@ -44,8 +44,8 @@ test('existing IPTV player no longer asks users to enter source API tokens', () 
 test('server exposes basic username/password protected APIs for each source type', () => {
   const server = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
   assert.match(server, /createAdminAuth/);
-  assert.match(server, /ownerAuth\.getUsername\(\)/);
-  assert.match(server, /app\.post\('\/admin\/api\/credentials'/);
+  assert.ok(server.includes('ownerAuth.getUsername()'));
+  assert.ok(server.includes("app.post('/admin/api/credentials'"));
   assert.match(server, /\/admin\/api\/radio\/sources/);
   assert.match(server, /\/admin\/api\/iptv\/sources/);
   assert.match(server, /\/admin\/api\/theatre\/sources/);
