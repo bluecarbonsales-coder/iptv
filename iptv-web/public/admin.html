@@ -148,6 +148,16 @@
       <h1>Platform API</h1>
       <p class="muted">Use one base path for Radio, IPTV, Theatre, source settings, the homepage, metadata, Mail Workspace, and advanced tools.</p>
       <div class="panel">
+        <h2>API access control</h2>
+        <p class="note">Enable or disable the unified <code>/api/v1</code> API. Changes are stored on the server and require administrator login. The API index, OpenAPI definition, health check, and this Settings control remain available so you can recover access.</p>
+        <label class="field" style="display:flex;align-items:center;gap:10px">
+          <input id="apiEnabled" type="checkbox" checked style="width:auto">
+          <span>Unified API enabled</span>
+        </label>
+        <div class="toolbar"><button type="button" class="primary" id="saveApiControl">Save API settings</button><button type="button" id="reloadApiControl">Reload API settings</button></div>
+        <p class="status" id="apiControlStatus" role="status"></p>
+      </div>
+      <div class="panel">
         <h2>Base URL</h2>
         <div class="formgrid">
           <label class="field">API base URL<input id="apiBaseUrl" readonly value="/api/v1"></label>
