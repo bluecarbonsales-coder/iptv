@@ -380,3 +380,14 @@ For HTTPS deployments, terminate TLS at the reverse proxy and forward `X-Forward
 ### IPTV web player
 
 The embedded IPTV player uses DPlayer for its browser controls and hls.js for HLS streams. Direct MP4/WebM/audio files use browser-native playback, and browsers with native HLS support use their built-in HLS playback. The DPlayer stylesheet and script are pinned to version 1.27.1 on jsDelivr; if external CDN loading is undesirable, vendor those exact distribution assets locally before deploying. The existing source selector, proxy toggle, automatic fallback, status display, and HLS quality selector remain part of the page.
+
+
+### Media Discovery and saved links
+
+Open `/discover.html` to search the Internet Archive for declared public-domain or compatible Creative Commons video metadata, optionally query a private Jackett Torznab endpoint, and save external links or RSS/Atom feeds. This page does not download or host media files. Results open at their source; verify each item's rights and availability.
+
+Jackett is optional. Set `JACKETT_URL` and `JACKETT_API_KEY` in the private deployment `.env`, then recreate the `iptv-web` service. Do not commit real API keys or expose the Jackett endpoint publicly. The discovery page uses the server-side key only; it is not sent to browser JavaScript.
+
+Saved links live in `DATA_DIR/media-links.json` and require the existing `SOURCE_TOKEN`, `REFRESH_TOKEN`, or `AGENT_API_TOKEN` in the `X-Source-Token` header. The token stays in page memory only. Searching saved RSS/Atom feeds also requires that token. RSS/Atom feed URLs must use HTTP or HTTPS. The feature has no new media-storage volume or downloader.
+
+The `.env.example` file intentionally contains blank placeholders for provider credentials. If any non-placeholder API key was previously committed or shared, revoke or rotate it with its provider; replacing the value in the example file does not erase it from Git history.

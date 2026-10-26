@@ -43,6 +43,7 @@ const { createPortalApi } = require('./lib/portal');
 const { createResourceAvailability } = require('./lib/resource-availability');
 const { createRadioApi } = require('./lib/radio');
 const { createMailApi } = require('./lib/mail-workspace');
+const { createMediaDiscovery } = require('./lib/media-discovery');
 const { createMetadataApi } = require('./lib/metadata');
 const { createNavigationConfig } = require('./lib/navigation-config');
 const { createVisitorContext } = require('./lib/visitor-context');
@@ -144,6 +145,7 @@ const sourceHealth = createSourceHealth({
 });
 const radio = createRadioApi({ dataDir: DATA_DIR });
 const mail = createMailApi({ dataDir: DATA_DIR });
+const mediaDiscovery = createMediaDiscovery({ dataDir: DATA_DIR });
 const metadata = createMetadataApi();
 const staticHandler = serveStatic(PUBLIC_DIR);
 
@@ -235,6 +237,12 @@ app.get('/api/portal/services', portal.list);
 app.post('/api/portal/services', portal.add);
 app.patch('/api/portal/services/:id', portal.update);
 app.delete('/api/portal/services/:id', portal.remove);
+
+app.get('/api/media/search', mediaDiscovery.search);
+app.get('/api/media/links', mediaDiscovery.list);
+app.post('/api/media/links', mediaDiscovery.add);
+app.patch('/api/media/links/:id', mediaDiscovery.update);
+app.delete('/api/media/links/:id', mediaDiscovery.remove);
 
 // Authenticated Mail Workspace API (IMAP/SMTP, contacts, and agent drafting).
 // One shared owner account for IPTV, Radio, Theatre and source management.
