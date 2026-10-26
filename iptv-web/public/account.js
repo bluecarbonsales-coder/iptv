@@ -55,12 +55,12 @@
       ['/movies.html', 'Theatre'], ['/discover.html', 'Discover'],
       ['/library.html', 'Library'], ['/admin.html', 'Sources']
     ];
-    const currentPath = location.pathname.replace(/\\/$/, '') || '/';
+    const currentPath = location.pathname.endsWith('/') ? location.pathname.slice(0, -1) || '/' : location.pathname;
     for (const [href, label] of services) {
       const link = document.createElement('a');
       link.href = href;
       link.textContent = label;
-      const normalizedHref = href.replace(/\\/$/, '') || '/';
+      const normalizedHref = href.endsWith('/') ? href.slice(0, -1) || '/' : href;
       if (normalizedHref === currentPath || (currentPath === '/index.html' && href === '/')) link.classList.add('active');
       links.appendChild(link);
     }
