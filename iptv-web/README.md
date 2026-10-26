@@ -391,3 +391,10 @@ Jackett is optional. Set `JACKETT_URL` and `JACKETT_API_KEY` in the private depl
 Saved links live in `DATA_DIR/media-links.json` and require the existing `SOURCE_TOKEN`, `REFRESH_TOKEN`, or `AGENT_API_TOKEN` in the `X-Source-Token` header. The token stays in page memory only. Searching saved RSS/Atom feeds also requires that token. RSS/Atom feed URLs must use HTTP or HTTPS. The feature has no new media-storage volume or downloader.
 
 The `.env.example` file intentionally contains blank placeholders for provider credentials. If any non-placeholder API key was previously committed or shared, revoke or rotate it with its provider; replacing the value in the example file does not erase it from Git history.
+
+
+### Persistent Media Library and M3U import
+
+Open `/library.html` to search the live channel catalog and persistent metadata collected as Theatre/VOD searches run. The index is stored in `DATA_DIR/media-library.json`; keep `DATA_DIR` on the existing persistent volume when deploying. The index stores metadata, not copied video files.
+
+The Media Library can import an HTTP(S) M3U playlist using the existing authenticated `POST /api/sources` workflow. Imported playlists are registered in the persistent source registry and refreshed into the live channel catalog, so channels survive container restarts when the data directory is persisted. It can also save direct media links through the authenticated `POST /api/library/items` endpoint. Sign in through Source settings if an API request returns 401. Use only sources and streams you are authorized to access.
