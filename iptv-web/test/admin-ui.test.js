@@ -5,10 +5,14 @@ const fs = require('node:fs');
 const path = require('node:path');
 const root = path.join(__dirname, '..');
 
-test('source manager has three separate source tabs and simple default login', () => {
+test('source manager has separate source tabs and persisted credential settings', () => {
   const html = fs.readFileSync(path.join(root, 'public', 'admin.html'), 'utf8');
-  assert.match(html, /value="admin"/);
-  assert.match(html, /value="0809"/);
+  assert.match(html, /id="username" autocomplete="username" value=""/);
+  assert.match(html, /id="password" type="password" autocomplete="current-password" value=""/);
+  assert.match(html, /id="adminCredentialsForm"/);
+  assert.match(html, /id="newAdminUsername"/);
+  assert.match(html, /id="newAdminPassword"/);
+  assert.match(html, /id="confirmAdminPassword"/);
   assert.match(html, /data-tab="radio"/);
   assert.match(html, /data-tab="iptv"/);
   assert.match(html, /data-tab="theatre"/);
@@ -39,8 +43,9 @@ test('existing IPTV player no longer asks users to enter source API tokens', () 
 
 test('server exposes basic username/password protected APIs for each source type', () => {
   const server = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
-  assert.match(server, /process\.env\.ADMIN_USERNAME\s*\|\|\s*'admin'/);
-  assert.match(server, /process\.env\.ADMIN_PASSWORD\s*\|\|\s*'0809'/);
+  assert.match(server, /createAdminAuth/);
+  assert.ok(server.includes('ownerAuth.getUsername()'));
+  assert.ok(server.includes("app.post('/admin/api/credentials'"));
   assert.match(server, /\/admin\/api\/radio\/sources/);
   assert.match(server, /\/admin\/api\/iptv\/sources/);
   assert.match(server, /\/admin\/api\/theatre\/sources/);

@@ -308,11 +308,7 @@ app.get('/api/metadata/index', metadata.index);
 app.get('/api/metadata/tvmaze', metadata.tvmazeSearch);
 app.get('/api/metadata/title', metadata.title);
 
-// Simple browser-based source manager. Login is a plain username/password from .env
-// (defaults: admin / 0809); no separate API token is required for the admin page.
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '0809';
-
+// Browser-based source manager uses the persisted single administrator account.
 function adminCredentialsMatch(req) {
   return Boolean(ownerSession(req)) || ownerAuth.matchesRequest(req);
 }
@@ -328,7 +324,17 @@ function adminRoute(handler) {
   };
 }
 
-app.get('/admin/api/check', adminRoute((req, res) => sendJson(req, res, 200, { ok: true, username: ADMIN_USERNAME })));
+app.get('/admin/api/check', adminRoute((req, res) => sendJson(req, res, 200, { ok: true, username: ownerAuth.getUsername() })));
+app.post('/admin/api/credentials', adminRoute(async (req, res) => {
+  try {
+    const body = JSON.parse(await readBody(req, 8192));
+    const result = ownerAuth.update(body.currentUsername, body.currentPassword, body.username, body.password);
+    ownerSessions.clear();
+    return sendJson(req, res, 200, { ok: true, username: result.username, message: 'Administrator credentials updated.' });
+  } catch (error) {
+    return sendJson(req, res, error.statusCode || 400, { error: error.message || 'Could not update administrator credentials.' });
+  }
+}));
 
 app.get('/admin/api/iptv/sources', adminRoute((req, res, params, query) => api.sourceList(req, res, params, query)));
 app.post('/admin/api/iptv/sources', adminRoute((req, res, params, query) => api.addSource(req, res, params, query)));
