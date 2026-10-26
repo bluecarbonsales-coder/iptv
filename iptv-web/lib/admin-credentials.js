@@ -12,12 +12,15 @@ function safeEqual(left, right) {
   const b = Buffer.from(String(right));
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
-function validateCredentials(username, password) {
+function validateUsername(username) {
   if (typeof username !== 'string' || username.trim() !== username ||
       username.length < 1 || username.length > USERNAME_MAX || /[\r\n:\x00-\x1f]/.test(username)) {
     const error = new Error('Username must be 1–128 characters and cannot contain colons or control characters.');
     error.statusCode = 400; throw error;
   }
+  }
+function validateCredentials(username, password) {
+  validateUsername(username);
   if (typeof password !== 'string' || password.length < 12 || password.length > PASSWORD_MAX ||
       password.trim() !== password || /[\r\n\x00]/.test(password)) {
     const error = new Error('Password must be at least 12 characters, at most 1024 characters, and have no leading or trailing whitespace.');
@@ -59,7 +62,8 @@ function createAdminAuth(options = {}) {
     }
     const username = options.username ?? process.env.ADMIN_USERNAME ?? 'admin';
     const password = options.password ?? process.env.ADMIN_PASSWORD ?? '0809';
-    validateCredentials(username, password);
+    validateUsername(username);
+    if (typeof password !== 'string' || !password.length || password.length > PASSWORD_MAX || /[\r\n\x00]/.test(password)) throw new Error('Initial administrator password is invalid.');
     save({ version: 1, username, password: hashPassword(password), updatedAt: new Date().toISOString() });
   }
   initialize();
@@ -87,4 +91,4 @@ function createAdminAuth(options = {}) {
   }
   return { getUsername, matches, matchesRequest, update };
 }
-module.exports = { createAdminAuth, validateCredentials, hashPassword, passwordMatches };
+module.exports = { createAdminAuth, validateUsername, validateCredentials, hashPassword, passwordMatches };
