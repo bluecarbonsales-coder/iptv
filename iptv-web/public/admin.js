@@ -303,6 +303,48 @@
     $('#password').value = '';
     $('#loginStatus').textContent = 'Signed out.';
   });
+  $('#adminCredentialsForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const username = $('#newAdminUsername').value.trim();
+    const password = $('#newAdminPassword').value;
+    const confirmation = $('#confirmAdminPassword').value;
+    const statusNode = $('#adminCredentialsStatus');
+    statusNode.classList.remove('error');
+    if (password !== confirmation) {
+      statusNode.textContent = 'The new passwords do not match.';
+      statusNode.classList.add('error');
+      return;
+    }
+    if (password.length < 12) {
+      statusNode.textContent = 'Choose a password with at least 12 characters.';
+      statusNode.classList.add('error');
+      return;
+    }
+    let current;
+    try {
+      const decoded = atob(state.auth);
+      const colon = decoded.indexOf(':');
+      current = { username: decoded.slice(0, colon), password: decoded.slice(colon + 1) };
+      $('#saveAdminCredentials').disabled = true;
+      statusNode.textContent = 'Updating administrator credentials…';
+      const result = await request('/admin/api/credentials', {
+        method: 'POST',
+        body: JSON.stringify({ currentUsername: current.username, currentPassword: current.password, username, password }),
+      });
+      state.auth = btoa(username + ':' + password);
+      await request('/admin/api/check');
+      $('#newAdminPassword').value = '';
+      $('#confirmAdminPassword').value = '';
+      $('#newAdminUsername').value = '';
+      statusNode.textContent = result.message + ' Use your new credentials next time you sign in.';
+    } catch (error) {
+      statusNode.textContent = error.message || 'Could not update administrator credentials.';
+      statusNode.classList.add('error');
+    } finally {
+      $('#saveAdminCredentials').disabled = false;
+    }
+  });
+
   $('#copyApiBase').addEventListener('click', async () => {
     const base = location.origin + '/api/v1';
     try {
