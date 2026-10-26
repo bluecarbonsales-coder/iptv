@@ -24,8 +24,8 @@
   const state = {
     view: 'all',
     q: '',
-    country: '',
-    language: 'eng',
+    country: 'chn',
+    language: '',
     cats: new Set(),
     minQuality: 0,
     sort: 'name',
@@ -111,13 +111,23 @@
   function renderMeta() {
     const m = state.meta || {};
     const countrySel = $('#country');
-    const cur = state.country;
+    const countries = (m.countries || []).slice();
+    const preferred = (name) => countries.find((c) => /^(china|united states|spain)$/i.test(c.name));
+    const ordered = [];
+    for (const name of ['China', 'United States', 'Spain']) {
+      const hit = countries.find((c) => c.name.toLowerCase() === name.toLowerCase() || (name === 'United States' && /^(usa|united states of america)$/i.test(c.name)));
+      if (hit && !ordered.some((x) => x.code === hit.code)) ordered.push(hit);
+    }
+    countries.sort((a, b) => a.name.localeCompare(b.name));
+    const list = ordered.concat(countries.filter((c) => !ordered.some((x) => x.code === c.code)));
+    if (!state.country || !list.some((c) => c.code === state.country)) {
+      const china = list.find((c) => /^china$/i.test(c.name));
+      state.country = china ? china.code : '';
+    }
     countrySel.innerHTML =
-      `<option value="">${esc(t('allCountries'))}</option>` +
-      (m.countries || [])
-        .map((c) => `<option value="${esc(c.code)}">${c.flag || ''} ${esc(c.name)} · ${c.count}</option>`)
-        .join('');
-    countrySel.value = cur;
+      `<option value="">Choose a country…</option>` +
+      list.map((c) => `<option value="${esc(c.code)}">${c.flag || ''} ${esc(c.name)} · ${c.count}</option>`).join('');
+    countrySel.value = state.country;
 
     const languageSel = $('#language');
     const languages = m.languages || [];
@@ -163,6 +173,7 @@
 
   function buildQuery(page) {
     const p = new URLSearchParams();
+    if (!state.country && !['favorites', 'recent', 'playlists'].includes(state.view)) return p;
     if (state.q) p.set('q', state.q);
     if (state.country) p.set('country', state.country);
     if (state.language) p.set('language', state.language);
@@ -191,6 +202,18 @@
       if (!state.keepPage) state.page = 1;
       grid.innerHTML = '';
       emptyBox.hidden = true;
+    }
+    if (!state.country && !['favorites', 'recent', 'playlists'].includes(state.view)) {
+      state.total = 0;
+      state.items = [];
+      grid.innerHTML = '';
+      emptyBox.hidden = false;
+      emptyBox.innerHTML = '<strong>Choose a country to browse channels</strong><p>Select China, the United States, Spain, or another country to load its channels.</p>';
+      $('#resultCount').textContent = 'Choose a country';
+      $('#activeFilters').innerHTML = '';
+      renderPagination(1);
+      state.loading = false;
+      return;
     }
     $('#resultCount').textContent = t('loading');
     try {
@@ -379,7 +402,7 @@
     if (state.view !== 'all') p.set('v', state.view);
     if (state.q) p.set('q', state.q);
     if (state.country) p.set('c', state.country);
-    if (state.language && state.language !== 'eng') p.set('lang', state.language);
+    if (state.language) p.set('lang', state.language);
     if (state.cats.size) p.set('g', Array.from(state.cats).join(','));
     if (state.minQuality) p.set('q2', state.minQuality);
     if (state.hasLogo) p.set('l', '1');
@@ -820,15 +843,15 @@
     });
     $('#resetFilters').onclick = () => {
       state.q = '';
-      state.country = '';
-      state.language = 'eng';
+      state.country = 'chn';
+      state.language = '';
       state.cats.clear();
       state.minQuality = 0;
       state.hasLogo = false;
       state.sort = 'name';
       $('#q').value = '';
-      $('#country').value = '';
-      $('#language').value = 'eng';
+      $('#country').value = state.country;
+      $('#language').value = '';
       $('#minQuality').value = '0';
       $('#sort').value = 'name';
       $('#optLogo').checked = false;
