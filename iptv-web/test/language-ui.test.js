@@ -12,10 +12,13 @@ const radioHtml = fs.readFileSync(path.join(publicDir, 'radio.html'), 'utf8');
 const radioJs = fs.readFileSync(path.join(publicDir, 'radio.js'), 'utf8');
 const i18nJs = fs.readFileSync(path.join(publicDir, 'js', 'i18n.js'), 'utf8');
 
-test('IPTV channels default to a language filter and use language metadata instead of country as the main grouping', () => {
-  assert.match(iptvHtml, /id="language"/);
-  assert.ok(iptvHtml.indexOf('id="language"') < iptvHtml.indexOf('id="country"'));
-  assert.match(iptvJs, /language: 'eng'/);
+test('IPTV starts with China selected and requires country-first browsing', () => {
+  assert.match(iptvHtml, /id="country"/);
+  assert.match(iptvHtml, /Choose a country/);
+  assert.match(iptvJs, /country: 'chn'/);
+  assert.match(iptvJs, /language: ''/);
+  assert.match(iptvJs, /Choose a country to browse channels/);
+  assert.match(iptvJs, /'China', 'United States', 'Spain'/);
   assert.match(iptvJs, /p\.set\('language', state\.language\)/);
   assert.match(iptvJs, /it\.languages\.slice\(0, 2\)\.map\(languageLabel\)/);
   assert.match(i18nJs, /tabAll: 'IPTV'/);
