@@ -122,7 +122,6 @@
     const countries = (m.countries || []).slice().sort((a, b) =>
       priority(a) - priority(b) || Number(b.count || 0) - Number(a.count || 0) || String(a.name).localeCompare(String(b.name))
     );
-    const hasCountry = (code) => countries.some((country) => String(country.code).toLowerCase() === String(code).toLowerCase());
     const matchedCountry = countries.find((country) => String(country.code).toLowerCase() === String(state.country).toLowerCase());
     if (matchedCountry) state.country = matchedCountry.code;
     else {
