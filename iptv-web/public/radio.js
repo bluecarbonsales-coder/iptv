@@ -327,6 +327,11 @@
       if (myTicket !== activeTicket) { audio.pause(); return; }
       state.recent = [station.stationuuid, ...state.recent.filter((id) => id !== station.stationuuid)].slice(0, 100);
       saveJson('radio.recent', state.recent);
+      if (window.OwnerMediaHistory) window.OwnerMediaHistory.record({
+        type: 'radio', action: 'listen', itemId: station.stationuuid, title: station.name,
+        subtitle: [flagOrCountry(station), station.codec || '', station.bitrate ? station.bitrate + ' kbps' : ''].filter(Boolean).join(' · '),
+        image: station.favicon || ''
+      });
       render();
       setStatus('Now playing. Streams are provided by their broadcasters; some may be offline or region-restricted.');
     } catch (error) {
