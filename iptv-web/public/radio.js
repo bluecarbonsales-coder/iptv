@@ -2,7 +2,7 @@
   'use strict';
   const $ = (sel, root) => (root || document).querySelector(sel);
   const state = {
-    query: '', countrycode: '', language: '', tag: '', order: 'clickcount',
+    query: '', countrycode: 'CN', language: '', tag: '', order: 'clickcount',
     offset: 0, page: 1, limit: 50, nextOffset: null, stations: [], favorites: loadJson('radio.favorites', []),
     favoriteStations: loadJson('radio.favoriteStations', []),
     recent: loadJson('radio.recent', []), onlyFavorites: false, activeUuid: '', activeProxyUrl: '', proxyFallbackUsed: false, isLoading: false,
@@ -135,7 +135,9 @@
       const title = document.createElement('strong');
       title.textContent = state.onlyFavorites ? 'No favorites on this page' : 'No stations found';
       const note = document.createElement('span');
-      note.textContent = state.onlyFavorites ? 'Favorite a station to collect it here. Search and filter results are separate from this view.' : 'Try a different name, country, language or genre.';
+      note.textContent = state.onlyFavorites
+        ? 'Favorite a station to collect it here. Search and filter results are separate from this view.'
+        : (state.countrycode ? 'Try a different name, language or genre.' : 'Select China, the United States, Spain, or another country to load radio stations.');
       empty.append(glyph, title, note);
       grid.append(empty);
     } else {
@@ -159,12 +161,21 @@
     el.innerHTML = html;
   }
   async function loadStations(reset) {
+    if (!state.countrycode) {
+      loadSequence += 1;
+      state.isLoading = false;
+      state.stations = [];
+      state.nextOffset = null;
+      render();
+      setStatus('Choose a country to browse radio stations.');
+      return;
+    }
     if (state.isLoading && !reset) return;
     if (reset) { state.offset = (state.page - 1) * state.limit; state.nextOffset = null; state.stations = []; }
     state.isLoading = true;
     const currentSequence = ++loadSequence;
     render();
-    setStatus(reset ? 'Searching the global radio directory…' : 'Loading more stations…');
+    setStatus(reset ? 'Searching radio stations in the selected country…' : 'Loading more stations…');
     const params = new URLSearchParams({ limit: String(state.limit), offset: String(state.offset), order: state.order, reverse: state.order === 'name' ? 'false' : 'true' });
     if (state.query) params.set('q', state.query);
     if (state.countrycode) params.set('countrycode', state.countrycode);
@@ -198,6 +209,12 @@
       const result = await request('/api/radio/options?type=' + encodeURIComponent(type));
       const select = $(selectId);
       const values = result.values || [];
+      if (type === 'countries') {
+        const priority = name => ({ CN: 0, US: 1, ES: 2 }[String(name || '').toUpperCase()] ?? 3);
+        values.sort((a, b) => priority(a.name) - priority(b.name) ||
+          Number(b.stationcount || 0) - Number(a.stationcount || 0) ||
+          String(a.name).localeCompare(String(b.name)));
+      }
       if (type === 'languages') {
         values.sort((a, b) => languageRank(a.name) - languageRank(b.name) || Number(b.stationcount || 0) - Number(a.stationcount || 0) || String(a.name).localeCompare(String(b.name)));
       }
@@ -212,10 +229,10 @@
         option.textContent = label + count;
         select.append(option);
       });
-      if (type === 'languages' && values.length) {
-        const preferred = values.find((item) => /^(english|eng)$/i.test(String(item.name).trim())) || values[0];
-        state.language = preferred.name;
-        select.value = preferred.name;
+      if (type === 'countries') {
+        const available = values.map(item => String(item.name || '').toUpperCase());
+        if (!available.includes(state.countrycode)) state.countrycode = available.includes('CN') ? 'CN' : (available[0] || '');
+        select.value = state.countrycode;
       }
     } catch (error) {
       // Search remains available even if the filter dictionaries are temporarily down.
