@@ -16,6 +16,7 @@
       .portal-links a{display:inline-flex;align-items:center;padding:8px 11px;border:1px solid transparent;border-radius:10px;color:#a3a5b2;text-decoration:none;white-space:nowrap}
       .portal-links a:hover,.portal-links a.active{color:#f6f4f0;background:#ffffff09;border-color:#e8c78b45}
       .portal-account-slot{margin-left:auto;display:flex;align-items:center;justify-content:flex-end;min-width:0}
+      .portal-toolbar [hidden]{display:none!important}
       #ownerAccountRoot .owner-bar{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
       #ownerAccountRoot .owner-pill,#ownerAccountRoot button{border:1px solid #37394a;background:#151722;color:#f6f4f0;border-radius:10px;padding:8px 11px;cursor:pointer;font:inherit}
       #ownerAccountRoot .owner-pill{font-size:12px;color:#e8c78b;white-space:nowrap}
@@ -67,8 +68,10 @@
     accountSlot.className = 'portal-account-slot';
     toolbar.append(links, accountSlot);
     const pageHeader = document.querySelector('body > header');
-    if (pageHeader) pageHeader.insertAdjacentElement('afterend', toolbar);
-    else document.body.prepend(toolbar);
+    if (pageHeader) {
+      pageHeader.querySelectorAll('nav:not(.tabs)').forEach(nav => { nav.hidden = true; });
+      pageHeader.insertAdjacentElement('afterend', toolbar);
+    } else document.body.prepend(toolbar);
     accountSlot.appendChild(root.querySelector('#ownerBar'));
     const $ = id => document.getElementById(id);
     let username = '';
@@ -112,7 +115,13 @@
           $('ownerLogout').hidden = true;
         }
       } catch (error) {
-        gate.hidden = false;
+        gate.hidden = true;
+        $('ownerBar').hidden = false;
+        $('ownerSignIn').hidden = false;
+        $('ownerLabel').hidden = true;
+        $('ownerHistoryButton').hidden = true;
+        $('ownerChange').hidden = true;
+        $('ownerLogout').hidden = true;
         $('ownerLoginError').textContent = 'Cannot connect to account service: ' + error.message;
       }
     }
