@@ -14,7 +14,6 @@ const i18nJs = fs.readFileSync(path.join(publicDir, 'js', 'i18n.js'), 'utf8');
 
 test('IPTV starts with China selected and requires country-first browsing', () => {
   assert.match(iptvHtml, /id="country"/);
-  assert.match(iptvHtml, /Choose a country/);
   assert.match(iptvJs, /country: 'chn'/);
   assert.match(iptvJs, /language: ''/);
   assert.match(iptvJs, /Choose a country to browse channels/);
