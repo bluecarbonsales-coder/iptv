@@ -27,6 +27,7 @@ const { send, sendJson, readBody, isPrivateIp } = require('./lib/util');
 const { matchesAdminCredentials } = require('./lib/admin-auth');
 const { createMediaSettings } = require('./lib/media-settings');
 const { createSourceHealth } = require('./lib/source-health');
+const { createMediaHistory } = require('./lib/media-history');
 const radioSourceStore = require('./lib/radio-sources');
 const sourceLib = require('./lib/sources');
 const vodLib = require('./lib/vod');
@@ -48,6 +49,7 @@ const { createHistoryStore } = require('./lib/watch-history');
 const PORT = parseInt(process.env.PORT, 10) || 3920;
 const HOST = process.env.HOST || '0.0.0.0';
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
+const mediaHistory = createMediaHistory(DATA_DIR);
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const REFRESH_HOURS = parseFloat(process.env.REFRESH_HOURS || '24');
 
@@ -253,6 +255,32 @@ function adminRoute(handler) {
     return handler(req, res, params || {}, query || {});
   };
 }
+
+app.get('/api/history', adminRoute((req, res) => {
+  try {
+    const type = new URL(req.url, 'http://localhost').searchParams.get('type') || '';
+    sendJson(req, res, 200, { items: mediaHistory.list(type || null), maxItems: mediaHistory.maxItems }, { 'Cache-Control': 'no-store' });
+  } catch (error) {
+    sendJson(req, res, error.statusCode || 500, { error: error.message || 'Could not load history' }, { 'Cache-Control': 'no-store' });
+  }
+}));
+app.post('/api/history', adminRoute(async (req, res) => {
+  try {
+    const body = JSON.parse(await readBody(req, 8192));
+    const item = mediaHistory.add(body);
+    sendJson(req, res, 201, { item }, { 'Cache-Control': 'no-store' });
+  } catch (error) {
+    sendJson(req, res, error.statusCode || 400, { error: error.message || 'Could not save history' }, { 'Cache-Control': 'no-store' });
+  }
+}));
+app.delete('/api/history', adminRoute((req, res) => {
+  try {
+    const type = new URL(req.url, 'http://localhost').searchParams.get('type') || '';
+    sendJson(req, res, 200, { items: mediaHistory.clear(type || null) }, { 'Cache-Control': 'no-store' });
+  } catch (error) {
+    sendJson(req, res, error.statusCode || 400, { error: error.message || 'Could not clear history' }, { 'Cache-Control': 'no-store' });
+  }
+}));
 
 app.get('/admin/api/check', adminRoute((req, res) => sendJson(req, res, 200, { ok: true, username: ADMIN_USERNAME })));
 
