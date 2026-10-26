@@ -11,6 +11,7 @@ const { matchesAdminCredentials } = require('./admin-auth');
 const archiveLib = require('./archive-vod');
 const commonsLib = require('./commons-vod');
 const mediaLibrary = require('./media-library');
+const catalogLib = require('./vod-catalog');
 const { withLock, withFileLock } = require('./registry-lock');
 
 // Absolute origin as the browser sees it (proxy sets X-Forwarded-Proto).
@@ -481,7 +482,7 @@ function createApi(catalog, refresh, dataDir) {
     sendJson(req, res, 200, { ok: true, ...mediaLibrary.stats(sourceDataDir) });
   };
 
-  const vodSearch = async (req, res, params, query) => {
+  const vodSearchLegacy = async (req, res, params, query) => {
     const kind = vodLib.KINDS.has(query.type) ? query.type : 'all';
     const term = String(query.q || '').trim().slice(0, 120);
     const cacheKey = kind + '\u0000' + term.toLowerCase();
@@ -810,7 +811,160 @@ function createApi(catalog, refresh, dataDir) {
     });
   };
 
-  return { meta, channels, channel, refreshNow, playlist, playlistProxied, exportM3u, health, sourceList, addSource, updateSource, deleteSource, enableAllSources, listVodSources, addVodSource, importVodSourceList, updateVodSource, deleteVodSource, enableAllVodSources, vodSearch, vodDetail, librarySearch, libraryStats, saveLibraryItem, deleteLibraryItem, clearVodCache: () => vodSearchCache.clear() };
+  // ------------------------------------------------------------------ catalogue
+  // Browsing and searching are served from the persisted metadata index built by
+  // lib/vod-catalog.js (deep, paged harvest of every enabled provider plus the open
+  // licence Internet Archive collections). Providers are only contacted live for an
+  // explicit search term or during a catalogue refresh; page loads never fan out.
+  const BROWSE_KINDS_LIB = catalogLib.BROWSE_KINDS;
+
+  function dedupeKey(entry) {
+    return String(entry.name || '').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '') + '|' + String(entry.year || '');
+  }
+
+  function providerRowFromHealth(row) {
+    return {
+      name: row.name,
+      ok: row.ok === true,
+      available: row.available !== false && row.ok === true,
+      broken: row.broken === true,
+      slow: row.slow === true,
+      ms: Number.isFinite(row.ms) ? row.ms : null,
+      received: row.received || 0,
+      count: row.titles || 0,
+      categories: row.categories || 0,
+      error: row.error || null,
+      checkedAt: row.checkedAt || null,
+    };
+  }
+
+  const vodCatalogState = (req, res) => sendJson(req, res, 200, catalogLib.state(sourceDataDir));
+
+  const vodProviders = (req, res) => {
+    const current = catalogLib.state(sourceDataDir);
+    sendJson(req, res, 200, {
+      updatedAt: current.updatedAt,
+      ageMs: current.ageMs,
+      refreshing: current.refreshing,
+      storedTitles: current.storedTitles,
+      refreshMinutes: current.refreshMinutes,
+      totals: current.totals,
+      archive: current.archive,
+      options: current.options,
+      providers: (current.providers || []).map(providerRowFromHealth),
+      broken: (current.providers || []).filter((row) => row.broken).map((row) => ({ name: row.name, ms: row.ms, error: row.error })),
+    });
+  };
+
+  const vodCatalogRefresh = async (req, res) => {
+    if (!authorizeSourceWrite(req, res)) return;
+    try {
+      const summary = await catalogLib.refreshCatalogue({ dataDir: sourceDataDir, force: true });
+      vodSearchCache.clear();
+      sendJson(req, res, 200, summary);
+    } catch (error) {
+      sendJson(req, res, error.statusCode || 502, { error: error.message || 'catalogue refresh failed' });
+    }
+  };
+
+  const vodSearch = async (req, res, params, query) => {
+    const kind = BROWSE_KINDS_LIB.includes(query.type) || query.type === 'all' ? query.type : 'all';
+    const term = String(query.q || '').trim().slice(0, 120);
+    const limit = Math.max(1, Math.min(120, Number.parseInt(query.limit, 10) || 24));
+    const requestedPage = Math.max(1, Number.parseInt(query.page, 10) || 1);
+    const started = Date.now();
+    const health = catalogLib.state(sourceDataDir);
+    const registry = vodLib.loadSourcesSync(sourceDataDir);
+    const enabled = (registry.sources || []).filter((source) => source.enabled !== false);
+    const index = catalogLib.browse(sourceDataDir, { kind, q: term, page: 1, limit: 120 });
+
+    let items = index.items;
+    let total = index.total;
+    let pages = index.pages;
+    let providers = (health.providers || []).map(providerRowFromHealth);
+    let errors = [];
+    let filteredShortForm = 0;
+
+    if (term) {
+      // An explicit search still consults the providers (and the Archive) live, then
+      // stores what it found so the next lookup is served from the index.
+      const liveSources = enabled.filter((source) => kind === 'all' || source.kind === kind || source.kind === 'all');
+      const live = await catalogLib.searchProviders(liveSources, term, { page: 1 });
+      const merged = [];
+      const seen = new Set();
+      const push = (entry) => { const key = dedupeKey(entry); if (seen.has(key)) return; seen.add(key); merged.push(entry); };
+      for (const item of live.items) {
+        if (vodLib.isShortForm(item)) { filteredShortForm += 1; continue; }
+        if (kind !== 'all' && item.kind !== kind && !(kind === 'movies' && item.kind === 'video')) continue;
+        push(catalogLib.catalogueItem(item, item.kind));
+      }
+      let archiveCount = 0;
+      if (!['series', 'documentary'].includes(kind)) {
+        try {
+          const found = await archiveLib.search(term, kind === 'all' ? 'all' : kind, 30);
+          for (const found1 of found) {
+            if (vodLib.isShortForm(found1)) { filteredShortForm += 1; continue; }
+            if (kind !== 'all' && found1.kind !== kind) continue;
+            push(catalogLib.catalogueItem({
+              id: 'archive-' + found1.id, sourceId: 'archive',
+              sourceName: found1.sourceName || 'Internet Archive (open-license)',
+              name: found1.name, logo: found1.logo, overview: found1.overview, category: found1.category,
+              year: found1.year, remarks: found1.remarks, kind: found1.kind, pageUrl: found1.pageUrl, licenseUrl: found1.licenseUrl,
+            }, found1.kind));
+            archiveCount += 1;
+          }
+        } catch (error) {
+          errors.push({ source: 'Internet Archive (open-license)', error: String(error && error.message || error).slice(0, 180) });
+        }
+      }
+      for (const entry of index.items) push(entry);
+      // Persist fresh metadata (never playback URLs) so the catalogue keeps growing.
+      const fresh = merged.filter((entry) => !index.items.some((existing) => existing.id === entry.id));
+      if (fresh.length) {
+        try {
+          mediaLibrary.upsert(sourceDataDir, fresh.map((entry) => ({ ...entry, vod: true })));
+          index.total += fresh.length; // reflect the write in this response
+        } catch { /* persistence is best effort */ }
+      }
+      items = merged;
+      total = merged.length;
+      pages = Math.max(1, Math.ceil(total / limit));
+      errors = errors.concat(live.errors);
+      if (live.providers.length) {
+        providers = live.providers.concat(providers.filter((row) => !live.providers.some((liveRow) => liveRow.name === row.name)));
+      }
+      if (archiveCount) providers = providers.concat([{ name: 'Internet Archive (open-license)', ok: true, available: true, broken: false, slow: false, ms: null, received: archiveCount, count: archiveCount, error: null, checkedAt: new Date().toISOString() }]);
+    } else if (index.total === 0 || catalogLib.isStale(sourceDataDir)) {
+      // Empty or stale catalogue: answer immediately from what we have and rebuild
+      // the index in the background (single flight, results land in the next page load).
+      catalogLib.ensureFresh(sourceDataDir).catch(() => {});
+    }
+
+    const page = Math.min(requestedPage, pages);
+    sendJson(req, res, 200, {
+      type: kind,
+      total,
+      page,
+      pages,
+      limit,
+      items: items.slice((page - 1) * limit, page * limit),
+      providers,
+      filteredShortForm,
+      errors,
+      tookMs: Date.now() - started,
+      catalog: {
+        updatedAt: health.updatedAt,
+        ageMs: health.ageMs,
+        refreshing: catalogLib.state(sourceDataDir).refreshing,
+        refreshMinutes: health.refreshMinutes,
+        storedTitles: index.libraryTotal,
+        counts: index.counts,
+        source: term ? 'live+index' : 'index',
+      },
+    });
+  };
+
+  return { meta, channels, channel, refreshNow, playlist, playlistProxied, exportM3u, health, sourceList, addSource, updateSource, deleteSource, enableAllSources, listVodSources, addVodSource, importVodSourceList, updateVodSource, deleteVodSource, enableAllVodSources, vodSearch, vodSearchLegacy, vodDetail, vodCatalogState, vodProviders, vodCatalogRefresh, librarySearch, libraryStats, saveLibraryItem, deleteLibraryItem, clearVodCache: () => vodSearchCache.clear() };
 }
 
 module.exports = { createApi };

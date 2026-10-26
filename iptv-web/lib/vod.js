@@ -364,4 +364,7 @@ module.exports = {
   MAX_VOD_SOURCES, KINDS, registryPath, loadSourcesSync, saveSources, ensureDefaultSources,
   newId, isHttpUrl, normalizeApiUrl, apiQuery, fetchJson, listFrom, classify, isShortForm,
   parseEpisodes, normalizeItem, probeSource, preferredListAction, searchSource, getDetail, parseSourceList, redactUrl, publicSource,
+  // Exported for the catalogue harvester (lib/vod-catalog.js), which calls this on
+  // every provider response to surface providers that answer with an error payload.
+  providerStatus,
 };
