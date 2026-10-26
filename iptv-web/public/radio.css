@@ -34,13 +34,13 @@ button { color:inherit; cursor:pointer; }
 .radio-live-status { display:flex; align-items:center; gap:9px; margin-left:auto; font-size:11px; color:var(--muted); white-space:nowrap; }
 .pulse { display:inline-block; width:7px; height:7px; flex:0 0 7px; border-radius:50%; background:var(--mint); box-shadow:0 0 14px rgba(100,229,209,.62); }
 .page { padding-bottom:64px; }
-.radio-hero { padding:58px 0 35px; border-bottom:1px solid var(--line); }
+.radio-hero { padding:24px 0 18px; border-bottom:1px solid var(--line); }
 .hero-kicker,.eyebrow { display:flex; align-items:center; gap:10px; color:var(--mint); font-size:10px; font-weight:750; letter-spacing:.18em; text-transform:uppercase; }
 .hero-kicker:before,.eyebrow:before { content:""; width:22px; height:1px; background:currentColor; }
-.radio-hero h1 { max-width:790px; margin:16px 0 15px; font-size:clamp(40px,6vw,74px); line-height:.99; font-weight:650; letter-spacing:-.055em; }
+.radio-hero h1 { max-width:790px; margin:8px 0 8px; font-size:clamp(28px,3.5vw,42px); line-height:1.08; font-weight:700; letter-spacing:-.04em; }
 .radio-hero h1 span { color:transparent; background:linear-gradient(100deg,#a9bcff,#64e5d1); background-clip:text; -webkit-background-clip:text; }
 .radio-hero p { max-width:610px; margin:0; color:var(--muted); font-size:15px; }
-.hero-stats { display:flex; align-items:center; gap:11px; margin-top:26px; color:var(--muted); font-size:11px; }
+.hero-stats { display:flex; align-items:center; gap:11px; margin-top:12px; color:var(--muted); font-size:11px; }
 .hero-stats b { color:var(--text); }
 .hero-stats a { color:var(--mint); }
 .dot-sep { width:3px; height:3px; border-radius:50%; background:#65738b; }
@@ -137,3 +137,10 @@ kbd { border:1px solid var(--line); border-radius:5px; padding:1px 6px; color:#7
   .now-playing audio { width:calc(100% - 44px); }
 }
 @media(prefers-reduced-motion:reduce) { *,*::before,*::after { transition-duration:.01ms!important;animation-duration:.01ms!important;scroll-behavior:auto!important; } }
+
+/* Shared navigation with IPTV and Theatre. */
+.topbar .brand{display:flex;align-items:center;gap:9px;letter-spacing:-.2px;font-size:17px;font-weight:700}
+.topbar .tabs{display:flex;align-items:center;gap:4px}
+.topbar .tabs .tab{display:inline-flex;align-items:center;white-space:nowrap}
+.topbar-actions{display:flex;align-items:center;gap:8px;margin-left:auto}
+@media(max-width:900px){.topbar .tabs{display:none}.topbar-actions .muted{display:none}}
