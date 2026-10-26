@@ -533,6 +533,7 @@
       .join('');
     sel.value = '0';
     pushRecent(item.id);
+    if (window.OwnerMediaHistory) window.OwnerMediaHistory.record({ type: 'iptv', action: 'watch', itemId: String(item.id), title: item.name || 'Live channel', subtitle: [item.country ? countryLabel(item.country) : '', item.sourceName || 'IPTV'].filter(Boolean).join(' · '), image: item.logo || item.logoUrl || '' });
     play(0);
   }
 
