@@ -36,11 +36,11 @@ test('IPTV video stays embedded and does not offer an external raw-stream player
 });
 
 test('Radio defaults to country-first browsing and never requests the global catalogue', () => {
-  assert.match(radioHtml, /<a href="\\/watch\\.html">IPTV<\\/a>/);
+  assert.ok(radioHtml.includes('<a href="/watch.html">IPTV</a>'));
   assert.ok(radioHtml.indexOf('id="countryFilter"') < radioHtml.indexOf('id="languageFilter"'));
   assert.match(radioJs, /countrycode: 'CN'/);
   assert.match(radioJs, /Searching radio stations in the selected country/);
   assert.match(radioJs, /Choose a country to browse radio stations/);
-  assert.match(radioJs, /priority\\s*=\\s*name\\s*=>\\s*\\(\\{\\s*CN:\\s*0,\\s*US:\\s*1,\\s*ES:\\s*2/);
-  assert.match(radioJs, /stationLanguage \\+ ' · ' \\+ flagOrCountry\\(station\\)/);
+  assert.ok(radioJs.includes('({ CN: 0, US: 1, ES: 2 }'));
+  assert.ok(radioJs.includes("stationLanguage + ' · ' + flagOrCountry(station)"));
 });
