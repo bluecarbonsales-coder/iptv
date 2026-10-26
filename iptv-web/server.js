@@ -24,7 +24,7 @@ const { Catalog } = require('./lib/catalog');
 const { createApi } = require('./lib/api');
 const { serveStatic } = require('./lib/static');
 const { send, sendJson, readBody, isPrivateIp } = require('./lib/util');
-const { matchesAdminCredentials } = require('./lib/admin-auth');
+const { createAdminAuth } = require('./lib/admin-credentials');
 const { createMediaSettings } = require('./lib/media-settings');
 const { createSourceHealth } = require('./lib/source-health');
 const radioSourceStore = require('./lib/radio-sources');
@@ -48,6 +48,7 @@ const { createHistoryStore } = require('./lib/watch-history');
 const PORT = parseInt(process.env.PORT, 10) || 3920;
 const HOST = process.env.HOST || '0.0.0.0';
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
+const adminAuth = createAdminAuth({ dataDir: DATA_DIR });
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const REFRESH_HOURS = parseFloat(process.env.REFRESH_HOURS || '24');
 
@@ -234,13 +235,9 @@ app.get('/api/metadata/search', metadata.search);
 app.get('/api/metadata/tvmaze', metadata.tvmazeSearch);
 app.get('/api/metadata/title', metadata.title);
 
-// Simple browser-based source manager. Login is a plain username/password from .env
-// (defaults: admin / 0809); no separate API token is required for the admin page.
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '0809';
-
+// Single administrator account persisted in DATA_DIR. Passwords are scrypt-hashed at rest.
 function adminCredentialsMatch(req) {
-  return matchesAdminCredentials(req, { username: ADMIN_USERNAME, password: ADMIN_PASSWORD });
+  return adminAuth.matchesRequest(req);
 }
 
 function adminRoute(handler) {
@@ -254,7 +251,16 @@ function adminRoute(handler) {
   };
 }
 
-app.get('/admin/api/check', adminRoute((req, res) => sendJson(req, res, 200, { ok: true, username: ADMIN_USERNAME })));
+app.get('/admin/api/check', adminRoute((req, res) => sendJson(req, res, 200, { ok: true, username: adminAuth.getUsername() })));
+app.post('/admin/api/credentials', adminRoute(async (req, res) => {
+  try {
+    const body = JSON.parse(await readBody(req, 8192));
+    const result = adminAuth.update(body.currentUsername, body.currentPassword, body.username, body.password);
+    return sendJson(req, res, 200, { ok: true, username: result.username, message: 'Administrator credentials updated.' });
+  } catch (error) {
+    return sendJson(req, res, error.statusCode || 400, { error: error.message || 'Could not update administrator credentials.' });
+  }
+}));
 
 app.get('/admin/api/iptv/sources', adminRoute((req, res, params, query) => api.sourceList(req, res, params, query)));
 app.post('/admin/api/iptv/sources', adminRoute((req, res, params, query) => api.addSource(req, res, params, query)));
