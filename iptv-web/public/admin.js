@@ -29,7 +29,12 @@
       : (source.enabled === false ? 'Server / relay: disabled' : 'Server / relay: checking…');
     const direct = network ? 'Current network: ' + (Number.isFinite(network.latencyMs) ? network.latencyMs + ' ms RTT' : network.status)
       : (source.enabled === false ? 'Current network: disabled' : 'Current network: not measured yet');
-    return { relay, direct };
+    const history = h && h.historySamples
+      ? 'Recent uptime: ' + h.uptimePercent + '% (' + h.historySamples + ' checks)' +
+        (Number.isFinite(h.averageLatencyMs) ? ' · avg relay ' + h.averageLatencyMs + ' ms' : '') +
+        ' · ' + (h.recentHistory || []).map(ok => ok ? '●' : '○').join('')
+      : 'Reliability history: waiting for repeat checks';
+    return { relay, direct, history };
   }
   const status = (section, message, error = false) => {
     const el = $('#' + section + 'Status');
@@ -85,6 +90,7 @@
       const healthLines = renderSourceHealthLine(section, source);
       main.append(make('div', 'source-health', healthLines.relay));
       main.append(make('div', 'source-health', healthLines.direct));
+      main.append(make('div', 'source-health history', healthLines.history));
       row.append(main);
       const actions = make('div', 'source-actions');
       const toggle = make('button', '', source.enabled ? 'Disable' : 'Enable');
