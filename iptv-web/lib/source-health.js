@@ -1,7 +1,9 @@
 'use strict';
+const fs = require('fs');
+const path = require('path');
 const { upstreamFetch } = require('./fetch-upstream');
 const TYPES = ['radio', 'iptv', 'theatre'];
-const DEFAULT_REFRESH_MS = 60000, FORCE_COOLDOWN_MS = 15000, REQUEST_TIMEOUT_MS = 2500, SLOW_THRESHOLD_MS = 1500, MAX_CHECKS = 800;
+const DEFAULT_REFRESH_MS = 60000, FORCE_COOLDOWN_MS = 15000, REQUEST_TIMEOUT_MS = 2500, SLOW_THRESHOLD_MS = 1500, MAX_CHECKS = 800, HISTORY_LIMIT = 24;
 function isHttpUrl(raw) {
   try { const u = new URL(String(raw || '')); return ['http:', 'https:'].includes(u.protocol) && !!u.hostname && !u.username && !u.password; }
   catch { return false; }
@@ -24,7 +26,51 @@ function createSourceHealth(options = {}) {
   const cooldown = Number.isFinite(options.forceCooldownMs) ? Math.max(0, options.forceCooldownMs) : FORCE_COOLDOWN_MS;
   const timeoutMs = Number.isFinite(options.timeoutMs) ? Math.max(500, options.timeoutMs) : REQUEST_TIMEOUT_MS;
   const concurrency = Number.isFinite(options.concurrency) ? Math.max(1, Math.min(16, options.concurrency)) : 12;
-  const statuses = new Map(); let scanStartedAt = 0, scanCompletedAt = 0, scanPromise = null;
+  const historyFile = options.historyFile || (options.dataDir ? path.join(options.dataDir, 'source-health-history.json') : null);
+  const statuses = new Map(), history = new Map();
+  let scanStartedAt = 0, scanCompletedAt = 0, scanPromise = null;
+
+  if (historyFile) {
+    try {
+      const stored = JSON.parse(fs.readFileSync(historyFile, 'utf8'));
+      for (const [key, entries] of Object.entries(stored || {})) {
+        if (!Array.isArray(entries)) continue;
+        history.set(key, entries.filter(entry => entry && typeof entry.checkedAt === 'string' &&
+          typeof entry.available === 'boolean').slice(-HISTORY_LIMIT).map(entry => ({
+          checkedAt: entry.checkedAt, available: entry.available,
+          latencyMs: Number.isFinite(entry.latencyMs) ? entry.latencyMs : null,
+          status: String(entry.status || (entry.available ? 'online' : 'offline')),
+        })));
+      }
+    } catch {}
+  }
+  function persistHistory() {
+    if (!historyFile) return;
+    try {
+      fs.mkdirSync(path.dirname(historyFile), { recursive: true });
+      const data = Object.fromEntries(history);
+      const temp = historyFile + '.tmp';
+      fs.writeFileSync(temp, JSON.stringify(data), { mode: 0o600 });
+      fs.renameSync(temp, historyFile);
+    } catch {}
+  }
+  function recordHistory(key, result) {
+    if (typeof result.available !== 'boolean') return;
+    const entries = history.get(key) || [];
+    entries.push({ checkedAt: result.checkedAt, available: result.available,
+      latencyMs: Number.isFinite(result.proxyLatencyMs) ? result.proxyLatencyMs : null, status: result.status });
+    history.set(key, entries.slice(-HISTORY_LIMIT));
+  }
+  function historyMetrics(key) {
+    const entries = history.get(key) || [];
+    const latencies = entries.map(entry => entry.latencyMs).filter(Number.isFinite);
+    return {
+      historySamples: entries.length,
+      uptimePercent: entries.length ? Math.round(100 * entries.filter(entry => entry.available).length / entries.length) : null,
+      averageLatencyMs: latencies.length ? Math.round(latencies.reduce((sum, value) => sum + value, 0) / latencies.length) : null,
+      recentHistory: entries.map(entry => entry.available),
+    };
+  }
   function listSources() {
     const groups = options.getSources() || {};
     return TYPES.flatMap(type => (Array.isArray(groups[type]) ? groups[type] : []).map(s => ({
@@ -58,7 +104,14 @@ function createSourceHealth(options = {}) {
   async function runScan() {
     const sources = listSources(), keys = new Set(sources.map(s => s.type + ':' + s.id));
     for (const key of statuses.keys()) if (!keys.has(key)) statuses.delete(key);
-    await mapLimit(sources, concurrency, async source => statuses.set(source.type + ':' + source.id, await probe(source)));
+    for (const key of history.keys()) if (!keys.has(key)) history.delete(key);
+    await mapLimit(sources, concurrency, async source => {
+      const key = source.type + ':' + source.id;
+      const result = await probe(source);
+      statuses.set(key, result);
+      if (source.enabled) recordHistory(key, result);
+    });
+    persistHistory();
   }
   function startScan(force = false) {
     if (scanPromise) return scanPromise;
@@ -71,9 +124,9 @@ function createSourceHealth(options = {}) {
   }
   function getSnapshot() {
     const snapshot = listSources().map(s => {
-      const previous = statuses.get(s.type + ':' + s.id);
-      if (!s.enabled) return { id: s.id, type: s.type, name: s.name, status: 'disabled', available: null, proxyLatencyMs: null, latencyMs: null, httpStatus: null, checkedAt: previous && previous.checkedAt || null, reason: 'disabled' };
-      return previous || { id: s.id, type: s.type, name: s.name, status: 'checking', available: null, proxyLatencyMs: null, latencyMs: null, httpStatus: null, checkedAt: null, reason: '' };
+      const key = s.type + ':' + s.id, previous = statuses.get(key), metrics = historyMetrics(key);
+      if (!s.enabled) return { id: s.id, type: s.type, name: s.name, status: 'disabled', available: null, proxyLatencyMs: null, latencyMs: null, httpStatus: null, checkedAt: previous && previous.checkedAt || null, reason: 'disabled', ...metrics };
+      return { ...(previous || { id: s.id, type: s.type, name: s.name, status: 'checking', available: null, proxyLatencyMs: null, latencyMs: null, httpStatus: null, checkedAt: null, reason: '' }), ...metrics };
     });
     const summary = {};
     for (const type of TYPES) {
@@ -82,10 +135,10 @@ function createSourceHealth(options = {}) {
         unavailable: enabled.filter(s => s.status !== 'checking' && s.available !== true).length,
         checking: enabled.filter(s => s.status === 'checking').length, disabled: group.filter(s => s.status === 'disabled').length };
     }
-    summary.all = TYPES.reduce((total, type) => { for (const k of ['total','enabled','available','unavailable','checking','disabled']) total[k] += summary[type][k]; return total; },
-      { total: 0, enabled: 0, available: 0, unavailable: 0, checking: 0, disabled: 0 });
+    summary.all = TYPES.reduce((total, type) => { for (const k of ['total','enabled','available','unavailable','checking','disabled']) total[k] += summary[type][k]; return total; }, { total: 0, enabled: 0, available: 0, unavailable: 0, checking: 0, disabled: 0 });
     return { statuses: snapshot, summary, scanning: !!scanPromise, scanStartedAt: scanStartedAt ? new Date(scanStartedAt).toISOString() : null,
-      scanCompletedAt: scanCompletedAt ? new Date(scanCompletedAt).toISOString() : null, refreshEveryMs: refreshMs, latencySource: 'server-to-source HTTP check; not stream throughput' };
+      scanCompletedAt: scanCompletedAt ? new Date(scanCompletedAt).toISOString() : null, refreshEveryMs: refreshMs,
+      historyLimit: HISTORY_LIMIT, latencySource: 'server-to-source HTTP check; not stream throughput' };
   }
   return { startScan, getSnapshot };
 }
