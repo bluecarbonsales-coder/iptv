@@ -949,8 +949,7 @@
     });
     $('#resetFilters').onclick = () => {
       state.q = '';
-      const defaultCountry = state.countries.find((country) => /^china$/i.test(country.name));
-      state.country = defaultCountry ? defaultCountry.code : '';
+      state.country = '';
       state.language = '';
       state.cats.clear();
       state.minQuality = 0;
