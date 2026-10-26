@@ -311,7 +311,7 @@ const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '0809';
 
 function adminCredentialsMatch(req) {
-  return Boolean(ownerSession(req)) || ownerAuth.matchesRequest(req) || matchesAdminCredentials(req, { username: ADMIN_USERNAME, password: ADMIN_PASSWORD });
+  return Boolean(ownerSession(req)) || ownerAuth.matchesRequest(req);
 }
 
 function adminRoute(handler) {
