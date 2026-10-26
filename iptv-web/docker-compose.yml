@@ -40,6 +40,9 @@ services:
       # Inject metadata provider credentials via the host .env; never bake them into source.
       TMDB_API_KEY: "${TMDB_API_KEY:-}"
       OMDB_API_KEY: "${OMDB_API_KEY:-}"
+      # Optional Jackett integration; keep the API key in the private host .env.
+      JACKETT_URL: "${JACKETT_URL:-}"
+      JACKETT_API_KEY: "${JACKETT_API_KEY:-}"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3920/healthz"]
       interval: 60s
