@@ -24,8 +24,8 @@
   const state = {
     view: 'all',
     q: '',
-    country: '',
-    language: 'eng',
+    country: 'cn',
+    language: '',
     cats: new Set(),
     minQuality: 0,
     sort: 'name',
@@ -111,19 +111,29 @@
   function renderMeta() {
     const m = state.meta || {};
     const countrySel = $('#country');
-    const cur = state.country;
+    const priority = (country) => {
+      const code = String(country.code || '').toLowerCase();
+      const name = String(country.name || '').toLowerCase();
+      if (code === 'cn' || name === 'china') return 0;
+      if (code === 'us' || name === 'united states' || name === 'united states of america') return 1;
+      if (code === 'es' || name === 'spain') return 2;
+      return 3;
+    };
+    const countries = (m.countries || []).slice().sort((a, b) =>
+      priority(a) - priority(b) || Number(b.count || 0) - Number(a.count || 0) || String(a.name).localeCompare(String(b.name))
+    );
+    const hasCountry = (code) => countries.some((country) => String(country.code).toLowerCase() === String(code).toLowerCase());
+    if (!hasCountry(state.country)) {
+      const china = countries.find((country) => priority(country) === 0);
+      state.country = china ? china.code : (countries[0] ? countries[0].code : '');
+    }
     countrySel.innerHTML =
-      `<option value="">${esc(t('allCountries'))}</option>` +
-      (m.countries || [])
-        .map((c) => `<option value="${esc(c.code)}">${c.flag || ''} ${esc(c.name)} · ${c.count}</option>`)
-        .join('');
-    countrySel.value = cur;
+      `<option value="">Choose a country…</option>` +
+      countries.map((country) => `<option value="${esc(country.code)}">${country.flag || ''} ${esc(country.name)} · ${country.count}</option>`).join('');
+    countrySel.value = state.country;
 
     const languageSel = $('#language');
     const languages = m.languages || [];
-    if (!languages.some((language) => language.code === state.language) && languages.length && state.language === 'eng') {
-      state.language = languages[0].code;
-    }
     languageSel.innerHTML = `<option value="">${esc(t('allLanguages'))}</option>` + languages
       .map((language) => `<option value="${esc(language.code)}">${esc(language.name)} · ${language.count}</option>`)
       .join('');
@@ -185,6 +195,19 @@
   async function load(reset) {
     if (state.view === 'playlists') return renderPlaylistsView();
     if (isVodView(state.view)) return loadVod(reset);
+    if (!state.country) {
+      state.items = [];
+      state.total = 0;
+      state.pages = 1;
+      grid.innerHTML = '';
+      emptyBox.hidden = false;
+      emptyBox.textContent = 'Choose a country to browse its channels. China is selected by default.';
+      $('#resultCount').textContent = 'Select a country';
+      $('#activeFilters').textContent = '';
+      $('#channelPagination').innerHTML = '';
+      loadMoreBtn.hidden = true;
+      return;
+    }
     if (state.loading) return;
     state.loading = true;
     if (reset) {
@@ -478,6 +501,12 @@
   }
 
   async function openPlayer(item) {
+    if (window.MediaHistory) window.MediaHistory.record('iptv', {
+      id: item.id,
+      title: item.name,
+      country: item.country ? countryLabel(item.country) : '',
+      countryCode: item.country || '',
+    });
     player.item = item;
     player.index = 0;
     player.autoTried = 0;
