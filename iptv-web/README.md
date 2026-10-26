@@ -357,7 +357,7 @@ also works from networks where GitHub Pages is unreachable.
 
 Open /mail.html to use the web email client. It reuses the existing Mailcow host mail.nafisainternational.com; it does not provision mailboxes. The eight supplied accounts are prelisted with @mail.nafisainternational.com identities and the admin role aliases.
 
-Configure these values in the deployment environment and rebuild/restart: EMAIL_WORKSPACE_PASSWORD (separate web login password), EMAIL_SESSION_SECRET (random session HMAC key, at least 32 characters), EMAIL_CREDENTIALS_KEY (exactly 64 hex characters from openssl rand -hex 32), EMAIL_ALLOWED_MAIL_HOSTS=mail.nafisainternational.com, MAIL_COOKIE_SECURE=1 for HTTPS, and EMAIL_AGENT_SEND_MODE=approval by default. Losing the encryption key means mailbox credentials must be entered again.
+Configure these values in the deployment environment and rebuild/restart: EMAIL_WORKSPACE_PASSWORD (fallback mail-only login), EMAIL_SESSION_SECRET (random session HMAC key, at least 32 characters), EMAIL_CREDENTIALS_KEY (exactly 64 hex characters from openssl rand -hex 32), EMAIL_ALLOWED_MAIL_HOSTS=mail.nafisainternational.com, MAIL_COOKIE_SECURE=1 for HTTPS, and EMAIL_AGENT_SEND_MODE=approval by default. Once the shared owner account is signed in, the mail page opens the inbox directly when the mail environment is configured; the mail-only login remains available as a fallback. Losing the encryption key means mailbox credentials must be entered again.
 
 Mailbox credentials are encrypted at rest with AES-256-GCM in /data/mail-workspace.json and never returned by APIs. Enter mailbox passwords in the authenticated HTTPS settings page; do not embed them in source control, prompts, logs or browser local storage. Use a unique workspace password. Rotate any shared mailbox password exposed outside its intended context.
 
@@ -366,3 +366,17 @@ Features: IMAP TLS 993, SMTP STARTTLS 587 or TLS 465, folder/message view, compo
 Agents use the same HTTP Basic admin login with GET /api/agent/v1/mail/openapi.json, /accounts, /folders, /messages, /message, /contacts and /drafts plus POST /drafts and /drafts/:id/send. Agent-created drafts require owner approval by default. Set EMAIL_AGENT_SEND_MODE=direct only if trusted agents should send unattended. Allowed mail hosts are restricted by EMAIL_ALLOWED_MAIL_HOSTS.
 
 CI passing does not prove the live VPS has these environment values, that SMTP/IMAP connections work, or that this change is deployed.
+
+
+## Shared owner account and media history
+
+The shared owner account signs in across IPTV, Radio, Theatre, source settings and the configured mail workspace. On first start it is initialized from `ADMIN_USERNAME` and `ADMIN_PASSWORD` (defaults: `admin` / `0809` for legacy installations); sign in and immediately change these from **Account settings**. New passwords must be at least 12 characters. The password is stored as a salted scrypt hash in `DATA_DIR/admin-credentials.json`; keep the data directory private and backed up. Sessions are HTTP-only cookies and expire after 30 days.
+
+IPTV, Radio and Theatre viewing/listening events are saved in `DATA_DIR/account-media-history.json` and can be reviewed from the owner account's **History** button. History is server-side and remains available after browser storage is cleared or a new session is created. Existing local recent/favourites data remains browser-local.
+
+For HTTPS deployments, terminate TLS at the reverse proxy and forward `X-Forwarded-Proto: https` so the owner session cookie receives the Secure attribute. This account feature is code in the repository; it is not active on a running deployment until the branch is merged and deployed.
+
+
+### IPTV web player
+
+The embedded IPTV player uses DPlayer for its browser controls and hls.js for HLS streams. Direct MP4/WebM/audio files use browser-native playback, and browsers with native HLS support use their built-in HLS playback. The DPlayer stylesheet and script are pinned to version 1.27.1 on jsDelivr; if external CDN loading is undesirable, vendor those exact distribution assets locally before deploying. The existing source selector, proxy toggle, automatic fallback, status display, and HLS quality selector remain part of the page.

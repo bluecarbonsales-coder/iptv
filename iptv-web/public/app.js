@@ -24,8 +24,8 @@
   const state = {
     view: 'all',
     q: '',
-    country: '',
-    language: 'eng',
+    country: 'chn',
+    language: '',
     cats: new Set(),
     minQuality: 0,
     sort: 'name',
@@ -111,13 +111,23 @@
   function renderMeta() {
     const m = state.meta || {};
     const countrySel = $('#country');
-    const cur = state.country;
+    const countries = (m.countries || []).slice();
+    const preferred = (name) => countries.find((c) => /^(china|united states|spain)$/i.test(c.name));
+    const ordered = [];
+    for (const name of ['China', 'United States', 'Spain']) {
+      const hit = countries.find((c) => c.name.toLowerCase() === name.toLowerCase() || (name === 'United States' && /^(usa|united states of america)$/i.test(c.name)));
+      if (hit && !ordered.some((x) => x.code === hit.code)) ordered.push(hit);
+    }
+    countries.sort((a, b) => a.name.localeCompare(b.name));
+    const list = ordered.concat(countries.filter((c) => !ordered.some((x) => x.code === c.code)));
+    if (!state.country || !list.some((c) => c.code === state.country)) {
+      const china = list.find((c) => /^china$/i.test(c.name));
+      state.country = china ? china.code : '';
+    }
     countrySel.innerHTML =
-      `<option value="">${esc(t('allCountries'))}</option>` +
-      (m.countries || [])
-        .map((c) => `<option value="${esc(c.code)}">${c.flag || ''} ${esc(c.name)} · ${c.count}</option>`)
-        .join('');
-    countrySel.value = cur;
+      `<option value="">Choose a country…</option>` +
+      list.map((c) => `<option value="${esc(c.code)}">${c.flag || ''} ${esc(c.name)} · ${c.count}</option>`).join('');
+    countrySel.value = state.country;
 
     const languageSel = $('#language');
     const languages = m.languages || [];
@@ -163,6 +173,7 @@
 
   function buildQuery(page) {
     const p = new URLSearchParams();
+    if (!state.country && !['favorites', 'recent', 'playlists'].includes(state.view)) return p;
     if (state.q) p.set('q', state.q);
     if (state.country) p.set('country', state.country);
     if (state.language) p.set('language', state.language);
@@ -191,6 +202,18 @@
       if (!state.keepPage) state.page = 1;
       grid.innerHTML = '';
       emptyBox.hidden = true;
+    }
+    if (!state.country && !['favorites', 'recent', 'playlists'].includes(state.view)) {
+      state.total = 0;
+      state.items = [];
+      grid.innerHTML = '';
+      emptyBox.hidden = false;
+      emptyBox.innerHTML = '<strong>Choose a country to browse channels</strong><p>Select China, the United States, Spain, or another country to load its channels.</p>';
+      $('#resultCount').textContent = 'Choose a country';
+      $('#activeFilters').innerHTML = '';
+      renderPagination(1);
+      state.loading = false;
+      return;
     }
     $('#resultCount').textContent = t('loading');
     try {
@@ -379,7 +402,7 @@
     if (state.view !== 'all') p.set('v', state.view);
     if (state.q) p.set('q', state.q);
     if (state.country) p.set('c', state.country);
-    if (state.language && state.language !== 'eng') p.set('lang', state.language);
+    if (state.language) p.set('lang', state.language);
     if (state.cats.size) p.set('g', Array.from(state.cats).join(','));
     if (state.minQuality) p.set('q2', state.minQuality);
     if (state.hasLogo) p.set('l', '1');
@@ -432,6 +455,7 @@
   /* ----------------------------------------------------------------- player */
   const player = {
     hls: null,
+    dplayer: null,
     sources: [],
     index: 0,
     item: null,
@@ -510,19 +534,23 @@
       .join('');
     sel.value = '0';
     pushRecent(item.id);
+    if (window.OwnerMediaHistory) window.OwnerMediaHistory.record({ type: 'iptv', action: 'watch', itemId: String(item.id), title: item.name || 'Live channel', subtitle: [item.country ? countryLabel(item.country) : '', item.sourceName || 'IPTV'].filter(Boolean).join(' · '), image: item.logo || item.logoUrl || '' });
     play(0);
   }
 
   function closePlayer() {
     destroyHls();
-    const v = $('#video');
-    try {
-      v.pause();
-      v.removeAttribute('src');
-      v.load();
-    } catch {}
+    destroyDPlayer();
     $('#player').hidden = true;
     player.item = null;
+  }
+
+  function destroyDPlayer() {
+    if (!player.dplayer) return;
+    try { player.dplayer.destroy(); } catch {}
+    player.dplayer = null;
+    const container = $('#dplayer');
+    if (container) container.innerHTML = '';
   }
 
   function destroyHls() {
@@ -556,7 +584,7 @@
     if (!src) return;
     player.index = index;
     destroyHls();
-    const video = $('#video');
+    destroyDPlayer();
     const relay = $('#pProxy').checked;
     const target = relay ? proxyUrl(src) : src.url;
     $('#pQuality').innerHTML = '<option value="-1">Auto</option>';
@@ -571,75 +599,87 @@
     else showOverlay(t('connecting'), true);
 
     const directFile = /\.(mp4|m4v|webm|mov|ogv|ogg|mp3|aac)(?:$|[?#])/i.test(src.url);
-    if (directFile) {
-      video.src = target;
-      video.onloadeddata = hideOverlay;
-      video.onerror = () => onStreamError('direct media playback error');
-      video.play().catch(() => {});
+    const probeVideo = document.createElement('video');
+    const nativeHls = !directFile && !!probeVideo.canPlayType('application/vnd.apple.mpegurl');
+    if (!window.DPlayer) {
+      showOverlay('DPlayer did not load. Check the network connection and reload this page.', false, true);
       return;
     }
 
-    const nativeHls = video.canPlayType('application/vnd.apple.mpegurl') && !window.Hls;
-    if (nativeHls) {
-      video.src = target;
-      video.play().catch(() => {});
-      video.onloadeddata = hideOverlay;
-      video.onerror = () => onStreamError('native playback error');
-      return;
-    }
-    if (!window.Hls || !window.Hls.isSupported()) {
-      showOverlay('This browser cannot play HLS streams (no Media Source Extensions).', false, true);
-      return;
-    }
-
-    const hls = new window.Hls({
-      lowLatencyMode: false,
-      enableWorker: true,
-      backBufferLength: 30,
-      manifestLoadingTimeOut: 12000,
-      manifestLoadingMaxRetry: 2,
-      levelLoadingTimeOut: 12000,
-      fragLoadingTimeOut: 20000,
-      fragLoadingMaxRetry: 3,
-      maxBufferLength: 24,
-    });
-    player.hls = hls;
-
-    hls.on(window.Hls.Events.MANIFEST_PARSED, (e, data) => {
-      const levels = data.levels || [];
-      const opts = ['<option value="-1">Auto</option>']
-        .concat(levels.map((l, i) => `<option value="${i}">${l.height ? l.height + 'p' : Math.round((l.bitrate || 0) / 1000) + ' kbps'}</option>`))
-        .join('');
-      $('#pQuality').innerHTML = opts;
-      setStatus(`${levels.length} level${levels.length === 1 ? '' : 's'} · ${$('#pProxy').checked ? 'relay' : 'direct'}`);
-      hideOverlay();
-      hls.currentLevel = -1;
-    });
-    hls.on(window.Hls.Events.LEVEL_SWITCHED, (e, data) => {
-      const l = hls.levels[data.level];
-      if (l && l.height) setStatus(`${l.height}p · ${$('#pProxy').checked ? 'relay' : 'direct'}`);
-    });
-    hls.on(window.Hls.Events.ERROR, (e, data) => {
-      if (!data.fatal) return;
-      const map = {
-        networkError: 'network error',
-        mediaError: 'media error',
-        otherError: 'playback error',
+    const customType = {};
+    if (!directFile && !nativeHls) {
+      customType.hls = (video) => {
+        if (!window.Hls || !window.Hls.isSupported()) {
+          showOverlay('This browser cannot play HLS streams (no Media Source Extensions).', false, true);
+          return;
+        }
+        const hls = new window.Hls({
+          lowLatencyMode: false,
+          enableWorker: true,
+          backBufferLength: 30,
+          manifestLoadingTimeOut: 12000,
+          manifestLoadingMaxRetry: 2,
+          levelLoadingTimeOut: 12000,
+          fragLoadingTimeOut: 20000,
+          fragLoadingMaxRetry: 3,
+          maxBufferLength: 24,
+        });
+        player.hls = hls;
+        hls.on(window.Hls.Events.MANIFEST_PARSED, (e, data) => {
+          const levels = data.levels || [];
+          $('#pQuality').innerHTML = ['<option value="-1">Auto</option>']
+            .concat(levels.map((level, i) => `<option value="${i}">${level.height ? level.height + 'p' : Math.round((level.bitrate || 0) / 1000) + ' kbps'}</option>`))
+            .join('');
+          setStatus(`${levels.length} quality level${levels.length === 1 ? '' : 's'} · ${$('#pProxy').checked ? 'relay' : 'direct'}`);
+          hideOverlay();
+          hls.currentLevel = -1;
+        });
+        hls.on(window.Hls.Events.LEVEL_SWITCHED, (e, data) => {
+          const level = hls.levels[data.level];
+          if (level && level.height) setStatus(`${level.height}p · ${$('#pProxy').checked ? 'relay' : 'direct'}`);
+        });
+        hls.on(window.Hls.Events.ERROR, (e, data) => {
+          if (!data.fatal) return;
+          const map = { networkError: 'network error', mediaError: 'media error', otherError: 'playback error' };
+          const detail = (data.response && (data.response.code || data.response.text)) || '';
+          onStreamError(`${map[data.type] || data.type}${detail ? ' (' + String(detail).slice(0, 120) + ')' : ''}`);
+        });
+        hls.loadSource(target);
+        hls.attachMedia(video);
+        hls.on(window.Hls.Events.MEDIA_ATTACHED, () => video.play().catch(() => {}));
       };
-      const detail = (data.response && (data.response.code || data.response.text)) || '';
-      onStreamError(`${map[data.type] || data.type}${detail ? ' (' + String(detail).slice(0, 120) + ')' : ''}`);
-    });
+    }
 
-    hls.loadSource(target);
-    hls.attachMedia(video);
-    hls.on(window.Hls.Events.MEDIA_ATTACHED, () => {
-      video.play().catch(() => {});
-    });
-
-    video.onplaying = () => {
-      hideOverlay();
-      player.autoTried = 0;
-    };
+    try {
+      player.dplayer = new window.DPlayer({
+        container: $('#dplayer'),
+        autoplay: true,
+        theme: '#e8c78b',
+        loop: false,
+        lang: window.I18N.lang === 'zh' ? 'zh-cn' : 'en',
+        hotkey: true,
+        preload: 'auto',
+        mutex: false,
+        screenshot: false,
+        contextmenu: [],
+        video: {
+          url: target,
+          type: directFile || nativeHls ? 'normal' : 'hls',
+          pic: player.item && player.item.logo ? imgUrl(player.item.logo) : '',
+        },
+        customType,
+      });
+      const video = player.dplayer.video;
+      video.addEventListener('loadeddata', hideOverlay, { once: true });
+      video.addEventListener('playing', () => {
+        hideOverlay();
+        player.autoTried = 0;
+      });
+      video.addEventListener('error', () => onStreamError('media playback error'));
+      if (directFile || nativeHls) video.play().catch(() => {});
+    } catch (err) {
+      showOverlay('Player initialization failed: ' + (err.message || 'unknown error'), false, true);
+    }
   }
 
   function onStreamError(reason) {
@@ -820,15 +860,15 @@
     });
     $('#resetFilters').onclick = () => {
       state.q = '';
-      state.country = '';
-      state.language = 'eng';
+      state.country = 'chn';
+      state.language = '';
       state.cats.clear();
       state.minQuality = 0;
       state.hasLogo = false;
       state.sort = 'name';
       $('#q').value = '';
-      $('#country').value = '';
-      $('#language').value = 'eng';
+      $('#country').value = state.country;
+      $('#language').value = '';
       $('#minQuality').value = '0';
       $('#sort').value = 'name';
       $('#optLogo').checked = false;
@@ -955,10 +995,10 @@
         }
       }
       if (!$('#player').hidden && !typing) {
-        const v = $('#video');
+        const v = player.dplayer && player.dplayer.video;
         if (e.key === ' ') {
           e.preventDefault();
-          v.paused ? v.play() : v.pause();
+          if (v) v.paused ? v.play() : v.pause();
         }
         if (e.key === 'f') {
           if (document.fullscreenElement) document.exitFullscreen();

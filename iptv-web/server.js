@@ -25,6 +25,9 @@ const { createApi } = require('./lib/api');
 const { serveStatic } = require('./lib/static');
 const { send, sendJson, readBody, isPrivateIp } = require('./lib/util');
 const { matchesAdminCredentials } = require('./lib/admin-auth');
+const { createAdminAuth } = require('./lib/admin-credentials');
+const { createAccountHistory } = require('./lib/account-history');
+const crypto = require('node:crypto');
 const { createMediaSettings } = require('./lib/media-settings');
 const { createSourceHealth } = require('./lib/source-health');
 const radioSourceStore = require('./lib/radio-sources');
@@ -92,6 +95,41 @@ api = createApi(catalog, refreshNow, DATA_DIR, automation);
 const navigationConfig = createNavigationConfig(DATA_DIR);
 const visitorContext = createVisitorContext(DATA_DIR);
 const watchHistory = createHistoryStore(DATA_DIR);
+const accountHistory = createAccountHistory(DATA_DIR);
+const ownerAuth = createAdminAuth({ dataDir: DATA_DIR });
+const ownerSessions = new Map();
+const OWNER_COOKIE = 'iptv_owner_session';
+function parseCookies(req) {
+  const out = {};
+  for (const part of String(req.headers.cookie || '').split(';')) { const at = part.indexOf('='); if (at < 0) continue; try { out[part.slice(0, at).trim()] = decodeURIComponent(part.slice(at + 1).trim()); } catch {} }
+  return out;
+}
+function ownerSession(req) {
+  const token = parseCookies(req)[OWNER_COOKIE];
+  const record = token && ownerSessions.get(token);
+  if (!record) return null;
+  if (record.expiresAt <= Date.now()) { ownerSessions.delete(token); return null; }
+  return record;
+}
+function setOwnerSession(req, res, username) {
+  const token = crypto.randomBytes(32).toString('hex');
+  ownerSessions.set(token, { username, expiresAt: Date.now() + 30 * 86400000 });
+  const secure = req.socket.encrypted || String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() === 'https';
+  res.setHeader('Set-Cookie', OWNER_COOKIE + '=' + token + '; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000' + (secure ? '; Secure' : ''));
+  return token;
+}
+function clearOwnerSession(req, res) {
+  const token = parseCookies(req)[OWNER_COOKIE]; if (token) ownerSessions.delete(token);
+  res.setHeader('Set-Cookie', OWNER_COOKIE + '=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0');
+}
+function ownerRoute(handler) {
+  return (req, res, params, query) => {
+    const session = ownerSession(req);
+    if (!session) return sendJson(req, res, 401, { error: 'Please sign in to your owner account.' }, { 'Cache-Control': 'no-store' });
+    req.ownerAuthenticated = true;
+    return handler(req, res, params || {}, query || {}, session);
+  };
+}
 const portal = createPortalApi({ dataDir: DATA_DIR });
 const agent = createAgentApi({ dataDir: DATA_DIR, catalog, refresh: refreshNow, api, automation, navigationConfig, visitorContext, portal });
 const resourceAvailability = createResourceAvailability({ getServices: portal.getServices });
@@ -198,6 +236,39 @@ app.patch('/api/portal/services/:id', portal.update);
 app.delete('/api/portal/services/:id', portal.remove);
 
 // Authenticated Mail Workspace API (IMAP/SMTP, contacts, and agent drafting).
+// One shared owner account for IPTV, Radio, Theatre and source management.
+app.get('/api/account/session', (req, res) => {
+  const session = ownerSession(req);
+  sendJson(req, res, 200, { authenticated: Boolean(session), username: session ? session.username : null }, { 'Cache-Control': 'no-store' });
+});
+app.post('/api/account/login', async (req, res) => {
+  try {
+    const body = JSON.parse(await readBody(req, 8192));
+    if (!ownerAuth.matches(String(body.username || ''), String(body.password || ''))) return sendJson(req, res, 401, { error: 'Username or password is incorrect.' }, { 'Cache-Control': 'no-store' });
+    setOwnerSession(req, res, ownerAuth.getUsername());
+    sendJson(req, res, 200, { ok: true, username: ownerAuth.getUsername() }, { 'Cache-Control': 'no-store' });
+  } catch (error) { sendJson(req, res, error.statusCode || 400, { error: error.message || 'Sign in failed.' }); }
+});
+app.post('/api/account/logout', (req, res) => { clearOwnerSession(req, res); sendJson(req, res, 200, { ok: true }, { 'Cache-Control': 'no-store' }); });
+app.post('/api/account/credentials', ownerRoute(async (req, res, params, query, session) => {
+  try {
+    const body = JSON.parse(await readBody(req, 8192));
+    const result = ownerAuth.update(String(body.currentUsername || ''), String(body.currentPassword || ''), String(body.username || ''), String(body.password || ''));
+    ownerSessions.clear();
+    setOwnerSession(req, res, result.username);
+    sendJson(req, res, 200, { ok: true, username: result.username, message: 'Credentials updated. Sign in again on your other devices.' }, { 'Cache-Control': 'no-store' });
+  } catch (error) { sendJson(req, res, error.statusCode || 400, { error: error.message || 'Could not update credentials.' }); }
+}));
+app.get('/api/account/history', ownerRoute((req, res, params, query) => {
+  const type = String(query.type || '');
+  try { sendJson(req, res, 200, { items: accountHistory.list(type || null) }, { 'Cache-Control': 'no-store' }); }
+  catch (error) { sendJson(req, res, error.statusCode || 400, { error: error.message || 'Could not load media history.' }); }
+}));
+app.post('/api/account/history', ownerRoute(async (req, res) => {
+  try { const body = JSON.parse(await readBody(req, 16384)); sendJson(req, res, 200, accountHistory.record(body), { 'Cache-Control': 'no-store' }); }
+  catch (error) { sendJson(req, res, error.statusCode || 400, { error: error.message || 'Could not save media history.' }); }
+}));
+
 app.get('/api/mail/session', mail.session);
 app.post('/api/mail/login', mail.login);
 app.post('/api/mail/logout', mail.logout);
@@ -240,7 +311,7 @@ const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '0809';
 
 function adminCredentialsMatch(req) {
-  return matchesAdminCredentials(req, { username: ADMIN_USERNAME, password: ADMIN_PASSWORD });
+  return Boolean(ownerSession(req)) || ownerAuth.matchesRequest(req);
 }
 
 function adminRoute(handler) {
@@ -616,6 +687,8 @@ app.use(async (req, res) => {
 });
 
 const server = http.createServer((req, res) => {
+  req.ownerAuthenticated = Boolean(ownerSession(req));
+  req.adminAuthenticated = req.ownerAuthenticated;
   const started = Date.now();
   res.on('finish', () => {
     if (process.env.QUIET_LOGS === '1') return;

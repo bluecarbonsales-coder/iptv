@@ -8,6 +8,7 @@
     <meta name="theme-color" content="#0b0d12" />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%233b82f6'/%3E%3Cpath d='M12 9.5v13l11-6.5z' fill='white'/%3E%3C/svg%3E" />
     <link rel="stylesheet" href="/app.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/dplayer@1.27.1/dist/DPlayer.min.css" />
   <style>.pagination{display:flex;justify-content:center;align-items:center;gap:8px;flex-wrap:wrap;margin:18px 0}.pagination button{min-width:40px;padding:9px 12px;border:1px solid #343746;border-radius:9px;background:transparent;color:inherit}.pagination button.active{background:#e8c78b;color:#111;border-color:transparent;font-weight:800}.pagination button:disabled{opacity:.35;cursor:not-allowed}</style>
 </head>
   <body>
@@ -161,7 +162,7 @@
         </div>
 
         <div class="video-wrap" id="videoWrap">
-          <video id="video" controls playsinline autoplay></video>
+          <div id="dplayer" aria-label="IPTV video player"></div>
           <div class="video-overlay" id="videoOverlay">
             <div class="spinner" id="spinner"></div>
             <div class="vmsg" id="vmsg"></div>
@@ -198,8 +199,9 @@
     </footer>
 
     <script src="/vendor/hls.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dplayer@1.27.1/dist/DPlayer.min.js"></script>
     <script src="/js/m3u.js"></script>
     <script src="/js/i18n.js"></script>
     <script src="/app.js"></script>
-  </body>
+  <script src="/account.js" defer></script></body>
 </html>
