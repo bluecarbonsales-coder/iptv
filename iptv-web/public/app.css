@@ -219,8 +219,9 @@ select option { background: var(--bg-2); }
 .loadmore { display: flex; justify-content: center; padding: 22px 0; }
 
 /* ---------- player ---------- */
-.player { position: fixed; inset: 0; background: rgba(4, 6, 10, 0.86); backdrop-filter: blur(6px); z-index: 60; display: grid; place-items: center; padding: 18px; }
-.player-shell { width: min(1180px, 100%); max-height: calc(100vh - 36px); display: flex; flex-direction: column; background: var(--bg-2); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; }
+.player { position: relative; inset: auto; background: transparent; backdrop-filter: none; z-index: 1; display: block; padding: 0; margin: 0 16px 24px; }
+.player[hidden] { display: none !important; }
+.player-shell { width: min(1180px, 100%); max-height: none; margin: 0 auto; display: flex; flex-direction: column; background: var(--bg-2); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; }
 .player-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
 .p-title { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
 .p-logo { width: 36px; height: 36px; object-fit: contain; background: #0e1118; border-radius: 8px; border: 1px solid var(--line); padding: 3px; }
