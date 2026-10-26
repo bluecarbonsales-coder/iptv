@@ -30,12 +30,12 @@
     <h1>Manage your sources</h1>
     <p class="muted">Use the simple admin login. Your password stays in this page while you are signed in.</p>
     <form id="loginForm">
-      <label class="field">Username<input id="username" autocomplete="username" value="admin" required></label>
-      <label class="field" style="margin-top:12px">Password<input id="password" type="password" autocomplete="current-password" value="0809" required></label>
+      <label class="field">Username<input id="username" autocomplete="username" value="" required></label>
+      <label class="field" style="margin-top:12px">Password<input id="password" type="password" autocomplete="current-password" value="" required></label>
       <div class="toolbar"><button class="primary" type="submit">Sign in</button></div>
     </form>
     <p class="status" id="loginStatus" role="status"></p>
-    <p class="note">Default login: <b>admin</b> / <b>0809</b>.</p>
+    <p class="note">Use the administrator credentials configured for this installation. Change the initial credentials immediately after first sign-in.</p>
   </section>
 
   <section id="manager" hidden>
@@ -50,6 +50,20 @@
       </div>
       <div id="sourceHealthSummary" class="health-summary"><p class="note">Sign in to load source status.</p></div>
       <p class="status" id="sourceHealthStatus" role="status" aria-live="polite"></p>
+    </div>
+
+    <div class="panel" id="adminCredentialsPanel">
+      <h2>Administrator account</h2>
+      <p class="note">There is one administrator account. Changes are saved on the server and survive restarts when the data directory is persistent.</p>
+      <form id="adminCredentialsForm">
+        <div class="formgrid">
+          <label class="field">New username<input id="newAdminUsername" autocomplete="username" maxlength="128" required></label>
+          <label class="field">New password<input id="newAdminPassword" type="password" autocomplete="new-password" minlength="12" maxlength="1024" required><small>Use at least 12 characters.</small></label>
+          <label class="field">Confirm new password<input id="confirmAdminPassword" type="password" autocomplete="new-password" minlength="12" maxlength="1024" required></label>
+        </div>
+        <div class="toolbar"><button type="submit" class="primary" id="saveAdminCredentials">Change username &amp; password</button></div>
+        <p class="status" id="adminCredentialsStatus" role="status" aria-live="polite"></p>
+      </form>
     </div>
 
     <div class="panel" id="mediaSettingsPanel">
