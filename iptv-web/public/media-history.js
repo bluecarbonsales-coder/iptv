@@ -25,12 +25,12 @@
     return String(value == null ? '' : value).replace(/[&<>"']/g, (char) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
   }
   function install() {
-    const target = $('.topbar-actions') || $('.radio-nav') || $('.topbar');
+    const target = $('.topbar-actions') || $('.radio-nav') || $('.top') || $('.topbar');
     if (target) {
       const button = document.createElement('button');
       button.type = 'button';
       button.id = 'mediaHistoryOpen';
-      button.className = target.classList.contains('radio-nav') ? 'tab' : 'icon-btn';
+      button.className = target.classList.contains('radio-nav') ? 'tab' : target.classList.contains('top') ? 'iconbtn mh-open-theatre' : 'icon-btn';
       button.textContent = auth ? 'History' : 'Sign in · History';
       button.addEventListener('click', open);
       target.append(button);
