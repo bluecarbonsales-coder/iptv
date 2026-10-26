@@ -20,9 +20,9 @@ test('IPTV defaults to China and requires a selected country instead of listing 
   assert.match(iptvJs, /language: ''/);
   assert.match(iptvJs, /if \(!state\.country\)/);
   assert.match(iptvJs, /Choose a country…/);
-  assert.match(iptvJs, /code === 'cn'.*China/s);
-  assert.match(iptvJs, /code === 'us'.*United States/s);
-  assert.match(iptvJs, /code === 'es'.*Spain/s);
+  assert.match(iptvJs, /code === 'cn'.*name === 'china'/s);
+  assert.match(iptvJs, /code === 'us'.*name === 'united states'/s);
+  assert.match(iptvJs, /code === 'es'.*name === 'spain'/s);
   assert.match(iptvJs, /p\.set\('country', state\.country\)/);
   assert.match(i18nJs, /tabAll: 'IPTV'/);
   assert.match(i18nJs, /tabAll: 'IPTV频道'/);
