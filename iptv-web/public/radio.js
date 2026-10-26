@@ -235,11 +235,6 @@
         state.countrycode = countryCodes.includes(state.countrycode) ? state.countrycode : (countryCodes.includes('CN') ? 'CN' : (countryCodes[0] || ''));
         select.value = state.countrycode;
       }
-      if (type === 'languages' && values.length) {
-        const preferred = values.find((item) => /^(english|eng)$/i.test(String(item.name).trim())) || values[0];
-        state.language = preferred.name;
-        select.value = preferred.name;
-      }
     } catch (error) {
       // Search remains available even if the filter dictionaries are temporarily down.
       console.warn('Could not load radio ' + type + ':', error.message);
