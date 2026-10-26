@@ -175,4 +175,4 @@ window.addEventListener('theatre:navigate',event=>{const section=String(event.de
 async function loadGlobalMediaSettings(){try{const r=await fetch('/api/v1/settings/media',{cache:'no-store'});if(!r.ok)return;const d=await r.json();if(typeof d.defaultProxy==='boolean'){state.proxy=d.defaultProxy;$('#proxyToggle').checked=state.proxy;}}catch{}}
 loadHistory();load();loadGlobalMediaSettings();
 })();
-</script><script src="/navigation-config.js" defer></script></body></html>
+</script><script src="/navigation-config.js" defer></script><script src="/account.js" defer></script></body></html>
