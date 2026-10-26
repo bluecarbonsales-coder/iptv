@@ -8,8 +8,10 @@ Live deployment: **https://iptv.nafisainternational.com**
 
 Open **https://iptv.nafisainternational.com/admin.html** (or `/admin.html` on your own server).
 
-- **Username:** `admin`
-- **Password:** `0809`
+- On a fresh install, the legacy initial login is `admin` / `0809` unless `ADMIN_USERNAME` and `ADMIN_PASSWORD` are set.
+- Sign in, then use **Administrator account** in Settings to change both the username and password. Only one administrator account is supported.
+- Replacement passwords must be at least 12 characters. The account is saved in `DATA_DIR/admin-credentials.json`; the password is stored as a salted scrypt hash, not plaintext. The file is created with restrictive permissions and survives restarts when `DATA_DIR` is a persistent volume.
+- Existing installations keep using the credentials they first start with until you change them in Settings. Environment variables seed a new credentials file; they do not overwrite a saved account on each restart.
 
 The page has three separate lists: **Radio**, **IPTV**, and **Theatre**. Each list has an **Enable all** button plus individual **Enable / Disable** and **Delete** buttons. You can add radio stream URLs, IPTV M3U/M3U8 playlist URLs, and Theatre Apple CMS/MacCMS video API URLs. Theatre also has an option to import a source-list JSON URL. You do not need to enter an API token to manage these sources.
 
@@ -21,7 +23,7 @@ All sources are enabled once on a fresh install or the first upgrade after this 
 | `sources.json` | IPTV M3U/M3U8 playlists |
 | `vod-sources.json` | Theatre video API providers |
 
-The simple login defaults are intended for your current testing stage. You can change them with `ADMIN_USERNAME` and `ADMIN_PASSWORD` in the server environment if needed.
+Use the Administrator account panel in Settings to rotate the single administrator username and password after installation.
 
 
 ## Service portal homepage
