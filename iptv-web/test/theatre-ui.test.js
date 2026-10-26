@@ -30,3 +30,10 @@ test('Theatre does not render or load the unwanted preference-sharing section', 
   assert.doesNotMatch(theatreHtml, /Share preferences/i);
   assert.doesNotMatch(theatreHtml, /I consent to sharing these broad preferences/i);
 });
+
+test('Theatre restores the last saved episode and playback position', () => {
+  assert.match(theatreHtml, /async function loadAccountResume\(item\)/);
+  assert.match(theatreHtml, /loadedmetadata/);
+  assert.match(theatreHtml, /video\.currentTime=position/);
+  assert.doesNotMatch(theatreHtml, /position:0,duration:0/);
+});
