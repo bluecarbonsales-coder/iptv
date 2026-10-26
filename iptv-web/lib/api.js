@@ -10,6 +10,7 @@ const vodLib = require('./vod');
 const { matchesAdminCredentials } = require('./admin-auth');
 const archiveLib = require('./archive-vod');
 const commonsLib = require('./commons-vod');
+const mediaLibrary = require('./media-library');
 const { withLock, withFileLock } = require('./registry-lock');
 
 // Absolute origin as the browser sees it (proxy sets X-Forwarded-Proto).
@@ -422,6 +423,57 @@ function createApi(catalog, refresh, dataDir) {
     }
   };
 
+  const librarySearch = (req, res, params, query) => {
+    const q = String(query.q || '').normalize('NFKC').toLocaleLowerCase().replace(/[^\\p{L}\\p{N}]+/gu, ' ').trim();
+    const words = q.split(' ').filter(Boolean);
+    const type = ['all', 'channel', 'movies', 'series', 'anime', 'documentary', 'video'].includes(query.type) ? query.type : 'all';
+    const channels = (type === 'all' || type === 'channel' ? catalog.channels : []).filter(channel => {
+      const haystack = String(channel._s || channel.name || '').normalize('NFKC').toLocaleLowerCase();
+      return !words.length || words.every(word => haystack.includes(word));
+    }).map(channel => ({
+      id: 'channel-' + channel.id, name: channel.name, title: channel.name, logo: channel.logo || null,
+      kind: 'channel', sourceId: 'iptv-org', sourceName: 'Live channel catalog',
+      category: (channel.cats || []).join(', '), year: '', episodes: [],
+    }));
+    const saved = mediaLibrary.search(sourceDataDir, { q, type, limit: 100, page: 1 }).items;
+    const merged = [...channels, ...saved].sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+    const limit = Math.max(1, Math.min(100, Number.parseInt(query.limit, 10) || 48));
+    const page = Math.max(1, Number.parseInt(query.page, 10) || 1);
+    const stats = mediaLibrary.stats(sourceDataDir);
+    sendJson(req, res, 200, {
+      total: merged.length, page, limit, pages: Math.max(1, Math.ceil(merged.length / limit)),
+      items: merged.slice((page - 1) * limit, page * limit).map(item => ({
+        id: item.id, name: item.name, title: item.title || item.name, logo: item.logo || null,
+        kind: item.kind || 'channel', sourceId: item.sourceId || null, sourceName: item.sourceName || null,
+        category: item.category || '', year: item.year || '', overview: item.overview || '',
+        episodes: Array.isArray(item.episodes) ? item.episodes.map(ep => ({ title: ep.title })) : [],
+        pageUrl: item.pageUrl || null, licenseUrl: item.licenseUrl || null,
+      })),
+      updatedAt: stats.updatedAt, channelCatalogCount: catalog.channels.length,
+    });
+  };
+
+  const libraryStats = (req, res) => sendJson(req, res, 200, {
+    ...mediaLibrary.stats(sourceDataDir), channelCatalogCount: catalog.channels.length,
+  });
+
+  const saveLibraryItem = async (req, res) => {
+    if (!authorizeSourceWrite(req, res)) return;
+    try {
+      const body = JSON.parse(await readBody(req, 65536));
+      const result = mediaLibrary.upsert(sourceDataDir, body.items || body.item || body);
+      sendJson(req, res, 201, { ok: true, ...result });
+    } catch (err) {
+      sendJson(req, res, err.statusCode || 400, { error: err.message || 'could not save media item' });
+    }
+  };
+
+  const deleteLibraryItem = (req, res, params) => {
+    if (!authorizeSourceWrite(req, res)) return;
+    if (!mediaLibrary.remove(sourceDataDir, params.id)) return sendJson(req, res, 404, { error: 'media item not found' });
+    sendJson(req, res, 200, { ok: true, ...mediaLibrary.stats(sourceDataDir) });
+  };
+
   const vodSearch = async (req, res, params, query) => {
     const kind = vodLib.KINDS.has(query.type) ? query.type : 'all';
     const term = String(query.q || '').trim().slice(0, 120);
@@ -536,6 +588,8 @@ function createApi(catalog, refresh, dataDir) {
       received: archiveReceived,
       count: archiveCount,
     });
+    // Persist discovered titles so the saved library survives restarts and provider outages.
+    mediaLibrary.upsert(sourceDataDir, unique.map(item => ({ ...item, kind: item.kind || kind, vod: true })));
     const payload = {
       type: kind,
       total: unique.length,
@@ -558,6 +612,7 @@ function createApi(catalog, refresh, dataDir) {
     if (params.sourceId === 'commons') {
       try {
         const item = await commonsLib.getDetail(params.vodId);
+        mediaLibrary.upsert(sourceDataDir, { ...item, id: 'vod-commons-' + item.id, vodId: item.id, sourceId: 'commons', sourceName: item.sourceName, vod: true, kind: item.kind || 'video' });
         return sendJson(req, res, 200, {
           id: item.id,
           sourceId: 'commons',
@@ -579,6 +634,7 @@ function createApi(catalog, refresh, dataDir) {
     if (params.sourceId === 'archive') {
       try {
         const item = await archiveLib.getDetail(params.vodId);
+        mediaLibrary.upsert(sourceDataDir, { ...item, id: 'vod-archive-' + item.id, vodId: item.id, sourceId: 'archive', sourceName: item.sourceName, vod: true, kind: item.kind || 'video' });
         return sendJson(req, res, 200, {
           id: item.id,
           sourceId: 'archive',
@@ -602,6 +658,7 @@ function createApi(catalog, refresh, dataDir) {
     if (!source) return sendJson(req, res, 404, { error: 'VOD provider not found or disabled' });
     try {
       const item = await vodLib.getDetail(source, params.vodId);
+      mediaLibrary.upsert(sourceDataDir, { ...item, id: 'vod-' + source.id + '-' + item.id, vodId: item.id, sourceId: source.id, sourceName: source.name, vod: true, kind: item.kind || source.kind || 'video' });
       sendJson(req, res, 200, {
         id: item.id,
         sourceId: source.id,
@@ -746,7 +803,7 @@ function createApi(catalog, refresh, dataDir) {
     });
   };
 
-  return { meta, channels, channel, refreshNow, playlist, playlistProxied, exportM3u, health, sourceList, addSource, updateSource, deleteSource, enableAllSources, listVodSources, addVodSource, importVodSourceList, updateVodSource, deleteVodSource, enableAllVodSources, vodSearch, vodDetail, clearVodCache: () => vodSearchCache.clear() };
+  return { meta, channels, channel, refreshNow, playlist, playlistProxied, exportM3u, health, sourceList, addSource, updateSource, deleteSource, enableAllSources, listVodSources, addVodSource, importVodSourceList, updateVodSource, deleteVodSource, enableAllVodSources, vodSearch, vodDetail, librarySearch, libraryStats, saveLibraryItem, deleteLibraryItem, clearVodCache: () => vodSearchCache.clear() };
 }
 
 module.exports = { createApi };
