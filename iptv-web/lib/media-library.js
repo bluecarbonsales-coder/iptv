@@ -106,10 +106,20 @@ function remove(dataDir, id) {
   write(dataDir, { items: next });
   return true;
 }
+// Batch removal in a single read/write — the whole point is to repair a whole class of
+// stale records at once (remove() would rewrite the file once per id).
+function prune(dataDir, predicate) {
+  if (typeof predicate !== 'function') return 0;
+  const data = read(dataDir);
+  const next = data.items.filter(item => !predicate(item));
+  const removed = data.items.length - next.length;
+  if (removed > 0) write(dataDir, { items: next });
+  return removed;
+}
 function allItems(dataDir) { return read(dataDir).items.map(({ searchText, ...item }) => item); }
 function stats(dataDir) {
   const items = read(dataDir).items, byType = {};
   for (const item of items) byType[item.kind || 'channel'] = (byType[item.kind || 'channel'] || 0) + 1;
   return { total: items.length, byType, updatedAt: read(dataDir).updatedAt };
 }
-module.exports = { filePath, upsert, search, allItems, remove, stats, safeItem, MAX_ITEMS };
+module.exports = { filePath, upsert, search, allItems, remove, prune, stats, safeItem, MAX_ITEMS };

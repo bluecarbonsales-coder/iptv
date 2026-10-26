@@ -337,8 +337,13 @@ async function enrichMetadata(dataDir, items, options = {}) {
 }
 
 function archiveItem(item) {
+  // The *bare* archive.org identifier is the id the player needs: /api/vod/archive/<id>
+  // resolves through archiveLib.getDetail(<id>). catalogueItem() already namespaces the
+  // stored record as 'vod-archive-<id>'; adding a second prefix here made every
+  // open-license title unplayable (the Theatre asked for
+  // /api/vod/archive/archive-<id>, which archive.org does not have).
   return catalogueItem({
-    id: 'archive-' + item.id,
+    id: item.id,
     sourceId: 'archive',
     sourceName: item.sourceName || 'Internet Archive (open-license)',
     name: item.name,
@@ -353,9 +358,19 @@ function archiveItem(item) {
   }, item.kind);
 }
 
+// Repair for records written by the builds that doubled the archive id prefix
+// ('archive-…' inside the 'vod-archive-…' record builder): their vodId pointed at an
+// archive.org identifier that does not exist, so those titles 404'd on playback. The
+// prune below drops them and the harvest re-adds the same titles with the bare
+// identifier. Idempotent — a no-op once the index is clean.
+function pruneLegacyArchiveIds(dataDir) {
+  return mediaLibrary.prune(dataDir, (item) => item && item.sourceId === 'archive' && String(item.vodId || '').startsWith('archive-'));
+}
+
 async function refreshCatalogue(options = {}) {
   const dataDir = options.dataDir;
   const started = Date.now();
+  const legacyArchiveIds = pruneLegacyArchiveIds(dataDir);
   const registry = vodLib.loadSourcesSync(dataDir);
   const sources = (options.sources || registry.sources || []).filter((source) => source.enabled !== false);
   const kinds = Array.isArray(options.kinds) && options.kinds.length ? options.kinds : BROWSE_KINDS;
@@ -453,6 +468,7 @@ async function refreshCatalogue(options = {}) {
     providers: providers.sort((a, b) => (b.titles - a.titles) || String(a.name).localeCompare(String(b.name))),
     archive,
     metadata,
+    migrated: { legacyArchiveIds },
     totals: {
       harvested: harvested.length,
       stored: stored && stored.total || 0,
@@ -633,4 +649,5 @@ module.exports = {
   PROVIDER_PAGES, PROVIDER_PAGE_LIMIT, CONCURRENCY, REFRESH_MINUTES, ARCHIVE_PAGES, ARCHIVE_ROWS, BROWSE_KINDS,
   healthPath, readHealth, writeHealth, categoryTree, typeIdsFor, harvestSource, refreshCatalogue,
   browse, searchProviders, state, isStale, ensureFresh, readIndex, catalogueItem, mapLimit,
+  pruneLegacyArchiveIds,
 };

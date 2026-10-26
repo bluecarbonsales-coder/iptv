@@ -559,7 +559,7 @@ function createApi(catalog, refresh, dataDir) {
             vod: true,
             vodId: item.id,
             sourceId: 'archive',
-            sourceName: item.sourceName || 'Internet Archive (open-license)',
+            sourceName: item.sourceName || 'Internet Archive (open-license fallback)',
             name: item.name,
             logo: item.logo || null,
             country: null,
@@ -905,16 +905,17 @@ function createApi(catalog, refresh, dataDir) {
           for (const found1 of found) {
             if (vodLib.isShortForm(found1)) { filteredShortForm += 1; continue; }
             if (kind !== 'all' && found1.kind !== kind) continue;
+            // Bare identifier: /api/vod/archive/<id> resolves via archiveLib.getDetail(<id>).
             push(catalogLib.catalogueItem({
-              id: 'archive-' + found1.id, sourceId: 'archive',
-              sourceName: found1.sourceName || 'Internet Archive (open-license)',
+              id: found1.id, sourceId: 'archive',
+              sourceName: found1.sourceName || 'Internet Archive (open-license fallback)',
               name: found1.name, logo: found1.logo, overview: found1.overview, category: found1.category,
               year: found1.year, remarks: found1.remarks, kind: found1.kind, pageUrl: found1.pageUrl, licenseUrl: found1.licenseUrl,
             }, found1.kind));
             archiveCount += 1;
           }
         } catch (error) {
-          errors.push({ source: 'Internet Archive (open-license)', error: String(error && error.message || error).slice(0, 180) });
+          errors.push({ source: 'Internet Archive (open-license fallback)', error: String(error && error.message || error).slice(0, 180) });
         }
       }
       for (const entry of index.items) push(entry);
@@ -933,10 +934,17 @@ function createApi(catalog, refresh, dataDir) {
       if (live.providers.length) {
         providers = live.providers.concat(providers.filter((row) => !live.providers.some((liveRow) => liveRow.name === row.name)));
       }
-      if (archiveCount) providers = providers.concat([{ name: 'Internet Archive (open-license)', ok: true, available: true, broken: false, slow: false, ms: null, received: archiveCount, count: archiveCount, error: null, checkedAt: new Date().toISOString() }]);
-    } else if (index.total === 0 || catalogLib.isStale(sourceDataDir)) {
-      // Empty or stale catalogue: answer immediately from what we have and rebuild
-      // the index in the background (single flight, results land in the next page load).
+      if (archiveCount) providers = providers.concat([{ name: 'Internet Archive (open-license fallback)', ok: true, available: true, broken: false, slow: false, ms: null, received: archiveCount, count: archiveCount, error: null, checkedAt: new Date().toISOString() }]);
+    } else if (index.total === 0) {
+      // Nothing indexed yet (first boot, wiped index, first deploy on a new volume):
+      // answer like the classic live search instead of an empty Theatre, and build the
+      // index in the background so the next page load is served from it. vodSearchLegacy
+      // is the original implementation, kept verbatim for exactly this cold-start case.
+      catalogLib.ensureFresh(sourceDataDir).catch(() => {});
+      return vodSearchLegacy(req, res, params, query);
+    } else if (catalogLib.isStale(sourceDataDir)) {
+      // Stale but populated: answer immediately from the index and rebuild in the
+      // background (single flight, results land in the next page load).
       catalogLib.ensureFresh(sourceDataDir).catch(() => {});
     }
 
