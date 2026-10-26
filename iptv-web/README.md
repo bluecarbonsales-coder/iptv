@@ -2,6 +2,8 @@
 
 A self-hosted media and service portal: browse live TV/VOD, listen to worldwide radio, and launch your favorite self-hosted apps or external websites.
 
+**API and AI-agent documentation:** see [`docs/API_AND_AGENT_GUIDE.md`](../docs/API_AND_AGENT_GUIDE.md) for the API entry points, authentication, endpoint groups, curl examples, and agent workflows.
+
 Live deployment: **https://iptv.nafisainternational.com**
 
 ## Simple source settings
