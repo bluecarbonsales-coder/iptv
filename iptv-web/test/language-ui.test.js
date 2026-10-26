@@ -35,11 +35,12 @@ test('IPTV video stays embedded and does not offer an external raw-stream player
   assert.match(iptvHtml, /IPTV channels/);
 });
 
-test('Radio defaults to the highest-priority available language and keeps country secondary', () => {
-  assert.match(radioHtml, /<a href="\/watch\.html">IPTV<\/a>/);
-  assert.ok(radioHtml.indexOf('id="languageFilter"') < radioHtml.indexOf('id="countryFilter"'));
-  assert.match(radioJs, /SPOKEN_LANGUAGE_PRIORITY/);
-  assert.match(radioJs, /values\.sort\(\(a, b\) => languageRank/);
-  assert.match(radioJs, /values\.find\(\(item\) => \/\^\(english\|eng\)\$\/i/);
-  assert.match(radioJs, /stationLanguage \+ ' · ' \+ flagOrCountry\(station\)/);
+test('Radio defaults to country-first browsing and never requests the global catalogue', () => {
+  assert.match(radioHtml, /<a href="\\/watch\\.html">IPTV<\\/a>/);
+  assert.ok(radioHtml.indexOf('id="countryFilter"') < radioHtml.indexOf('id="languageFilter"'));
+  assert.match(radioJs, /countrycode: 'CN'/);
+  assert.match(radioJs, /Searching radio stations in the selected country/);
+  assert.match(radioJs, /Choose a country to browse radio stations/);
+  assert.match(radioJs, /priority\\s*=\\s*name\\s*=>\\s*\\(\\{\\s*CN:\\s*0,\\s*US:\\s*1,\\s*ES:\\s*2/);
+  assert.match(radioJs, /stationLanguage \\+ ' · ' \\+ flagOrCountry\\(station\\)/);
 });
