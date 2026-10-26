@@ -27,4 +27,4 @@
 .mh-empty{padding:30px 10px;text-align:center;color:var(--muted,#8b95a8);font-size:13px}
 @media(max-width:600px){.mh-head,.mh-login{padding-left:16px;padding-right:16px}.mh-toolbar{padding-left:12px;padding-right:12px}.mh-status{padding-left:16px;padding-right:16px}.mh-head h2{font-size:19px}}
 
-.mh-open-theatre{width:auto;min-width:0;padding:0 12px;font-size:12px;white-space:nowrap}
+.top .mh-open-theatre{width:auto;min-width:0;padding:0 12px;font-size:12px;white-space:nowrap}
