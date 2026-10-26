@@ -7,8 +7,12 @@ const path = require('node:path');
 
 const theatreHtml = fs.readFileSync(path.join(__dirname, '..', 'public', 'movies.html'), 'utf8');
 
-test('Theatre keeps playback options collapsed until the viewer opens them', () => {
-  assert.match(theatreHtml, /id="playerTools"[^>]*hidden/);
+test('Theatre keeps playback source and episode controls visible beside the player', () => {
+  assert.match(theatreHtml, /id="playerTools"[^>]*aria-label="Playback settings and episode list"/);
+  assert.doesNotMatch(theatreHtml, /id="playerTools"[^>]*hidden/);
+  assert.match(theatreHtml, /id="sourceSelect"/);
+  assert.match(theatreHtml, /\.player-modal\.show\{display:flex;position:fixed;inset:70px 0 0/);
+  assert.match(theatreHtml, /id="playerToolsToggle"[^>]*aria-expanded="true"/);
   assert.match(theatreHtml, /id="playerToolsToggle"[^>]*aria-controls="playerTools"/);
   assert.match(theatreHtml, /function setPlayerTools\(open\)/);
   assert.match(theatreHtml, /playerBody'\)\.classList\.toggle\('tools-open',open\)/);
