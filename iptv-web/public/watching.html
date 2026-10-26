@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#090a0f"><title>My Watching · Nafisa Hub</title>
+<style>
+:root{color-scheme:dark;--bg:#090a0f;--panel:#12151e;--line:#292e3b;--text:#f3f3f6;--muted:#a2a8b8;--gold:#e8c78b}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 72% 0,#292337 0,transparent 38%),var(--bg);color:var(--text);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}a{color:inherit;text-decoration:none}button{font:inherit;cursor:pointer}
+main{max-width:1400px;margin:auto;padding:30px clamp(16px,4vw,52px) 70px}.eyebrow{font-size:11px;letter-spacing:.2em;color:var(--gold);font-weight:800}.head{display:flex;align-items:end;justify-content:space-between;gap:20px;flex-wrap:wrap}.head h1{font-size:clamp(32px,5vw,54px);letter-spacing:-.055em;margin:5px 0}.muted{color:var(--muted)}.intro{max-width:650px;color:var(--muted);margin:8px 0 0}.actions{display:flex;gap:8px;flex-wrap:wrap;margin:24px 0 18px}.filter{border:1px solid var(--line);background:#ffffff07;color:#c8cbd5;border-radius:999px;padding:9px 15px}.filter.active,.filter:hover{border-color:#e8c78b75;color:var(--gold);background:#e8c78b12}.summary{display:flex;gap:9px;flex-wrap:wrap;margin:16px 0 22px}.pill{border:1px solid var(--line);border-radius:999px;padding:6px 11px;font-size:12px;color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:13px}.card{display:flex;gap:14px;min-width:0;padding:14px;border:1px solid var(--line);border-radius:16px;background:linear-gradient(145deg,#171a24,#10121a)}.poster{width:84px;height:116px;flex:0 0 84px;object-fit:cover;border-radius:10px;background:#252836}.poster.fallback{display:grid;place-items:center;color:var(--gold);font-size:28px}.detail{min-width:0;flex:1}.kind{font-size:10px;font-weight:800;letter-spacing:.12em;color:var(--gold);text-transform:uppercase}.title{font-size:17px;font-weight:750;line-height:1.3;margin:5px 0;overflow-wrap:anywhere}.subtitle,.date{font-size:12px;color:var(--muted);overflow-wrap:anywhere}.position{margin-top:11px;font-size:12px;color:#e3e4ea}.bar{height:6px;margin:7px 0 4px;background:#ffffff14;border-radius:99px;overflow:hidden}.bar span{display:block;height:100%;background:var(--gold);border-radius:99px}.footrow{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px}.open{display:inline-flex;border:1px solid #e8c78b55;background:#e8c78b13;color:var(--gold);border-radius:9px;padding:7px 10px;font-size:12px;font-weight:700}.empty{padding:45px 20px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:16px;grid-column:1/-1}.empty strong{display:block;color:var(--text);font-size:18px;margin-bottom:7px}.notice{margin-top:20px;font-size:12px;color:#777d8e}.loading{padding:35px;text-align:center;color:var(--muted)}@media(max-width:460px){main{padding-top:22px}.card{padding:11px;gap:11px}.poster{width:65px;height:94px;flex-basis:65px}.title{font-size:15px}}
+</style>
+</head>
+<body>
+<main>
+  <header class="head"><div><div class="eyebrow">YOUR PERSONAL MEDIA LOG</div><h1>My Watching</h1><p class="intro">Keep track of what you watched or listened to across Theatre, live IPTV and Radio. For videos with a known duration, your last position and progress are saved here.</p></div><a class="open" href="/">← Back to Hub</a></header>
+  <nav class="actions" id="filters" aria-label="Filter viewing history">
+    <button class="filter active" data-type="all">Everything</button><button class="filter" data-type="theatre">Movies & series</button><button class="filter" data-type="iptv">Live TV</button><button class="filter" data-type="radio">Radio</button>
+    <button class="filter" id="refresh" style="margin-left:auto">↻ Refresh</button>
+  </nav>
+  <div class="summary" id="summary"></div>
+  <section class="grid" id="items" aria-live="polite"><div class="loading">Loading your media history…</div></section>
+  <p class="notice">Your shared media history is saved on this server and requires you to sign in to your owner account. Live TV and radio are live streams, so they do not have a meaningful seek position. Theatre playback position updates about every 15 seconds while a video is playing.</p>
+</main>
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  let allItems = [], activeType = 'all';
+  const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  function time(value) {
+    const n = Math.max(0, Math.floor(Number(value) || 0));
+    const h = Math.floor(n / 3600), m = Math.floor((n % 3600) / 60), s = n % 60;
+    return h ? h + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0') : m + ':' + String(s).padStart(2,'0');
+  }
+  function date(value) { const d = new Date(value); return Number.isNaN(d.getTime()) ? 'Recently' : d.toLocaleString(); }
+  function render() {
+    const items = allItems.filter(item => activeType === 'all' || item.type === activeType);
+    const counts = {theatre:allItems.filter(x=>x.type==='theatre').length,iptv:allItems.filter(x=>x.type==='iptv').length,radio:allItems.filter(x=>x.type==='radio').length};
+    $('summary').innerHTML = '<span class="pill">' + allItems.length + ' tracked items</span><span class="pill">' + counts.theatre + ' movies / series</span><span class="pill">' + counts.iptv + ' live channels</span><span class="pill">' + counts.radio + ' radio stations</span>';
+    const root = $('items'); root.replaceChildren();
+    if (!items.length) {
+      const empty = document.createElement('div'); empty.className = 'empty';
+      const strong = document.createElement('strong'); strong.textContent = allItems.length ? 'Nothing in this category yet' : 'Your watching list is empty';
+      const p = document.createElement('p'); p.textContent = allItems.length ? 'Try another filter.' : 'Sign in using the account button in the navigation, then start watching a movie, a channel, or a radio station. Your activity will appear here.';
+      const links = document.createElement('p');
+      links.innerHTML = '<a class="open" href="/movies.html">Explore Theatre</a> <a class="open" href="/watch.html">Open Live TV</a> <a class="open" href="/radio.html">Listen to Radio</a>';
+      empty.append(strong,p,links); root.append(empty); return;
+    }
+    for (const item of items) {
+      const card = document.createElement('article'); card.className = 'card';
+      if (item.image) {
+        const img = document.createElement('img'); img.className = 'poster'; img.loading = 'lazy'; img.alt = ''; img.src = item.image; img.onerror = () => { img.removeAttribute('src'); img.classList.add('fallback'); img.textContent = '▶'; }; card.append(img);
+      } else { const poster = document.createElement('div'); poster.className = 'poster fallback'; poster.textContent = item.type === 'radio' ? '♫' : item.type === 'iptv' ? '▣' : '▶'; card.append(poster); }
+      const detail = document.createElement('div'); detail.className = 'detail';
+      const kind = document.createElement('div'); kind.className = 'kind'; kind.textContent = item.type === 'theatre' ? 'Theatre · Movies & series' : item.type === 'iptv' ? 'Live IPTV' : 'Radio';
+      const title = document.createElement('div'); title.className = 'title'; title.textContent = item.title || 'Untitled';
+      const subtitle = document.createElement('div'); subtitle.className = 'subtitle'; subtitle.textContent = item.subtitle || (item.type === 'iptv' ? 'Live channel' : item.type === 'radio' ? 'Radio station' : 'Video');
+      const pos = document.createElement('div'); pos.className = 'position';
+      const duration = Number(item.duration) || 0, position = Number(item.position) || 0;
+      if (item.type === 'theatre' && duration > 0) {
+        const pct = Math.max(0, Math.min(100, position / duration * 100));
+        pos.textContent = 'Last position ' + time(position) + ' of ' + time(duration) + ' · ' + Math.round(pct) + '% watched';
+        const bar = document.createElement('div'); bar.className = 'bar'; const fill = document.createElement('span'); fill.style.width = pct + '%'; bar.append(fill); detail.append(kind,title,subtitle,pos,bar);
+      } else {
+        pos.textContent = item.type === 'theatre' ? 'Position will appear once video playback starts' : item.type === 'iptv' ? 'Live stream · no timeline' : 'Audio stream · no timeline';
+        detail.append(kind,title,subtitle,pos);
+      }
+      const row = document.createElement('div'); row.className = 'footrow';
+      const stamp = document.createElement('span'); stamp.className = 'date'; stamp.textContent = 'Last opened ' + date(item.updatedAt);
+      const link = document.createElement('a'); link.className = 'open'; link.href = item.type === 'theatre' ? '/movies.html' : item.type === 'iptv' ? '/watch.html' : '/radio.html'; link.textContent = item.type === 'theatre' ? 'Open Theatre' : item.type === 'iptv' ? 'Open Live TV' : 'Open Radio';
+      row.append(stamp,link); detail.append(row); card.append(detail); root.append(card);
+    }
+  }
+  async function load() {
+    $('items').innerHTML = '<div class="loading">Loading your media history…</div>';
+    if (!window.OwnerMediaHistory) {
+      $('items').innerHTML = '<div class="empty"><strong>Account service is starting</strong><p>Please refresh this page in a moment.</p></div>'; return;
+    }
+    try {
+      const result = await window.OwnerMediaHistory.list();
+      allItems = Array.isArray(result.items) ? result.items : [];
+      allItems.sort((a,b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+      render();
+    } catch (error) {
+      $('items').innerHTML = '';
+      const empty = document.createElement('div'); empty.className = 'empty';
+      const strong = document.createElement('strong'); strong.textContent = error.message.includes('sign in') ? 'Sign in to see your watching history' : 'Could not load your watching history';
+      const p = document.createElement('p'); p.textContent = error.message + ' Use the Sign in button in the navigation, then refresh this page.';
+      empty.append(strong,p); $('items').append(empty);
+    }
+  }
+  $('filters').addEventListener('click', event => {
+    const button = event.target.closest('[data-type]');
+    if (button) { activeType = button.dataset.type; document.querySelectorAll('[data-type]').forEach(el=>el.classList.toggle('active',el===button)); render(); }
+    if (event.target.closest('#refresh')) load();
+  });
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load); else load();
+})();
+</script>
+<script src="/account.js" defer></script>
+</body>
+</html>

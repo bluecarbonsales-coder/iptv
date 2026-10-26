@@ -39,6 +39,7 @@ function createAccountHistory(dataDir) {
       image: typeof body.image === 'string' && /^https?:\/\//i.test(body.image) ? body.image.slice(0, 1500) : '',
       url: typeof body.url === 'string' ? body.url.slice(0, 1200) : '',
       position: Number.isFinite(Number(body.position)) ? Math.max(0, Math.min(86400, Number(body.position))) : 0,
+      duration: Number.isFinite(Number(body.duration)) ? Math.max(0, Math.min(86400, Number(body.duration))) : 0,
       updatedAt: new Date().toISOString(),
     };
     const index = rows.findIndex(row => row.type === item.type && row.itemId === item.itemId);

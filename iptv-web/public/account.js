@@ -52,7 +52,7 @@
     links.setAttribute('aria-label', 'Services');
     const services = [
       ['/', 'Home'], ['/watch.html', 'IPTV'], ['/radio.html', 'Radio'],
-      ['/movies.html', 'Theatre'], ['/discover.html', 'Discover'],
+      ['/movies.html', 'Theatre'], ['/watching.html', 'My Watching'], ['/discover.html', 'Discover'],
       ['/library.html', 'Library'], ['/admin.html', 'Sources']
     ];
     const currentPath = location.pathname.endsWith('/') ? location.pathname.slice(0, -1) || '/' : location.pathname;
