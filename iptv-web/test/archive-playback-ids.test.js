@@ -100,3 +100,43 @@ test('a Theatre search returns archive titles the detail endpoint can play', asy
     fs.rmSync(dataDir, { recursive: true, force: true });
   }
 });
+
+test('the boot repair drops the malformed records and restores the titles immediately', async () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'iptv-archive-repair-'));
+  const originalHarvest = archive.harvest;
+  try {
+    mediaLibrary.upsert(dataDir, [{
+      id: 'vod-archive-archive-Sita_Sings_the_Blues',
+      vodId: 'archive-Sita_Sings_the_Blues',
+      sourceId: 'archive',
+      sourceName: 'Internet Archive (open-license)',
+      name: 'Sita Sings the Blues',
+      vod: true,
+      kind: 'video',
+    }]);
+    archive.harvest = async () => {
+      const items = [archive.normalizedDoc({
+        identifier: 'Sita_Sings_the_Blues',
+        title: 'Sita Sings the Blues',
+        year: 2008,
+        licenseurl: 'https://creativecommons.org/publicdomain/mark/1.0/',
+      })];
+      items.errors = [];
+      return items;
+    };
+
+    const repair = await catalog.repairLegacyArchiveIds(dataDir);
+    assert.equal(repair.removed, 1);
+    assert.equal(repair.restored, 1);
+
+    const records = mediaLibrary.allItems(dataDir).filter((item) => item.sourceId === 'archive');
+    assert.deepEqual(records.map((item) => item.vodId), ['Sita_Sings_the_Blues']);
+
+    const listed = catalog.browse(dataDir, { kind: 'movies', limit: 10 }).items.filter((item) => item.sourceId === 'archive');
+    assert.equal(listed.length, 1, 'the restored title must be browsable again');
+    assert.equal(listed[0].vodId, 'Sita_Sings_the_Blues');
+  } finally {
+    archive.harvest = originalHarvest;
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
+});

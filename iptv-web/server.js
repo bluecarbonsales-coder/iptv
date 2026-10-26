@@ -796,6 +796,16 @@ server.listen(PORT, HOST, () => {
   // ensureFresh() is a no-op while the index is younger than VOD_CATALOG_REFRESH_MINUTES
   // and single-flight, so this never stacks provider requests.
   if (process.env.VOD_CATALOG_AUTOREFRESH !== '0') {
+    // Deterministic one-off repair: builds before 2026-10-27 stored Internet Archive
+    // records with a doubled id prefix, so every open-license title in the Theatre 404'd
+    // on playback. Do not leave this to the harvest window — ensureFresh() is a no-op
+    // while the index is younger than VOD_CATALOG_REFRESH_MINUTES. The prune is
+    // idempotent and writes nothing once the index is clean.
+    vodCatalogLib.repairLegacyArchiveIds(DATA_DIR)
+      .then((repair) => {
+        if (repair && repair.removed) log(`movie catalogue: repaired ${repair.removed} legacy Internet Archive record(s), restored ${repair.restored} from the open-license collections`);
+      })
+      .catch((error) => log('movie catalogue repair failed:', error && error.message || error));
     const kickCatalogue = () => vodCatalogLib.ensureFresh(DATA_DIR)
       .then((summary) => { if (summary) log(`movie catalogue refreshed: ${summary.totals.stored} titles stored, ${summary.totals.providersOnline}/${summary.sources} providers online, ${summary.totals.providersBroken} broken (${summary.durationMs}ms)`); })
       .catch((error) => log('movie catalogue refresh failed:', error && error.message || error));

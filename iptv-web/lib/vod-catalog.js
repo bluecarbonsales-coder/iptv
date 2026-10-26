@@ -367,6 +367,17 @@ function pruneLegacyArchiveIds(dataDir) {
   return mediaLibrary.prune(dataDir, (item) => item && item.sourceId === 'archive' && String(item.vodId || '').startsWith('archive-'));
 }
 
+// Boot-time repair: drop the malformed records *and* immediately re-harvest the open-license
+// collections (a few seconds, no provider calls) so the repaired titles are back before the
+// first page load instead of waiting for the next full harvest window.
+async function repairLegacyArchiveIds(dataDir) {
+  const removed = pruneLegacyArchiveIds(dataDir);
+  if (!removed || ARCHIVE_PAGES <= 0) return { removed, restored: 0, stored: null };
+  const found = await archiveLib.harvest({ pages: ARCHIVE_PAGES, rows: ARCHIVE_ROWS, kinds: BROWSE_KINDS });
+  const stored = found.length ? mediaLibrary.upsert(dataDir, found.map(archiveItem)) : null;
+  return { removed, restored: found.length, stored: stored && stored.total || 0 };
+}
+
 async function refreshCatalogue(options = {}) {
   const dataDir = options.dataDir;
   const started = Date.now();
@@ -649,5 +660,5 @@ module.exports = {
   PROVIDER_PAGES, PROVIDER_PAGE_LIMIT, CONCURRENCY, REFRESH_MINUTES, ARCHIVE_PAGES, ARCHIVE_ROWS, BROWSE_KINDS,
   healthPath, readHealth, writeHealth, categoryTree, typeIdsFor, harvestSource, refreshCatalogue,
   browse, searchProviders, state, isStale, ensureFresh, readIndex, catalogueItem, mapLimit,
-  pruneLegacyArchiveIds,
+  pruneLegacyArchiveIds, repairLegacyArchiveIds,
 };
