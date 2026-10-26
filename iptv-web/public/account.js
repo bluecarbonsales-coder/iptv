@@ -77,6 +77,7 @@
         const result = await api('/api/account/login', { method: 'POST', body: JSON.stringify({ username: $('ownerUsername').value, password: $('ownerPassword').value }) });
         username = result.username;
         await refresh();
+        window.dispatchEvent(new CustomEvent('owner:authenticated'));
       } catch (error) { $('ownerLoginError').textContent = error.message; }
     });
     $('ownerHistoryButton').addEventListener('click', showHistory);
