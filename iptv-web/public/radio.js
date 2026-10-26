@@ -2,7 +2,7 @@
   'use strict';
   const $ = (sel, root) => (root || document).querySelector(sel);
   const state = {
-    query: '', countrycode: '', language: '', tag: '', order: 'clickcount',
+    query: '', countrycode: 'CN', language: '', tag: '', order: 'clickcount',
     offset: 0, page: 1, limit: 50, nextOffset: null, stations: [], favorites: loadJson('radio.favorites', []),
     favoriteStations: loadJson('radio.favoriteStations', []),
     recent: loadJson('radio.recent', []), onlyFavorites: false, activeUuid: '', activeProxyUrl: '', proxyFallbackUsed: false, isLoading: false,
@@ -161,6 +161,14 @@
   async function loadStations(reset) {
     if (state.isLoading && !reset) return;
     if (reset) { state.offset = (state.page - 1) * state.limit; state.nextOffset = null; state.stations = []; }
+    if (!state.countrycode) {
+      state.stations = [];
+      state.nextOffset = null;
+      state.isLoading = false;
+      render();
+      setStatus('Choose a country to browse stations. China is selected by default.');
+      return;
+    }
     state.isLoading = true;
     const currentSequence = ++loadSequence;
     render();
@@ -201,6 +209,16 @@
       if (type === 'languages') {
         values.sort((a, b) => languageRank(a.name) - languageRank(b.name) || Number(b.stationcount || 0) - Number(a.stationcount || 0) || String(a.name).localeCompare(String(b.name)));
       }
+      if (type === 'countries') {
+        const countryRank = (item) => {
+          const code = String(item.name || '').toUpperCase();
+          if (code === 'CN') return 0;
+          if (code === 'US') return 1;
+          if (code === 'ES') return 2;
+          return 3;
+        };
+        values.sort((a, b) => countryRank(a) - countryRank(b) || Number(b.stationcount || 0) - Number(a.stationcount || 0) || String(a.name).localeCompare(String(b.name)));
+      }
       values.forEach((item) => {
         const option = document.createElement('option');
         option.value = type === 'countries' ? item.name.toUpperCase() : item.name;
@@ -212,6 +230,11 @@
         option.textContent = label + count;
         select.append(option);
       });
+      if (type === 'countries') {
+        const countryCodes = values.map((item) => String(item.name || '').toUpperCase());
+        state.countrycode = countryCodes.includes(state.countrycode) ? state.countrycode : (countryCodes.includes('CN') ? 'CN' : (countryCodes[0] || ''));
+        select.value = state.countrycode;
+      }
       if (type === 'languages' && values.length) {
         const preferred = values.find((item) => /^(english|eng)$/i.test(String(item.name).trim())) || values[0];
         state.language = preferred.name;
@@ -271,6 +294,12 @@
     render();
   }
   async function playStation(station) {
+    if (window.MediaHistory) window.MediaHistory.record('radio', {
+      id: station.stationuuid,
+      title: station.name,
+      country: station.country || '',
+      countryCode: station.countrycode || state.countrycode,
+    });
     const myTicket = ++activeTicket;
     state.activeUuid = station.stationuuid;
     state.activeProxyUrl = '';
