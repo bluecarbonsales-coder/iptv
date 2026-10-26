@@ -25,7 +25,10 @@ test('IPTV starts with China selected and requires country-first browsing', () =
 });
 
 test('IPTV video stays embedded and does not offer an external raw-stream player link', () => {
-  assert.match(iptvHtml, /<video id="video" controls playsinline autoplay><\/video>/);
+  assert.match(iptvHtml, /<div id="dplayer" aria-label="IPTV video player"><\/div>/);
+  assert.match(iptvHtml, /dplayer@1\.27\.1\/dist\/DPlayer\.min\.js/);
+  assert.match(iptvJs, /new window\.DPlayer/);
+  assert.match(iptvJs, /customType\.hls/);
   assert.doesNotMatch(iptvHtml, /id="pOpen"|Open stream in a new tab/);
   assert.doesNotMatch(iptvJs, /pOpen/);
   assert.doesNotMatch(iptvHtml, /Live TV|Live channels/);
