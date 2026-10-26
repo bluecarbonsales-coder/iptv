@@ -34,3 +34,38 @@ test('source health falls back from HEAD to ranged GET and marks restricted resp
   assert.equal(item.status, 'restricted');
   assert.equal(item.available, false);
 });
+
+test('source health keeps a bounded reliability history across monitor restarts', async () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'iptv-health-history-'));
+  let statusCode = 200;
+  const sources = { radio: [{ id: 'r1', name: 'Radio', url: 'https://radio.example/stream' }], iptv: [], theatre: [] };
+  let tick = 1000;
+  const options = {
+    dataDir,
+    getSources: () => sources,
+    forceCooldownMs: 0,
+    now: () => ++tick,
+    upstreamFetch: async () => ({ response: { status: statusCode, body: { cancel: async () => {} } } }),
+  };
+  try {
+    const first = createSourceHealth(options);
+    await first.startScan(true);
+    statusCode = 503;
+    await first.startScan(true);
+    const failed = first.getSnapshot().statuses[0];
+    assert.equal(failed.historySamples, 2);
+    assert.equal(failed.uptimePercent, 50);
+    assert.deepEqual(failed.recentHistory, [true, false]);
+    const restarted = createSourceHealth(options);
+    const persisted = restarted.getSnapshot().statuses[0];
+    assert.equal(persisted.historySamples, 2);
+    assert.equal(persisted.uptimePercent, 50);
+    assert.deepEqual(persisted.recentHistory, [true, false]);
+    assert.equal(Object.hasOwn(persisted, 'url'), false);
+  } finally {
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
+});

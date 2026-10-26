@@ -135,6 +135,7 @@ const agent = createAgentApi({ dataDir: DATA_DIR, catalog, refresh: refreshNow, 
 const resourceAvailability = createResourceAvailability({ getServices: portal.getServices });
 const mediaSettings = createMediaSettings(DATA_DIR);
 const sourceHealth = createSourceHealth({
+  dataDir: DATA_DIR,
   getSources: () => ({
     radio: radioSourceStore.list(DATA_DIR).map(s => ({ id: s.id, name: s.name, url: s.url, enabled: s.enabled !== false })),
     iptv: sourceLib.loadSourcesSync(DATA_DIR).sources.map(s => ({ id: s.id, name: s.name, url: s.url, enabled: s.enabled !== false })),
