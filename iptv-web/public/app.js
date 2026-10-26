@@ -24,7 +24,7 @@
   const state = {
     view: 'all',
     q: '',
-    country: 'chn',
+    country: '',
     language: '',
     cats: new Set(),
     minQuality: 0,
@@ -150,7 +150,7 @@
     const term = String($('#countrySearch').value || '').trim().toLocaleLowerCase();
     const countries = state.countries || [];
     const filtered = term ? countries.filter((country) => (country.name + ' ' + country.code).toLocaleLowerCase().includes(term)) : countries;
-    countrySel.innerHTML = '<option value="">Choose a country…</option>' + filtered
+    countrySel.innerHTML = '<option value="">All countries</option>' + filtered
       .map((country) => `<option value="${esc(country.code)}">${country.flag || ''} ${esc(country.name)} · ${country.count}</option>`)
       .join('');
     countrySel.value = filtered.some((country) => country.code === state.country) ? state.country : '';
@@ -169,10 +169,7 @@
     }
     countries.sort((a, b) => a.name.localeCompare(b.name));
     const list = ordered.concat(countries.filter((c) => !ordered.some((x) => x.code === c.code)));
-    if (!state.country || !list.some((c) => c.code === state.country)) {
-      const china = list.find((c) => /^china$/i.test(c.name));
-      state.country = china ? china.code : '';
-    }
+    if (state.country && !list.some((c) => c.code === state.country)) state.country = '';
     state.countries = list;
     renderCountryOptions();
 
@@ -220,7 +217,6 @@
 
   function buildQuery(page) {
     const p = new URLSearchParams();
-    if (!state.country && !['favorites', 'recent', 'playlists'].includes(state.view)) return p;
     if (state.q) p.set('q', state.q);
     if (state.country) p.set('country', state.country);
     if (state.language) p.set('language', state.language);
@@ -253,18 +249,6 @@
       if (!state.keepPage) state.page = 1;
       grid.innerHTML = '';
       emptyBox.hidden = true;
-    }
-    if (!state.country && !['favorites', 'recent', 'playlists'].includes(state.view)) {
-      state.total = 0;
-      state.items = [];
-      grid.innerHTML = '';
-      emptyBox.hidden = false;
-      emptyBox.innerHTML = '<strong>Choose a country to browse channels</strong><p>Select China, the United States, Spain, or another country to load its channels.</p>';
-      $('#resultCount').textContent = 'Choose a country';
-      $('#activeFilters').innerHTML = '';
-      renderPagination(1);
-      state.loading = false;
-      return;
     }
     $('#resultCount').textContent = t('loading');
     try {
