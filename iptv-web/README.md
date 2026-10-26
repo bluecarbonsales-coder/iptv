@@ -4,6 +4,14 @@ A self-hosted media and service portal: browse live TV/VOD, listen to worldwide 
 
 Live deployment: **https://iptv.nafisainternational.com**
 
+## Country-first media browsing and history
+
+- IPTV defaults to China, then lists the United States and Spain before other countries. Radio follows the same country order. The channel/station directory never queries the worldwide catalogue when no country is selected.
+- IPTV playback remains embedded in the page. Radio uses its in-page audio player, and Theatre playback can also be recorded in the shared history.
+- Use **Sign in · History** in the navigation and sign in with the single administrator account to enable server-synced watch/listen history. The history file is stored at `DATA_DIR/media-history.json`, uses restrictive file permissions, and retains up to 200 recent items across IPTV, Radio, and Theatre. Stream URLs are not stored.
+- History is protected by the existing administrator authentication. Keep the site behind HTTPS. Signing out clears the browser's temporary authentication; saved history remains on the server until cleared in the History panel.
+
+
 ## Simple source settings
 
 Open **https://iptv.nafisainternational.com/admin.html** (or `/admin.html` on your own server).
