@@ -7,28 +7,31 @@
   <meta name="description" content="Discover public radio stations worldwide by country, language, music genre and name.">
   <title>Public Radio · Service Portal</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%2364e5d1'/%3E%3Cpath d='M13 7v18l11-9z' fill='%23080b12'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/app.css">
   <link rel="stylesheet" href="/radio.css">
+  <link rel="stylesheet" href="/media-history.css">
 <style>.pagination{display:flex;justify-content:center;align-items:center;gap:8px;flex-wrap:wrap;margin:22px 0}.pagination button{min-width:42px;padding:10px 13px;border:1px solid #2b3344;border-radius:10px;background:transparent;color:inherit}.pagination button.active{background:#64e5d1;color:#071017;border-color:#64e5d1;font-weight:800}.pagination button:disabled{opacity:.35;cursor:not-allowed}</style>
 </head>
 <body>
-  <header class="radio-top">
-    <div class="radio-wrap nav-inner">
-      <a class="radio-brand" href="/" aria-label="Back to service portal"><span class="brand-orb">♫</span><span>Open <b>Radio</b></span></a>
-      <nav class="radio-nav" aria-label="Main navigation">
-        <a href="/">Home</a>
-        <a class="active" href="/radio.html" aria-current="page">Radio</a>
-        <a href="/watch.html">IPTV</a>
-        <a href="/admin.html">Sources</a>
-      </nav>
-      <div class="radio-live-status"><span class="pulse"></span> Global station directory</div>
-    </div>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="IPTV Web home">
+      <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#3b82f6"/><path d="M12 9.5v13l11-6.5z" fill="#fff"/></svg>
+      <span>IPTV<b>Web</b></span>
+    </a>
+    <nav class="tabs" aria-label="Main navigation">
+      <a class="tab" href="/watch.html">IPTV</a>
+      <a class="tab active" href="/radio.html" aria-current="page">Radio</a>
+      <a class="tab" href="/movies.html">Theatre</a>
+      <a class="tab" href="/admin.html">Sources</a>
+    </nav>
+    <div class="topbar-actions"><span class="muted" style="font-size:12px">Global radio directory</span></div>
   </header>
 
   <main class="radio-wrap page">
     <section class="radio-hero">
       <div class="hero-kicker">LISTEN BEYOND BORDERS</div>
       <h1>The world,<br><span>tuned in.</span></h1>
-      <p>Discover public radio streams from around the world. Explore news, music, culture, talk and local stations by language first, with country as an optional filter.</p>
+      <p>Choose a country first, then explore its news, music, culture and talk stations. China is selected by default.</p>
       <div class="hero-stats"><span><b id="resultsCount">—</b> stations shown</span><span class="dot-sep"></span><span>Powered by <a href="https://www.radio-browser.info/" target="_blank" rel="noopener noreferrer">Radio Browser ↗</a></span></div>
     </section>
 
@@ -45,8 +48,8 @@
         <label class="r-field">Language
           <select id="languageFilter"><option value="">Any language</option></select>
         </label>
-        <label class="r-field">Country (optional)
-          <select id="countryFilter"><option value="">Everywhere</option></select>
+        <label class="r-field">Country
+          <select id="countryFilter"><option value="">Choose a country…</option></select>
         </label>
         <label class="r-field">Genre / topic
           <select id="tagFilter"><option value="">All genres</option></select>
@@ -61,7 +64,7 @@
         </label>
       </div>
       <div class="quick-genres" id="quickGenres" aria-label="Popular genres">
-        <span>Explore</span>
+        <span>Popular genres</span>
         <button type="button" data-tag="jazz">Jazz</button>
         <button type="button" data-tag="classical">Classical</button>
         <button type="button" data-tag="news">News</button>
@@ -104,5 +107,6 @@
   </footer>
   <script src="/vendor/hls.min.js"></script>
   <script src="/radio.js" defer></script>
+  <script src="/media-history.js"></script>
 </body>
 </html>
