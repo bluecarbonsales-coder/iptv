@@ -190,13 +190,29 @@ $('#playerToolsClose').onclick=()=>setPlayerTools(false);
 $('#playerMiniStatus').textContent=$('#playerStatus').textContent;
 new MutationObserver(()=>{$('#playerMiniStatus').textContent=$('#playerStatus').textContent||'Ready'}).observe($('#playerStatus'),{childList:true,characterData:true,subtree:true});
 function stopPlayback(){if(state.hls){state.hls.destroy();state.hls=null}const v=$('#video');v.pause();v.removeAttribute('src');v.load()}
-function playEpisode(i){const ep=state.episodes[i];if(!ep||!ep.url)return;state.episodeIndex=i;$('#episodeSelect').value=String(i);$('#detailModal').classList.remove('show');$('#playerModal').classList.add('show');$('#playerModal').scrollIntoView({behavior:'smooth',block:'start'});$('#playingTitle').textContent=(state.detail?.name||state.selected?.name||'Cinema')+' · '+(ep.title||'Episode '+(i+1));$('#playerStatus').textContent='Connecting…';historyRequest('POST',{event:'watch',item:state.selected,episodeIndex:i,episodeTitle:ep.title||''}).then(loadHistory);if(window.OwnerMediaHistory&&state.selected)window.OwnerMediaHistory.record({type:'theatre',action:'watch',itemId:String(state.selected.sourceId||'')+':'+String(state.selected.vodId||state.selected.id||''),title:state.detail?.name||state.selected.name||'Theatre title',subtitle:ep.title||('Episode '+(i+1)),image:state.selected.logo||state.selected.poster||'',position:0});stopPlayback();startStream(ep.url)}
+function playEpisode(i){const ep=state.episodes[i];if(!ep||!ep.url)return;state.episodeIndex=i;$('#episodeSelect').value=String(i);$('#detailModal').classList.remove('show');$('#playerModal').classList.add('show');$('#playerModal').scrollIntoView({behavior:'smooth',block:'start'});$('#playingTitle').textContent=(state.detail?.name||state.selected?.name||'Cinema')+' · '+(ep.title||'Episode '+(i+1));$('#playerStatus').textContent='Connecting…';historyRequest('POST',{event:'watch',item:state.selected,episodeIndex:i,episodeTitle:ep.title||''}).then(loadHistory);if(window.OwnerMediaHistory&&state.selected)window.OwnerMediaHistory.record({type:'theatre',action:'watch',itemId:String(state.selected.sourceId||'')+':'+String(state.selected.vodId||state.selected.id||''),title:state.detail?.name||state.selected.name||'Theatre title',subtitle:ep.title||('Episode '+(i+1)),image:state.selected.logo||state.selected.poster||'',position:0,duration:0});stopPlayback();startStream(ep.url)}
 function startStream(original){stopPlayback();const v=$('#video');const useProxy=$('#proxyToggle').checked;const url=useProxy?proxied(original):original;state.proxy=useProxy;$('#playerStatus').textContent=useProxy?'Loading through server relay…':'Loading direct stream…';v.onerror=()=>{if(useProxy){$('#playerStatus').textContent='Playback failed through relay. Try switching off server relay or check upstream source.'}else{$('#playerStatus').textContent='Direct playback failed. Try enabling server relay.'}};if(/\.m3u8($|\?)/i.test(url)&&window.Hls&&Hls.isSupported()){state.hls=new Hls({enableWorker:true,lowLatencyMode:false,maxBufferLength:45,backBufferLength:30,manifestLoadingTimeOut:20000,levelLoadingTimeOut:20000,fragLoadingTimeOut:30000});state.hls.loadSource(url);state.hls.attachMedia(v);state.hls.on(Hls.Events.MANIFEST_PARSED,()=>{v.play().catch(()=>{});$('#playerStatus').textContent='Stream ready'});state.hls.on(Hls.Events.ERROR,(_,d)=>{if(d.fatal){$('#playerStatus').textContent='Stream error: '+d.type;if(d.type===Hls.ErrorTypes.NETWORK_ERROR)state.hls.startLoad();else if(d.type===Hls.ErrorTypes.MEDIA_ERROR)state.hls.recoverMediaError()}})}else{v.src=url;v.play().then(()=>$('#playerStatus').textContent='Playing').catch(()=>$('#playerStatus').textContent='Stream loaded · press play or check source access')}}
 $('#proxyToggle').checked=state.proxy;$('#autoNext').checked=read('theatre.autoNext',true);$('#proxyToggle').onchange=()=>{if(state.episodes[state.episodeIndex])startStream(state.episodes[state.episodeIndex].url)};
 $('#autoNext').onchange=()=>write('theatre.autoNext',$('#autoNext').checked);
 $('#retry').onclick=()=>{const ep=state.episodes[state.episodeIndex];if(ep)startStream(ep.url)};$('#episodeSelect').onchange=e=>playEpisode(Number(e.target.value)||0);
 $('#closePlayer').onclick=()=>{$('#playerModal').classList.remove('show');setPlayerTools(false);stopPlayback()};
 $('#fullscreen').onclick=()=>{const v=$('#video');if(v.requestFullscreen)v.requestFullscreen();else if(v.webkitEnterFullscreen)v.webkitEnterFullscreen()};
+let lastProgressSave=0;
+$('#video').addEventListener('timeupdate',()=>{
+  const video=$('#video'), item=state.selected;
+  if(!item||!window.OwnerMediaHistory||!Number.isFinite(video.currentTime)||!Number.isFinite(video.duration)||video.duration<=0)return;
+  const now=Date.now();
+  if(now-lastProgressSave<15000&&video.currentTime>2)return;
+  lastProgressSave=now;
+  const episode=state.episodes[state.episodeIndex];
+  window.OwnerMediaHistory.record({
+    type:'theatre',action:'watch',
+    itemId:String(item.sourceId||'')+':'+String(item.vodId||item.id||''),
+    title:state.detail?.name||item.name||'Theatre title',
+    subtitle:episode?.title||('Episode '+(state.episodeIndex+1)),
+    image:item.logo||item.poster||'',position:video.currentTime,duration:video.duration
+  });
+});
 $('#video').addEventListener('ended',()=>{if($('#autoNext').checked&&state.episodeIndex+1<state.episodes.length)playEpisode(state.episodeIndex+1)});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){setDrawer(false);$('#detailModal').classList.remove('show');if($('#playerModal').classList.contains('show')){$('#playerModal').classList.remove('show');setPlayerTools(false);stopPlayback()}}});
 window.addEventListener('theatre:navigate',event=>{const section=String(event.detail||'all');if(['all','movies','series','anime','documentary','favorites'].includes(section)){state.kind=section;setDrawer(false);load();}});
