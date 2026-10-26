@@ -198,11 +198,11 @@ $('#retry').onclick=()=>{const ep=state.episodes[state.episodeIndex];if(ep)start
 $('#closePlayer').onclick=()=>{$('#playerModal').classList.remove('show');setPlayerTools(false);stopPlayback()};
 $('#fullscreen').onclick=()=>{const v=$('#video');if(v.requestFullscreen)v.requestFullscreen();else if(v.webkitEnterFullscreen)v.webkitEnterFullscreen()};
 let lastProgressSave=0;
-$('#video').addEventListener('timeupdate',()=>{
+function savePlaybackPosition(force){
   const video=$('#video'), item=state.selected;
   if(!item||!window.OwnerMediaHistory||!Number.isFinite(video.currentTime)||!Number.isFinite(video.duration)||video.duration<=0)return;
   const now=Date.now();
-  if(now-lastProgressSave<15000&&video.currentTime>2)return;
+  if(!force&&now-lastProgressSave<15000&&video.currentTime>2)return;
   lastProgressSave=now;
   const episode=state.episodes[state.episodeIndex];
   window.OwnerMediaHistory.record({
@@ -212,8 +212,10 @@ $('#video').addEventListener('timeupdate',()=>{
     subtitle:episode?.title||('Episode '+(state.episodeIndex+1)),
     image:item.logo||item.poster||'',position:video.currentTime,duration:video.duration
   });
-});
-$('#video').addEventListener('ended',()=>{if($('#autoNext').checked&&state.episodeIndex+1<state.episodes.length)playEpisode(state.episodeIndex+1)});
+}
+$('#video').addEventListener('timeupdate',()=>savePlaybackPosition(false));
+$('#video').addEventListener('pause',()=>savePlaybackPosition(true));
+$('#video').addEventListener('ended',()=>{savePlaybackPosition(true);if($('#autoNext').checked&&state.episodeIndex+1<state.episodes.length)playEpisode(state.episodeIndex+1)});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){setDrawer(false);$('#detailModal').classList.remove('show');if($('#playerModal').classList.contains('show')){$('#playerModal').classList.remove('show');setPlayerTools(false);stopPlayback()}}});
 window.addEventListener('theatre:navigate',event=>{const section=String(event.detail||'all');if(['all','movies','series','anime','documentary','favorites'].includes(section)){state.kind=section;setDrawer(false);load();}});
 async function loadGlobalMediaSettings(){try{const r=await fetch('/api/v1/settings/media',{cache:'no-store'});if(!r.ok)return;const d=await r.json();if(typeof d.defaultProxy==='boolean'){state.proxy=d.defaultProxy;$('#proxyToggle').checked=state.proxy;}}catch{}}
