@@ -17,12 +17,12 @@
       .portal-links a:hover,.portal-links a.active{color:#f6f4f0;background:#ffffff09;border-color:#e8c78b45}
       .portal-account-slot{margin-left:auto;display:flex;align-items:center;justify-content:flex-end;min-width:0}
       .portal-toolbar [hidden]{display:none!important}
-      #ownerAccountRoot .owner-bar{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
-      #ownerAccountRoot .owner-pill,#ownerAccountRoot button{border:1px solid #37394a;background:#151722;color:#f6f4f0;border-radius:10px;padding:8px 11px;cursor:pointer;font:inherit}
-      #ownerAccountRoot .owner-pill{font-size:12px;color:#e8c78b;white-space:nowrap}
-      #ownerAccountRoot button:hover{border-color:#e8c78b;color:#f5deb0}
-      #ownerAccountRoot .owner-signin{background:#e8c78b;color:#17130b;border-color:#e8c78b;font-weight:800}
-      #ownerAccountRoot .owner-signin:hover{background:#f5deb0;color:#17130b}
+      .portal-toolbar .owner-bar{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+      .portal-toolbar .owner-pill,.portal-toolbar .owner-bar button{border:1px solid #37394a;background:#151722;color:#f6f4f0;border-radius:10px;padding:8px 11px;cursor:pointer;font:inherit}
+      .portal-toolbar .owner-pill{font-size:12px;color:#e8c78b;white-space:nowrap}
+      .portal-toolbar .owner-bar button:hover{border-color:#e8c78b;color:#f5deb0}
+      .portal-toolbar .owner-bar .owner-signin{background:#e8c78b;color:#17130b;border-color:#e8c78b;font-weight:800}
+      .portal-toolbar .owner-bar .owner-signin:hover{background:#f5deb0;color:#17130b}
       @media(max-width:760px){.portal-toolbar{gap:8px;padding:9px 12px}.portal-account-slot{margin-left:0;width:100%;justify-content:flex-start}.portal-links a{padding:7px 9px}.portal-links{width:100%}}
       #ownerAccountRoot .owner-gate{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;padding:20px;background:rgba(5,6,10,.96);backdrop-filter:blur(18px)}
       #ownerAccountRoot .owner-card{width:min(440px,100%);padding:28px;border:1px solid #37394a;border-radius:22px;background:#11131b;box-shadow:0 24px 90px #0009}
