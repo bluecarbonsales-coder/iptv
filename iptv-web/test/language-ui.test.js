@@ -12,18 +12,19 @@ const radioHtml = fs.readFileSync(path.join(publicDir, 'radio.html'), 'utf8');
 const radioJs = fs.readFileSync(path.join(publicDir, 'radio.js'), 'utf8');
 const i18nJs = fs.readFileSync(path.join(publicDir, 'js', 'i18n.js'), 'utf8');
 
-test('IPTV starts with China selected and requires country-first browsing', () => {
+test('IPTV starts unfiltered and keeps country filtering optional', () => {
   assert.match(iptvHtml, /id="country"/);
-  assert.match(iptvJs, /country: 'chn'/);
+  assert.match(iptvHtml, /id="countrySearch"/);
+  assert.match(iptvJs, /country: ''/);
+  assert.match(iptvJs, /countrySel\.innerHTML = '<option value="">All countries<\/option>'/);
+  assert.match(iptvJs, /if \(state\.country\) p\.set\('country', state\.country\)/);
+  assert.match(iptvJs, /state\.country = '';/);
   assert.match(iptvJs, /language: ''/);
-  assert.match(iptvJs, /Choose a country to browse channels/);
-  assert.match(iptvJs, /'China', 'United States', 'Spain'/);
   assert.match(iptvJs, /p\.set\('language', state\.language\)/);
   assert.match(iptvJs, /it\.languages\.slice\(0, 2\)\.map\(languageLabel\)/);
   assert.match(i18nJs, /tabAll: 'IPTV'/);
   assert.match(i18nJs, /tabAll: 'IPTV频道'/);
 });
-
 test('IPTV video stays embedded and does not offer an external raw-stream player link', () => {
   assert.match(iptvHtml, /<div id="dplayer" aria-label="IPTV video player"><\/div>/);
   assert.match(iptvHtml, /dplayer@1\.27\.1\/dist\/DPlayer\.min\.js/);
