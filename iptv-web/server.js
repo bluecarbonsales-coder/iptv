@@ -302,6 +302,8 @@ app.post('/api/agent/v1/mail/drafts/:id/send', mail.agentDraftSend);
 
 // Movie metadata search and title enrichment (API keys remain server-side).
 app.get('/api/metadata/search', metadata.search);
+app.get('/api/metadata/discover', metadata.discover);
+app.get('/api/metadata/index', metadata.index);
 app.get('/api/metadata/tvmaze', metadata.tvmazeSearch);
 app.get('/api/metadata/title', metadata.title);
 
@@ -558,6 +560,8 @@ app.put('/api/v1/navigation', adminRoute(async (req, res) => {
 }));
 
 app.get('/api/v1/metadata/search', metadata.search);
+app.get('/api/v1/metadata/discover', metadata.discover);
+app.get('/api/v1/metadata/index', metadata.index);
 app.get('/api/v1/metadata/tvmaze', metadata.tvmazeSearch);
 app.get('/api/v1/metadata/title', metadata.title);
 
@@ -674,6 +678,27 @@ app.use(async (req, res) => {
     try { return new URL(req.url, 'http://localhost').pathname; }
     catch { return req.url.split('?')[0]; }
   })();
+  // Reverse-proxy the separately isolated Go Music DL service under the same private hostname.
+  // Its own base-path support keeps assets and navigation rooted at /music.
+  if (pathname === '/music' || pathname.startsWith('/music/')) {
+    const upstream = require('http').request({
+      hostname: 'music-dl',
+      port: 8080,
+      method: req.method,
+      path: req.url,
+      headers: { ...req.headers, host: 'music-dl:8080' },
+    }, (upstreamRes) => {
+      res.writeHead(upstreamRes.statusCode || 502, upstreamRes.headers);
+      upstreamRes.pipe(res);
+    });
+    upstream.on('error', (err) => {
+      log('music-dl proxy error:', err.message);
+      if (!res.headersSent) sendJson(req, res, 502, { error: 'Music service is unavailable. Start the music-dl container and check its health.' });
+      else res.end();
+    });
+    req.pipe(upstream);
+    return;
+  }
   if (req.method === 'OPTIONS' && (pathname === '/api/v1' || pathname.startsWith('/api/v1/'))) {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',

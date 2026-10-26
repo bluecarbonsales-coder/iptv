@@ -1,5 +1,7 @@
 'use strict';
 
+const fs = require('node:fs');
+const path = require('node:path');
 const { sendJson } = require('./util');
 const publicDevelopmentConfig = require('./metadata-config');
 
@@ -8,8 +10,55 @@ const OMDB_BASE = 'https://www.omdbapi.com/';
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const MAX_CACHE_ENTRIES = 200;
 
-function createMetadataApi({ fetchImpl = globalThis.fetch, env = { ...publicDevelopmentConfig, ...process.env }, now = Date.now } = {}) {
+function createMetadataApi({ fetchImpl = globalThis.fetch, env = { ...publicDevelopmentConfig, ...process.env }, now = Date.now, dataDir = path.join(__dirname, '..', 'data') } = {}) {
   const cache = new Map();
+  const indexPath = path.join(dataDir, 'tmdb-index.json');
+  const MAX_INDEX_ITEMS = 2000;
+
+  function readIndex() {
+    try {
+      const raw = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
+      return Array.isArray(raw.items) ? raw : { version: 1, updatedAt: null, items: [] };
+    } catch { return { version: 1, updatedAt: null, items: [] }; }
+  }
+
+  function saveIndex(items) {
+    const byId = new Map();
+    for (const item of items) {
+      if (!item || !item.id || !['movie', 'tv'].includes(item.mediaType)) continue;
+      const key = item.mediaType + ':' + item.id;
+      const old = byId.get(key) || {};
+      byId.set(key, { ...old, ...item, indexedAt: now() });
+    }
+    const current = readIndex();
+    for (const item of current.items) {
+      const key = item.mediaType + ':' + item.id;
+      if (!byId.has(key)) byId.set(key, item);
+    }
+    const merged = [...byId.values()].sort((a, b) => (b.popularity || 0) - (a.popularity || 0)).slice(0, MAX_INDEX_ITEMS);
+    fs.mkdirSync(dataDir, { recursive: true });
+    const tmp = indexPath + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify({ version: 1, updatedAt: new Date(now()).toISOString(), count: merged.length, items: merged }, null, 2), { mode: 0o600 });
+    fs.renameSync(tmp, indexPath);
+    return { version: 1, updatedAt: new Date(now()).toISOString(), count: merged.length, items: merged };
+  }
+
+  function normalizeTmdbItem(item) {
+    const mediaType = item.media_type || (item.title || item.original_title ? 'movie' : 'tv');
+    if (!['movie', 'tv'].includes(mediaType) || !item.id) return null;
+    return {
+      id: String(item.id), mediaType,
+      title: item.title || item.name || '',
+      originalTitle: item.original_title || item.original_name || '',
+      overview: item.overview || '',
+      releaseDate: item.release_date || item.first_air_date || '',
+      posterPath: item.poster_path || null,
+      backdropPath: item.backdrop_path || null,
+      voteAverage: Number.isFinite(item.vote_average) ? item.vote_average : null,
+      popularity: Number.isFinite(item.popularity) ? item.popularity : 0,
+      tmdbUrl: 'https://www.themoviedb.org/' + (mediaType === 'tv' ? 'tv/' : 'movie/') + encodeURIComponent(item.id),
+    };
+  }
 
   function cached(key) {
     const entry = cache.get(key);
@@ -75,25 +124,41 @@ function createMetadataApi({ fetchImpl = globalThis.fetch, env = { ...publicDeve
       const hit = cached(key);
       if (hit) return sendJson(req, res, 200, hit);
       const data = await tmdb('/search/multi', { query: q, page, include_adult: 'false' });
-      const results = (Array.isArray(data.results) ? data.results : [])
-        .filter(item => item && ['movie', 'tv'].includes(item.media_type))
-        .map(item => ({
-          id: item.id,
-          mediaType: item.media_type,
-          title: item.title || item.name || '',
-          originalTitle: item.original_title || item.original_name || '',
-          overview: item.overview || '',
-          releaseDate: item.release_date || item.first_air_date || '',
-          posterPath: item.poster_path || null,
-          backdropPath: item.backdrop_path || null,
-          voteAverage: Number.isFinite(item.vote_average) ? item.vote_average : null,
-          tmdbUrl: 'https://www.themoviedb.org/' + (item.media_type === 'tv' ? 'tv/' : 'movie/') + encodeURIComponent(item.id),
-        }));
+      const results = (Array.isArray(data.results) ? data.results : []).map(normalizeTmdbItem).filter(Boolean);
+      saveIndex(results);
       return sendJson(req, res, 200, store(key, { page, totalPages: Math.min(5, data.total_pages || 1), results }));
     } catch (error) {
       const status = error.status || 502;
       return sendJson(req, res, status, { error: status === 429 ? 'Metadata provider rate limit reached' : status === 503 ? error.message : 'TMDB search unavailable' });
     }
+  }
+
+  async function discover(req, res, params, query) {
+    const type = ['movie', 'tv', 'all'].includes(String(query.type || 'all')) ? String(query.type || 'all') : 'all';
+    const page = Math.max(1, Math.min(10, Number.parseInt(query.page, 10) || 1));
+    const key = 'discover:' + type + ':' + page;
+    try {
+      const hit = cached(key);
+      if (hit) return sendJson(req, res, 200, hit);
+      const endpoint = type === 'all' ? '/trending/all/week' : '/' + type + '/popular';
+      const data = await tmdb(endpoint, { page, include_adult: 'false', language: String(query.language || 'en-US') });
+      const results = (Array.isArray(data.results) ? data.results : []).map(item => normalizeTmdbItem({ ...item, media_type: item.media_type || type })).filter(Boolean);
+      const index = saveIndex(results);
+      return sendJson(req, res, 200, store(key, {
+        provider: 'tmdb', type, page, totalPages: Math.min(10, data.total_pages || 1),
+        indexed: true, indexCount: index.count, indexUpdatedAt: index.updatedAt, results,
+      }));
+    } catch (error) {
+      const saved = readIndex().items.filter(item => type === 'all' || item.mediaType === type).slice(0, 40);
+      if (saved.length) return sendJson(req, res, 200, { provider: 'persistent-index', type, page, totalPages: 1, indexed: true, indexCount: readIndex().count, results: saved, warning: 'TMDB is temporarily unavailable; showing previously indexed titles.' });
+      const status = error.status || 502;
+      return sendJson(req, res, status, { error: status === 429 ? 'Metadata provider rate limit reached' : status === 503 ? error.message : 'TMDB discovery unavailable' });
+    }
+  }
+
+  function index(req, res) {
+    const saved = readIndex();
+    sendJson(req, res, 200, { provider: 'tmdb', ...saved, items: saved.items.slice(0, 500) });
   }
 
   async function tvmazeSearch(req, res, params, query) {
@@ -181,7 +246,7 @@ function createMetadataApi({ fetchImpl = globalThis.fetch, env = { ...publicDeve
     }
   }
 
-  return { search, title, tvmazeSearch };
+  return { search, discover, index, title, tvmazeSearch };
 }
 
 module.exports = { createMetadataApi };

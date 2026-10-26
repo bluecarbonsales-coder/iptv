@@ -37,6 +37,9 @@ services:
       VOD_SOURCE_LIST_URLS: "${VOD_SOURCE_LIST_URLS:-https://raw.githubusercontent.com/TVboxorg/TVbox/main/dist/official.json}"
       MAX_VOD_SOURCES: "${MAX_VOD_SOURCES:-128}"
       MAX_SOURCES: "${MAX_SOURCES:-64}"
+      # Inject metadata provider credentials via the host .env; never bake them into source.
+      TMDB_API_KEY: "${TMDB_API_KEY:-}"
+      OMDB_API_KEY: "${OMDB_API_KEY:-}"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3920/healthz"]
       interval: 60s
@@ -68,5 +71,24 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # Separate music service; only published on host loopback for Cloudflare Tunnel access.
+  music-dl:
+    image: guohuiyuan/go-music-dl:latest
+    container_name: music-dl
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8081:8080"
+    volumes:
+      - music-data:/home/appuser/data
+    environment:
+      TZ: Asia/Tokyo
+    command: ["./music-dl", "web", "--port", "8080", "--base-path", "/music", "--no-browser"]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 volumes:
   iptv-data:
+  music-data:

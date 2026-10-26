@@ -29,14 +29,15 @@ function ensureDefaultSources(dataDir) {
     if (!Array.isArray(registry.sources)) registry.sources = [];
   } catch {}
 
-  // Enable every currently configured Theatre provider once on upgrade. After this
-  // marker is saved, the operator's individual enable/disable choices are respected.
-  if (registry.allSourcesEnabledOnce === true) return false;
-
+  // Owner policy: keep every configured Theatre provider enabled on each startup.
+  // Merge newly shipped defaults into the persistent registry without deleting or
+  // replacing user-managed records, so existing installations receive new sources too.
   let changed = false;
+  const now = new Date().toISOString();
   if (registry.defaultsSeeded !== true) {
-    const now = new Date().toISOString();
-    const existing = new Set(registry.sources.map((source) => source.api));
+    const existing = new Set(registry.sources.map((source) => {
+      try { return normalizeApiUrl(source.api); } catch { return String(source.api || ''); }
+    }));
     const seeded = DEFAULT_SOURCES.slice(0, MAX_VOD_SOURCES).filter((source) => {
       try { return !existing.has(normalizeApiUrl(source.api)); } catch { return false; }
     }).map((source) => ({
@@ -55,7 +56,7 @@ function ensureDefaultSources(dataDir) {
     }));
     const additions = seeded.slice(0, Math.max(0, MAX_VOD_SOURCES - registry.sources.length));
     registry.sources.push(...additions);
-    changed = additions.length > 0;
+    if (additions.length) changed = true;
   }
 
   for (const source of registry.sources) {
