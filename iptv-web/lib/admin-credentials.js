@@ -18,7 +18,7 @@ function validateUsername(username) {
     const error = new Error('Username must be 1–128 characters and cannot contain colons or control characters.');
     error.statusCode = 400; throw error;
   }
-  }
+}
 function validateCredentials(username, password) {
   validateUsername(username);
   if (typeof password !== 'string' || password.length < 12 || password.length > PASSWORD_MAX ||
