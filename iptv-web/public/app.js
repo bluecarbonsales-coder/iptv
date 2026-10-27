@@ -489,7 +489,7 @@
   function setView(v, reload) {
     if (isVodView(v)) { window.location.href = '/movies.html?section=' + encodeURIComponent(v === 'vod' ? 'all' : v); return; }
     state.view = v;
-    $('.tab').forEach((b) => b.classList.toggle('active', b.dataset.view === v));
+    $$('.tab').forEach((b) => b.classList.toggle('active', b.dataset.view === v));
     if (v !== 'playlists' || !state.playlistId) state.playlistId = null;
     const vodView = isVodView(v);
     $('#channelFilters').hidden = vodView;
@@ -909,7 +909,7 @@
       searchInput.focus();
     };
 
-    $('.tab').forEach((b) =>
+    $$('.tab').forEach((b) =>
       b.addEventListener('click', () => {
         state.playlistId = null;
         setView(b.dataset.view, true);

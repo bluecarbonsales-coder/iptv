@@ -174,6 +174,7 @@ function buildChannels(src, items) {
         name,
         alt: [],
         country: (it.country || '').split(/[;,]/)[0].toUpperCase() || null,
+        languages: [],
         cats: group ? [group] : [],
         nsfw: false,
         network: null,
@@ -195,6 +196,23 @@ function buildChannels(src, items) {
   const channels = [...byKey.values()].filter((c) => c.streams.length);
   for (const c of channels) c.ns = c.streams.length;
   return channels;
+}
+
+// Language facet for the merged catalogue: lib/refresh.js owns the vocabulary (codes, names,
+// ordering by worldwide usage); merging a custom source only changes the counts. Rebuilding the
+// facet from scratch here is what emptied the language filter — and with it the whole
+// "browse channels by language" page.
+function buildLanguageFacet(prevMeta, counts) {
+  const known = Array.isArray(prevMeta.languages) ? prevMeta.languages : [];
+  const facet = known
+    .map((language) => Object.assign({}, language, { count: counts.get(language.code) || 0 }))
+    .filter((language) => language.count > 0);
+  const seen = new Set(facet.map((language) => language.code));
+  for (const [code, count] of counts) {
+    if (seen.has(code)) continue;
+    facet.push({ code, name: code.toUpperCase(), count });
+  }
+  return facet;
 }
 
 // Merge custom-source channels into a catalogue ({channels, meta}).
@@ -243,15 +261,20 @@ async function mergeInto(catalogData, dataDir, log = () => {}) {
   // Disabled sources are intentionally excluded, while failed enabled sources remain usable.
   const stale = [...failedSourceIds].flatMap((id) => previousBySource.get(id) || []);
   const channels = kept.concat(stale, extra);
+  // Every record must carry a language array: server.js treats a channel without one as a
+  // missing language index and would re-refresh the catalogue on every check.
+  for (const channel of channels) if (!Array.isArray(channel.languages)) channel.languages = [];
   channels.sort((a, b) => a.name.localeCompare(b.name));
 
   const cCount = new Map();
+  const languageCount = new Map();
   const catCount = new Map();
   const qCount = new Map();
   let streamTotal = 0;
   const prevMeta = catalogData.meta || {};
   for (const c of channels) {
     if (c.country) cCount.set(c.country, (cCount.get(c.country) || 0) + 1);
+    for (const language of c.languages || []) languageCount.set(language, (languageCount.get(language) || 0) + 1);
     if (!c.src) for (const cat of c.cats || []) catCount.set(cat, (catCount.get(cat) || 0) + 1);
     for (const s of c.streams || []) {
       streamTotal++;
@@ -267,6 +290,7 @@ async function mergeInto(catalogData, dataDir, log = () => {}) {
       const old = (prevMeta.countries || []).find((x) => x.code === code);
       return { code, name: (old || {}).name || code, flag: (old || {}).flag || '', count };
     }).sort((a, b) => a.name.localeCompare(b.name)),
+    languages: buildLanguageFacet(prevMeta, languageCount),
     categories: (prevMeta.categories || [])
       .map((c) => ({ ...c, count: catCount.get(c.id) || 0 }))
       .filter((c) => c.count > 0)

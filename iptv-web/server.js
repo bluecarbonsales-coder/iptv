@@ -56,6 +56,10 @@ const HOST = process.env.HOST || '0.0.0.0';
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const REFRESH_HOURS = parseFloat(process.env.REFRESH_HOURS || '24');
+// How often the channel catalogue is re-checked for staleness (hours between refreshes is
+// REFRESH_HOURS). The check has to run on an interval: it used to happen only at boot, so a
+// container that stayed up for weeks kept serving its first catalogue.json.
+const CATALOG_CHECK_MINUTES = Math.max(1, parseFloat(process.env.CATALOG_CHECK_MINUTES || '30'));
 
 const catalog = new Catalog(DATA_DIR);
 const loaded = catalog.load();
@@ -822,12 +826,18 @@ server.listen(PORT, HOST, () => {
     setInterval(kickCatalogue, 10 * 60 * 1000).unref();
   }
   log('Agent, source and portal management APIs use the shared HTTP Basic admin login; token authentication is disabled.');
-  const age = catalog.meta.updated ? (Date.now() - Date.parse(catalog.meta.updated)) / 3.6e6 : Infinity;
-  const missingLanguageIndex = !Array.isArray(catalog.meta.languages) || catalog.channels.some((channel) => !Array.isArray(channel.languages));
-  if (!catalog.ready || missingLanguageIndex || (REFRESH_HOURS > 0 && age > REFRESH_HOURS)) {
+  // Rebuild the channel catalogue on its own schedule. refreshNow() is single-flight, so an
+  // interval is safe even if a refresh runs long; a catalogue that is fresh and complete is a
+  // no-op. verified: boot check + every CATALOG_CHECK_MINUTES.
+  const kickCatalogue = () => {
+    const age = catalog.meta.updated ? (Date.now() - Date.parse(catalog.meta.updated)) / 3.6e6 : Infinity;
+    const missingLanguageIndex = !Array.isArray(catalog.meta.languages) || catalog.channels.some((channel) => !Array.isArray(channel.languages));
+    if (catalog.ready && !missingLanguageIndex && !(REFRESH_HOURS > 0 && age > REFRESH_HOURS)) return;
     log(`catalogue ${!catalog.ready ? 'missing' : missingLanguageIndex ? 'missing language index' : `${age.toFixed(1)}h old`} → refreshing in background`);
     refreshNow().catch((e) => log('background refresh failed:', e.message));
-  }
+  };
+  setTimeout(kickCatalogue, 5000).unref();
+  setInterval(kickCatalogue, CATALOG_CHECK_MINUTES * 60 * 1000).unref();
 });
 
 for (const sig of ['SIGINT', 'SIGTERM']) {

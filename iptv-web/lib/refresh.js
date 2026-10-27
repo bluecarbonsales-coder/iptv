@@ -8,7 +8,7 @@ const path = require('path');
 const zlib = require('zlib');
 const { QUALITY_HEIGHT } = require('./catalog');
 
-const FILES = ['channels.json', 'streams.json', 'logos.json', 'categories.json', 'countries.json', 'languages.json'];
+const FILES = ['channels.json', 'streams.json', 'logos.json', 'categories.json', 'countries.json', 'languages.json', 'feeds.json'];
 
 const LANGUAGE_PRIORITY = [
   'eng', 'zho', 'hin', 'spa', 'ara', 'fra', 'ben', 'por', 'ind', 'urd', 'rus',
@@ -71,6 +71,34 @@ function build(api, stats) {
   const categories = new Map((api['categories.json'] || []).map((c) => [c.id, c]));
   const languages = new Map((api['languages.json'] || []).map((language) => [String(language.code || '').toLowerCase(), language]));
 
+  // Channel -> language index. iptv-org moved the mapping out of channels.json: each feed
+  // carries the languages it broadcasts in, so a channel's languages are the union of its
+  // feeds' languages (older dumps still ship ch.languages; fall back to the country's
+  // official languages when a channel has neither).
+  const langsByChannel = new Map();
+  for (const feed of api['feeds.json'] || []) {
+    if (!feed || !feed.channel) continue;
+    const set = langsByChannel.get(feed.channel) || new Set();
+    for (const code of Array.isArray(feed.languages) ? feed.languages : []) {
+      const trimmed = String(code || '').trim().toLowerCase();
+      if (trimmed) set.add(trimmed);
+    }
+    langsByChannel.set(feed.channel, set);
+  }
+  const countryLanguages = new Map();
+  for (const [code, country] of countries) {
+    countryLanguages.set(code, (Array.isArray(country.languages) ? country.languages : [])
+      .map((language) => String(language || '').trim().toLowerCase())
+      .filter(Boolean));
+  }
+  const channelLanguages = (channel) => {
+    const fromFeeds = [...(langsByChannel.get(channel.id) || [])];
+    const explicit = (Array.isArray(channel.languages) ? channel.languages : [])
+      .map((code) => String(code || '').trim().toLowerCase());
+    const pool = fromFeeds.length ? fromFeeds : explicit.length ? explicit : countryLanguages.get(channel.country) || [];
+    return [...new Set(pool.filter((code) => /^[a-z]{2,3}$/.test(code)))];
+  };
+
   const logosByChannel = new Map();
   for (const l of api['logos.json'] || []) {
     if (!l.channel) continue;
@@ -124,7 +152,7 @@ function build(api, stats) {
       name: ch.name,
       alt: (ch.alt_names || []).slice(0, 4),
       country: ch.country || null,
-      languages: [...new Set((Array.isArray(ch.languages) ? ch.languages : []).map((code) => String(code || '').trim().toLowerCase()).filter((code) => /^[a-z]{2,3}$/.test(code)))],
+      languages: channelLanguages(ch),
       cats: ch.categories || [],
       nsfw: !!ch.is_nsfw,
       network: ch.network || null,
