@@ -840,6 +840,7 @@ function createApi(catalog, refresh, dataDir) {
   const vodSearch = async (req, res, params, query) => {
     const kind = BROWSE_KINDS_LIB.includes(query.type) || query.type === 'all' ? query.type : 'all';
     const term = String(query.q || '').trim().slice(0, 120);
+    const sourceId = String(query.sourceId || '').trim().slice(0, 100);
     const limit = Math.max(1, Math.min(120, Number.parseInt(query.limit, 10) || 24));
     const requestedPage = Math.max(1, Number.parseInt(query.page, 10) || 1);
     const started = Date.now();
