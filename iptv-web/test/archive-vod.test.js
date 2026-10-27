@@ -6,6 +6,10 @@ const archive = require('../lib/archive-vod');
 test('only admits public-domain or compatible Creative Commons metadata', () => {
   assert.ok(archive.licenseInfo({ licenseurl: 'https://creativecommons.org/publicdomain/zero/1.0/' }));
   assert.ok(archive.licenseInfo({ licenseurl: 'https://creativecommons.org/licenses/by/4.0/' }));
+  // The legacy CC public-domain dedication URL is the most common value on archive.org
+  // film items; rejecting it discarded ~85% of the open-license movie catalogue.
+  assert.ok(archive.licenseInfo({ licenseurl: 'http://creativecommons.org/licenses/publicdomain/' }), 'legacy public-domain dedication');
+  assert.ok(archive.licenseInfo({ licenseurl: 'https://creativecommons.org/licenses/publicdomain/' }), 'legacy public-domain dedication (https)');
   assert.ok(archive.licenseInfo({ rights: 'Public Domain' }));
   assert.equal(archive.licenseInfo({ licenseurl: 'https://creativecommons.org/licenses/by-nc-sa/4.0/' }), null);
   assert.equal(archive.licenseInfo({ licenseurl: 'https://example.org/license' }), null);

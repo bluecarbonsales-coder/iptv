@@ -49,7 +49,16 @@ function licenseInfo(doc = {}) {
   const licenseUrl = cleanText(doc.licenseurl || doc.license_url).toLowerCase();
   const rights = cleanText(doc.rights || doc.license || doc.license_name).toLowerCase();
   if (/creativecommons\.org\/licenses\/by-nc(?:-|\/)|creativecommons\.org\/licenses\/by-nc-sa|creativecommons\.org\/licenses\/by-nc-nd/.test(licenseUrl)) return null;
-  if (/creativecommons\.org\/publicdomain\/(?:zero|mark)\//.test(licenseUrl) || /\bcc0\b|public domain mark|dedicated to the public domain/.test(rights)) {
+  // Three URL shapes mean the same thing and all three are in wide use:
+  //   https://creativecommons.org/publicdomain/zero/1.0/   (CC0)
+  //   https://creativecommons.org/publicdomain/mark/1.0/   (Public Domain Mark)
+  //   http://creativecommons.org/licenses/publicdomain/    (legacy CC PD dedication)
+  // The legacy form is the single most common value on archive.org film items
+  // (~85% of the open-license hits in feature_films/classic_tv/silent_films), so
+  // omitting it discarded almost the whole public-domain catalogue.
+  if (/creativecommons\.org\/publicdomain\/(?:zero|mark)\//.test(licenseUrl) ||
+      /creativecommons\.org\/licenses\/publicdomain\b/.test(licenseUrl) ||
+      /\bcc0\b|public domain mark|dedicated to the public domain/.test(rights)) {
     return { label: 'Public domain / CC0', url: licenseUrl || null };
   }
   if (/creativecommons\.org\/licenses\/by(?:-sa|-nd)?\//.test(licenseUrl) || /creativecommons? attribution(?:-sharealike|-no derivatives)?\b/.test(rights)) {
@@ -143,14 +152,24 @@ async function harvest(options = {}) {
   const pages = Math.max(1, Math.min(10, options.pages || 2));
   const rows = Math.max(1, Math.min(MAX_ROWS, options.rows || 50));
   const collections = (options.collections || COLLECTIONS).filter((collection) => kinds.includes(collection.kind));
+  // The window walks on across refreshes (see the cursor returned below) so successive
+  // passes reach deeper archive.org pages instead of re-reading the same downloaded-first
+  // titles; classify() decides a record's kind, so the search type must be 'all' or the
+  // documentary/TV collections (whose records classify as movies/anime) always came back empty.
+  const startPage = Math.max(1, Number.parseInt(options.startPage, 10) || 1);
   const results = await mapLimit(collections, Math.max(1, Math.min(4, options.concurrency || 3)), async (collection) => {
     const found = [];
-    for (let page = 1; page <= pages; page += 1) {
-      const items = await search('', collection.kind, rows, { page, rows, collection: collection.id, sort: options.sort });
+    let lastPageFull = false;
+    for (let page = startPage; page < startPage + pages; page += 1) {
+      const items = await search('', 'all', rows, { page, rows, collection: collection.id, sort: options.sort });
       for (const item of items) found.push({ ...item, collection: collection.id, collectionLabel: collection.label });
-      if (items.length < rows) break;
+      // "More pages available" is decided by whether the page yielded anything at all, not by
+      // the accepted count: the license filter drops ~15% of every 100-row page, so comparing
+      // against `rows` would freeze the cursor on page 1 forever.
+      lastPageFull = items.length > 0;
+      if (!lastPageFull) break;
     }
-    return found;
+    return { found, lastPageFull };
   });
   const byId = new Map();
   const errors = [];
@@ -159,10 +178,15 @@ async function harvest(options = {}) {
       errors.push({ collection: collections[index] && collections[index].id, error: String(result && result.reason && result.reason.message || 'collection search failed').slice(0, 160) });
       return;
     }
-    for (const item of result.value) if (!byId.has(item.id)) byId.set(item.id, item);
+    for (const item of result.value.found) if (!byId.has(item.id)) byId.set(item.id, item);
   });
   const items = [...byId.values()];
   items.errors = errors;
+  // Rotating window: while at least one collection still answers a full page there is
+  // more to read, so the next refresh starts where this one stopped (and wraps to 1 once
+  // every collection is exhausted).
+  const anyFull = results.some((result) => result && result.status === 'fulfilled' && result.value.lastPageFull);
+  items.nextPage = anyFull ? startPage + pages : 1;
   return items;
 }
 

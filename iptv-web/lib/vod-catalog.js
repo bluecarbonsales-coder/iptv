@@ -411,8 +411,11 @@ async function refreshCatalogue(options = {}) {
   let archive = { ok: false, ms: null, items: 0, error: null };
   if (options.includeArchive !== false && ARCHIVE_PAGES > 0) {
     const archiveStarted = Date.now();
+    // Same rotating-window idea as the providers: the archive's open-license collections
+    // hold far more than one pass reads, so remember where this pass stopped.
+    const priorArchivePage = positiveInt((readHealth(dataDir).archive || {}).nextPage) || 1;
     try {
-      const found = await archiveLib.harvest({ pages: ARCHIVE_PAGES, rows: ARCHIVE_ROWS, kinds });
+      const found = await archiveLib.harvest({ pages: ARCHIVE_PAGES, rows: ARCHIVE_ROWS, kinds, startPage: priorArchivePage });
       const archiveStored = found.length ? mediaLibrary.upsert(dataDir, found.map(archiveItem)) : null;
       const collectionErrors = (found.errors || []).slice(0, 6);
       archive = {
@@ -420,6 +423,8 @@ async function refreshCatalogue(options = {}) {
         ms: Date.now() - archiveStarted,
         items: found.length,
         stored: archiveStored && archiveStored.total || 0,
+        windowStart: priorArchivePage,
+        nextPage: positiveInt(found.nextPage) || 1,
         collections: (archiveLib.COLLECTIONS || []).filter((collection) => kinds.includes(collection.kind)).map((collection) => collection.id),
         errors: collectionErrors,
         error: collectionErrors.length ? collectionErrors.map((entry) => entry.collection + ': ' + entry.error).join('; ').slice(0, 300) : null,

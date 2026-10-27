@@ -54,5 +54,141 @@
     "enabled": true,
     "managedBy": "community-defaults",
     "upstreamRepository": "https://github.com/hujingguang/ChinaIPTV"
+  },
+  {
+    "id": "community-pluto-es",
+    "name": "Pluto TV Espa\u00f1a (ES)",
+    "url": "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plutotv_es.m3u",
+    "enabled": true,
+    "managedBy": "community-defaults",
+    "upstreamRepository": "https://github.com/BuddyChewChew/app-m3u-generator"
+  },
+  {
+    "id": "community-pluto-mx",
+    "name": "Pluto TV M\u00e9xico (ES)",
+    "url": "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plutotv_mx.m3u",
+    "enabled": true,
+    "managedBy": "community-defaults",
+    "upstreamRepository": "https://github.com/BuddyChewChew/app-m3u-generator"
+  },
+  {
+    "id": "community-pluto-ar",
+    "name": "Pluto TV Argentina (ES)",
+    "url": "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plutotv_ar.m3u",
+    "enabled": true,
+    "managedBy": "community-defaults",
+    "upstreamRepository": "https://github.com/BuddyChewChew/app-m3u-generator"
+  },
+  {
+    "id": "community-pluto-cl",
+    "name": "Pluto TV Chile (ES)",
+    "url": "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plutotv_cl.m3u",
+    "enabled": true,
+    "managedBy": "community-defaults",
+    "upstreamRepository": "https://github.com/BuddyChewChew/app-m3u-generator"
+  },
+  {
+    "id": "community-plex-es",
+    "name": "Plex Espa\u00f1a (ES)",
+    "url": "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plex_es.m3u",
+    "enabled": true,
+    "managedBy": "community-defaults",
+    "upstreamRepository": "https://github.com/BuddyChewChew/app-m3u-generator"
+  },
+  {
+    "id": "community-plex-mx",
+    "name": "Plex M\u00e9xico (ES)",
+    "url": "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plex_mx.m3u",
+    "enabled": true,
+    "managedBy": "community-defaults",
+    "upstreamRepository": "https://github.com/BuddyChewChew/app-m3u-generator"
+  },
+  {
+    "id": "community-samsung-es",
+    "name": "Samsung TV Plus Espa\u00f1a (ES)",
+    "url": "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/samsungtvplus_es.m3u",
+    "enabled": true,
+    "managedBy": "community-defaults",
+    "upstreamRepository": "https://github.com/BuddyChewChew/app-m3u-generator"
+  },
+  {
+    "id": "community-freetv-es",
+    "name": "Free-TV Espa\u00f1a (ES)",
+    "url": "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlists/playlist_spain.m3u8",
+    "enabled": true,
+    "managedBy": "community-defaults",
+    "upstreamRepository": "https://github.com/Free-TV/IPTV"
+  },
+  {
+    "id": "community-freetv-mx",
+    "name": "Free-TV M\u00e9xico (ES)",
+    "url": "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlists/playlist_mexico.m3u8",
+    "enabled": true,
+    "managedBy": "community-defaults",
+    "upstreamRepository": "https://github.com/Free-TV/IPTV"
+  },
+  {
+    "id": "community-freetv-tr",
+    "name": "Free-TV T\u00fcrkiye (TR)",
+    "url": "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlists/playlist_turkey.m3u8",
+    "enabled": true,
+    "managedBy": "community-defaults",
+    "upstreamRepository": "https://github.com/Free-TV/IPTV"
+  },
+  {
+    "id": "community-pluto-us",
+    "name": "Pluto TV US (EN)",
+    "url": "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plutotv_us.m3u",
+    "enabled": true,
+    "managedBy": "community-defaults",
+    "upstreamRepository": "https://github.com/BuddyChewChew/app-m3u-generator"
+  },
+  {
+    "id": "community-pluto-gb",
+    "name": "Pluto TV UK (EN)",
+    "url": "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plutotv_gb.m3u",
+    "enabled": true,
+    "managedBy": "community-defaults",
+    "upstreamRepository": "https://github.com/BuddyChewChew/app-m3u-generator"
+  },
+  {
+    "id": "community-plex-gb",
+    "name": "Plex UK (EN)",
+    "url": "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plex_gb.m3u",
+    "enabled": true,
+    "managedBy": "community-defaults",
+    "upstreamRepository": "https://github.com/BuddyChewChew/app-m3u-generator"
+  },
+  {
+    "id": "community-samsung-gb",
+    "name": "Samsung TV Plus UK (EN)",
+    "url": "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/samsungtvplus_gb.m3u",
+    "enabled": true,
+    "managedBy": "community-defaults",
+    "upstreamRepository": "https://github.com/BuddyChewChew/app-m3u-generator"
+  },
+  {
+    "id": "community-roku-us",
+    "name": "The Roku Channel (EN)",
+    "url": "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/roku_all.m3u",
+    "enabled": true,
+    "managedBy": "community-defaults",
+    "upstreamRepository": "https://github.com/BuddyChewChew/app-m3u-generator"
+  },
+  {
+    "id": "community-tubi-us",
+    "name": "Tubi TV (EN)",
+    "url": "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/tubi_all.m3u",
+    "enabled": true,
+    "managedBy": "community-defaults",
+    "upstreamRepository": "https://github.com/BuddyChewChew/app-m3u-generator"
+  },
+  {
+    "id": "community-freetv-us",
+    "name": "Free-TV USA (EN)",
+    "url": "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlists/playlist_usa.m3u8",
+    "enabled": true,
+    "managedBy": "community-defaults",
+    "upstreamRepository": "https://github.com/Free-TV/IPTV"
   }
 ]
