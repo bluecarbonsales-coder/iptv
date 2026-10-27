@@ -11,7 +11,7 @@ test('Theatre keeps playback source and episode controls visible beside the play
   assert.match(theatreHtml, /id="playerTools"[^>]*aria-label="Playback settings and episode list"/);
   assert.doesNotMatch(theatreHtml, /id="playerTools"[^>]*hidden/);
   assert.match(theatreHtml, /id="sourceSelect"/);
-  assert.match(theatreHtml, /\.player-modal\.show\{display:flex;position:fixed;inset:70px 0 0/);
+  assert.match(theatreHtml, /\.player-modal\.show\{display:flex;position:sticky;top:70px/);
   assert.match(theatreHtml, /id="playerToolsToggle"[^>]*aria-expanded="true"/);
   assert.match(theatreHtml, /id="playerToolsToggle"[^>]*aria-controls="playerTools"/);
   assert.match(theatreHtml, /function setPlayerTools\(open\)/);
