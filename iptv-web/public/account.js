@@ -62,8 +62,9 @@
     const accountSlot = document.createElement('div');
     accountSlot.className = 'portal-account-slot';
     const pageHeader = document.querySelector('body > header');
-    if (pageHeader) {
-      pageHeader.appendChild(accountSlot);
+    const headerRow = pageHeader && (pageHeader.querySelector('.nav-inner, .topbar-inner') || pageHeader);
+    if (headerRow) {
+      headerRow.appendChild(accountSlot);
     } else {
       accountSlot.classList.add('is-floating');
       document.body.appendChild(accountSlot);
