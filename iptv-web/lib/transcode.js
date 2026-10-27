@@ -5,7 +5,7 @@
 // FFmpeg stdin; FFmpeg is not allowed to open arbitrary network URLs itself.
 const { spawn } = require('node:child_process');
 const { Readable } = require('node:stream');
-const { upstreamFetch, bodyToString, cancelBody } = require('./fetch-upstream');
+const { upstreamFetch, cancelBody } = require('./fetch-upstream');
 
 const MAX_CONCURRENT = Math.max(1, Math.min(4, Number(process.env.TRANSCODE_MAX_CONCURRENT) || 2));
 const TRANSCODE_EXT = /\.(mkv|avi|flv|wmv|mpeg|mpg|m2v|3gp|vob)(?:$|[?#])/i;
@@ -83,17 +83,16 @@ async function handler(req, res, params, query) {
     return fail(res, 503, 'FFmpeg is unavailable on this server');
   }
   active += 1;
-  let stderr = '';
-  child.stderr.on('data', (chunk) => {
-    if (stderr.length < 4000) stderr += chunk.toString().slice(0, 4000 - stderr.length);
-  });
+  let released = false;
+  const releaseSlot = () => { if (!released) { released = true; active = Math.max(0, active - 1); } };
+  child.stderr.on('data', () => {});
   child.on('error', () => {
-    active = Math.max(0, active - 1);
+    releaseSlot();
     if (!res.headersSent) fail(res, 503, 'FFmpeg could not start; rebuild the application image');
     else res.destroy();
   });
   child.on('close', (code) => {
-    active = Math.max(0, active - 1);
+    releaseSlot();
     if (code !== 0 && !res.writableEnded && !res.destroyed) {
       if (!res.headersSent) fail(res, 502, 'Media conversion failed');
       else res.destroy();
