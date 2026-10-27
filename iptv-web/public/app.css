@@ -6,8 +6,8 @@
   --line-2: #2f3646;
   --text: #e8ecf4;
   --muted: #8b95a8;
-  --accent: #3b82f6;
-  --accent-2: #22d3ee;
+  --accent: #e8c78b;
+  --accent-2: #c9a96e;
   --danger: #ef4444;
   --ok: #22c55e;
   --warn: #f59e0b;
@@ -334,3 +334,10 @@ select option { background: var(--bg-2); }
 .search-history-empty { padding: 12px 9px; color: var(--muted); font-size: 12px; }
 .search-history-empty + .search-history-footer { border-top: 1px solid var(--line); margin-top: 5px; padding-top: 9px; }
 @media (max-width: 620px) { .search-history { max-height: 50vh; } }
+
+/* Shared cinematic palette: IPTV keeps its own controls, but matches Theatre. */
+:root { --accent: #e8c78b; --accent-2: #c9a96e; }
+.topbar { background: rgba(9, 10, 15, .96); border-bottom-color: #e8c78b22; }
+.brand svg rect { fill: #e8c78b; }
+.brand svg path { fill: #17130b; }
+.tab.active, .tab:hover { border-color: #e8c78b55; }

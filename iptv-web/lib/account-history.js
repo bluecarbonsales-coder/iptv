@@ -23,7 +23,26 @@ function createAccountHistory(dataDir) {
     if (type && !TYPES.has(type)) throw Object.assign(new Error('type must be iptv, radio, or theatre'), { statusCode: 400 });
     const all = read();
     const rows = Array.isArray(all.owner) ? all.owner : [];
-    return rows.filter(item => (!type || item.type === type) && Date.now() - Date.parse(item.updatedAt) < 365 * 86400000);
+    return rows.filter(item => (!type || item.type === type) && Date.now() - Date.parse(item.updatedAt) < 365 * 86400000).sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+  }
+  function update(id, patch) {
+    const all = read();
+    const rows = Array.isArray(all.owner) ? all.owner : [];
+    const item = rows.find(row => row.id === id);
+    if (!item) throw Object.assign(new Error('History item not found'), { statusCode: 404 });
+    if (typeof patch.pinned === 'boolean') item.pinned = patch.pinned;
+    write(all);
+    return { ok: true, item };
+  }
+  function remove(id) {
+    const all = read();
+    const rows = Array.isArray(all.owner) ? all.owner : [];
+    const index = rows.findIndex(row => row.id === id);
+    if (index < 0) throw Object.assign(new Error('History item not found'), { statusCode: 404 });
+    const [item] = rows.splice(index, 1);
+    all.owner = rows;
+    write(all);
+    return { ok: true, item };
   }
   function record(body) {
     if (!body || !TYPES.has(body.type) || !['watch', 'listen'].includes(body.action)) throw Object.assign(new Error('type/action is invalid'), { statusCode: 400 });
@@ -40,7 +59,7 @@ function createAccountHistory(dataDir) {
       url: typeof body.url === 'string' ? body.url.slice(0, 1200) : '',
       position: Number.isFinite(Number(body.position)) ? Math.max(0, Math.min(86400, Number(body.position))) : 0,
       duration: Number.isFinite(Number(body.duration)) ? Math.max(0, Math.min(86400, Number(body.duration))) : 0,
-      updatedAt: new Date().toISOString(),
+      pinned: body.pinned === true, updatedAt: new Date().toISOString(),
     };
     const index = rows.findIndex(row => row.type === item.type && row.itemId === item.itemId);
     if (index >= 0) rows.splice(index, 1);
@@ -49,6 +68,6 @@ function createAccountHistory(dataDir) {
     write(all);
     return { ok: true, item: all.owner[0] };
   }
-  return { list, record };
+  return { list, record, update, remove };
 }
 module.exports = { createAccountHistory };
