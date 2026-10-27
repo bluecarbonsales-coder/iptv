@@ -106,13 +106,13 @@ async function handler(req, res, params, query) {
   // response application/octet-stream. Sniff only these ambiguous responses so we
   // can choose HLS.js for hidden manifests and give native video the correct MIME.
   let sniffedMime = null;
-  if (!looksManifest && response.body && /^(application\\/octet-stream|application\\/binary|binary\\/octet-stream)?$/.test(ctype)) {
+  if (!looksManifest && response.body && /^(application\/octet-stream|application\/binary|binary\/octet-stream)?$/.test(ctype)) {
     try {
       const reader = response.body.getReader();
       const first = await reader.read();
       const firstBytes = first.value || new Uint8Array(0);
-      const prefix = Buffer.from(firstBytes.subarray(0, 512)).toString('utf8').replace(/^\\uFEFF/, '').trimStart();
-      if (/^#EXTM3U(?:\\s|$)/.test(prefix)) {
+      const prefix = Buffer.from(firstBytes.subarray(0, 512)).toString('utf8').replace(/^\uFEFF/, '').trimStart();
+      if (/^#EXTM3U(?:\s|$)/.test(prefix)) {
         looksManifest = true;
       } else if (firstBytes.length >= 8 && Buffer.from(firstBytes.subarray(4, 8)).toString('ascii') === 'ftyp') {
         sniffedMime = 'video/mp4';
