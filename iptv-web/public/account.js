@@ -44,7 +44,10 @@
       #ownerAccountRoot .owner-primary{width:100%;margin-top:8px;background:#e8c78b;color:#17130b;border-color:#e8c78b;font-weight:800}
       #ownerAccountRoot .owner-error{min-height:22px;color:#ff9e9e;font-size:13px}
       #ownerAccountRoot .owner-history-list{max-height:48vh;overflow:auto;margin:16px 0;padding:0;list-style:none}
-      #ownerAccountRoot .owner-history-list li{padding:10px 0;border-bottom:1px solid #303343}\n      #ownerAccountRoot .history-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}\n      #ownerAccountRoot .history-actions button{font-size:12px;padding:5px 9px;border:1px solid #37394a;border-radius:8px;background:#151722;color:#f6f4f0;cursor:pointer}\n      #ownerAccountRoot .history-actions button:hover{border-color:#e8c78b}
+      #ownerAccountRoot .owner-history-list li{padding:10px 0;border-bottom:1px solid #303343}
+      #ownerAccountRoot .history-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+      #ownerAccountRoot .history-actions button{font-size:12px;padding:5px 9px;border:1px solid #37394a;border-radius:8px;background:#151722;color:#f6f4f0;cursor:pointer}
+      #ownerAccountRoot .history-actions button:hover{border-color:#e8c78b}
       #ownerAccountRoot .owner-history-list strong{display:block}#ownerAccountRoot .owner-history-list small{color:#a9adbb}
       #ownerAccountRoot [hidden]{display:none!important}
     `;
@@ -59,8 +62,9 @@
     const accountSlot = document.createElement('div');
     accountSlot.className = 'portal-account-slot';
     const pageHeader = document.querySelector('body > header');
-    if (pageHeader) {
-      pageHeader.appendChild(accountSlot);
+    const headerRow = pageHeader && (pageHeader.querySelector('.nav-inner, .topbar-inner') || pageHeader);
+    if (headerRow) {
+      headerRow.appendChild(accountSlot);
     } else {
       accountSlot.classList.add('is-floating');
       document.body.appendChild(accountSlot);
