@@ -293,6 +293,14 @@ app.post('/api/account/history', ownerRoute(async (req, res) => {
   try { const body = JSON.parse(await readBody(req, 16384)); sendJson(req, res, 200, accountHistory.record(body), { 'Cache-Control': 'no-store' }); }
   catch (error) { sendJson(req, res, error.statusCode || 400, { error: error.message || 'Could not save media history.' }); }
 }));
+app.patch('/api/account/history/:id', ownerRoute(async (req, res, params) => {
+  try { const body = JSON.parse(await readBody(req, 4096)); sendJson(req, res, 200, accountHistory.update(params.id, body), { 'Cache-Control': 'no-store' }); }
+  catch (error) { sendJson(req, res, error.statusCode || 400, { error: error.message || 'Could not update media history.' }); }
+}));
+app.delete('/api/account/history/:id', ownerRoute((req, res, params) => {
+  try { sendJson(req, res, 200, accountHistory.remove(params.id), { 'Cache-Control': 'no-store' }); }
+  catch (error) { sendJson(req, res, error.statusCode || 400, { error: error.message || 'Could not delete media history.' }); }
+}));
 
 app.get('/api/mail/session', mail.session);
 app.post('/api/mail/login', mail.login);
