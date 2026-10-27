@@ -123,7 +123,7 @@ async function load(page){
     state.catalogTotal=Number(data.total)||0;
     state.catalogAt=(data.catalog&&data.catalog.updatedAt)||'';
     state.items=Array.isArray(data.items)?data.items:[];
-    refreshCatalogSources(Array.isArray(data.providers)?data.providers:[]);
+    refreshCatalogSources(Array.isArray(data.providerOptions)?data.providerOptions:(Array.isArray(data.providers)?data.providers:[]));
     if(state.kind==='favorites'){
       const savedMetadata=state.watchlist.filter(item=>item.metadataOnly);
       state.items.push(...savedMetadata.filter(saved=>!state.items.some(item=>item.id===saved.id)));
