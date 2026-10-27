@@ -90,7 +90,7 @@ module.exports = Object.freeze([
   },
   {
     "name": "金鹰资源",
-    "api": "https://ljyzyapi.com/provide/vod",
+    "api": "https://jyzyapi.com/provide/vod",
     "kind": "all",
     "enabled": true
   },
@@ -199,6 +199,30 @@ module.exports = Object.freeze([
   {
     "name": "樱花资源",
     "api": "https://m3u8.apiyhzy.com/api.php/provide/vod",
+    "kind": "all",
+    "enabled": true
+  },
+  {
+    "name": "无尽资源",
+    "api": "https://api.wujinapi.net/api.php/provide/vod",
+    "kind": "all",
+    "enabled": true
+  },
+  {
+    "name": "闪电资源",
+    "api": "https://sdzyapi.com/api.php/provide/vod",
+    "kind": "all",
+    "enabled": true
+  },
+  {
+    "name": "快车资源",
+    "api": "https://caiji.kuaichezy.org/api.php/provide/vod",
+    "kind": "all",
+    "enabled": true
+  },
+  {
+    "name": "丫丫资源",
+    "api": "https://yayazy2.com/api.php/provide/vod",
     "kind": "all",
     "enabled": true
   }
