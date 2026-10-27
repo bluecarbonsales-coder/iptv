@@ -496,7 +496,6 @@
     $('#playlistSide').hidden = vodView;
     $('#resourceManager').hidden = vodView;
     $('#vodManager').hidden = !vodView;
-    $('#btnExport').hidden = vodView;
     $('#q').placeholder = vodView ? 'Search movies, series and anime…' : 'Search 10,000+ channels…  (press /)';
     if (reload !== false) load(true);
   }
@@ -1010,13 +1009,6 @@
       updateProxyNote();
       if (state.view === 'playlists') renderPlaylistsView();
     };
-    $('#btnExport').addEventListener('click', (e) => {
-      const p = buildQuery(1);
-      p.delete('page');
-      p.delete('limit');
-      e.currentTarget.href = '/api/export.m3u?' + p.toString();
-    });
-
     $('#plAdd').onclick = () => {
       const url = $('#plUrl').value.trim();
       if (!url) return toast('Enter a playlist URL first');
