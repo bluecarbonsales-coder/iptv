@@ -183,7 +183,7 @@ async function handler(req, res, params, query) {
   const h = corsHeaders({
     'Cache-Control': req.headers.range ? 'no-store' : 'public, max-age=30',
   });
-  const ct = response.headers.get('content-type');
+  const ct = sniffedMime || mediaResponse.headers.get('content-type');
   if (ct && !/text\/html/i.test(ct)) h['Content-Type'] = ct;
   const cr = mediaResponse.headers.get('content-range');
   if (cr) h['Content-Range'] = cr;
