@@ -36,14 +36,14 @@
       #ownerAccountRoot .owner-primary{width:100%;margin-top:8px;background:#e8c78b;color:#17130b;border-color:#e8c78b;font-weight:800}
       #ownerAccountRoot .owner-error{min-height:22px;color:#ff9e9e;font-size:13px}
       #ownerAccountRoot .owner-history-list{max-height:48vh;overflow:auto;margin:16px 0;padding:0;list-style:none}
-      #ownerAccountRoot .owner-history-list li{padding:10px 0;border-bottom:1px solid #303343}
+      #ownerAccountRoot .owner-history-list li{padding:10px 0;border-bottom:1px solid #303343}\n      #ownerAccountRoot .history-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}\n      #ownerAccountRoot .history-actions button{font-size:12px;padding:5px 9px;border:1px solid #37394a;border-radius:8px;background:#151722;color:#f6f4f0;cursor:pointer}\n      #ownerAccountRoot .history-actions button:hover{border-color:#e8c78b}
       #ownerAccountRoot .owner-history-list strong{display:block}#ownerAccountRoot .owner-history-list small{color:#a9adbb}
       #ownerAccountRoot [hidden]{display:none!important}
     `;
     const root = document.createElement('div');
     root.id = 'ownerAccountRoot';
     root.innerHTML = `
-      <div class="owner-bar" id="ownerBar" hidden><button type="button" class="owner-signin" id="ownerSignIn">Sign in</button><span class="owner-pill" id="ownerLabel" hidden>Signed in</span><button type="button" id="ownerHistoryButton" hidden>History</button><button type="button" id="ownerChange" hidden>Account settings</button><button type="button" id="ownerLogout" hidden>Sign out</button></div>
+      <div class="owner-bar" id="ownerBar" hidden><button type="button" class="owner-signin" id="ownerSignIn" aria-label="Private owner access" title="Private owner access">⚙</button><span class="owner-pill" id="ownerLabel" hidden>Signed in</span><button type="button" id="ownerHistoryButton" hidden>History</button><button type="button" id="ownerChange" hidden>Account settings</button><button type="button" id="ownerLogout" hidden>Sign out</button></div>
       <div class="owner-gate" id="ownerGate" hidden><form class="owner-card" id="ownerLoginForm"><h2>Welcome back</h2><p>Sign in once to access IPTV, Radio, Theatre and owner settings.</p><label>Username<input id="ownerUsername" autocomplete="username" required></label><label>Password<input id="ownerPassword" type="password" autocomplete="current-password" required></label><button class="owner-primary" type="submit">Sign in</button><div class="owner-error" id="ownerLoginError" role="status"></div><p style="font-size:12px">First installation uses the configured ADMIN_USERNAME and ADMIN_PASSWORD. Change them after signing in.</p></form></div>
       <div class="owner-gate" id="ownerHistoryPanel" hidden><section class="owner-card"><h2>Your media history</h2><p>Saved to this server and shared across IPTV, Radio and Theatre.</p><ul class="owner-history-list" id="ownerHistoryList"><li>Loading…</li></ul><button type="button" id="ownerHistoryClose" style="width:100%">Close</button></section></div><div class="owner-gate" id="ownerSettings" hidden><form class="owner-card" id="ownerSettingsForm"><h2>Owner account settings</h2><p>Use your current credentials to update the shared login. The new password must be at least 12 characters.</p><label>Current username<input id="ownerCurrentUsername" autocomplete="username" required></label><label>Current password<input id="ownerCurrentPassword" type="password" autocomplete="current-password" required></label><label>New username<input id="ownerNewUsername" autocomplete="username" required></label><label>New password<input id="ownerNewPassword" type="password" autocomplete="new-password" minlength="12" required></label><button class="owner-primary" type="submit">Save account changes</button><button type="button" id="ownerSettingsCancel" style="width:100%;margin-top:8px">Cancel</button><div class="owner-error" id="ownerSettingsError" role="status"></div></form></div>`;
     document.head.appendChild(style);
@@ -57,7 +57,7 @@
     const services = [
       ['/', 'Home'], ['/watch.html', 'IPTV'], ['/radio.html', 'Radio'],
       ['/movies.html', 'Theatre'], ['/watching.html', 'My Watching'], ['/discover.html', 'Discover'],
-      ['/library.html', 'Library'], ['/admin.html', 'Sources']
+      ['/library.html', 'Library']
     ];
     const currentPath = location.pathname.endsWith('/') ? location.pathname.slice(0, -1) || '/' : location.pathname;
     for (const [href, label] of services) {
@@ -108,9 +108,17 @@
         if (!result.items.length) { list.innerHTML = '<li>No watch or listening history yet. Start a channel or station and it will appear here.</li>'; return; }
         for (const item of result.items) {
           const li = document.createElement('li');
-          const title = document.createElement('strong'); title.textContent = item.title;
+          const title = document.createElement('strong'); title.textContent = (item.pinned ? '📌 ' : '') + item.title;
           const meta = document.createElement('small'); meta.textContent = item.type.toUpperCase() + ' · ' + (item.action === 'listen' ? 'Listened' : 'Watched') + ' · ' + new Date(item.updatedAt).toLocaleString();
-          li.append(title, meta); if (item.subtitle) { const sub = document.createElement('div'); sub.textContent = item.subtitle; li.append(sub); } list.append(li);
+          li.append(title, meta); if (item.subtitle) { const sub = document.createElement('div'); sub.textContent = item.subtitle; li.append(sub); }
+          const actions = document.createElement('div'); actions.className = 'history-actions';
+          const resume = document.createElement('button'); resume.type = 'button'; resume.textContent = 'Continue';
+          resume.addEventListener('click', () => { const target = item.url && /^https?:\/\//i.test(item.url) ? item.url : (item.type === 'radio' ? '/radio.html' : item.type === 'iptv' ? '/watch.html' : '/movies.html'); location.href = target; });
+          const pin = document.createElement('button'); pin.type = 'button'; pin.textContent = item.pinned ? 'Unpin' : 'Pin';
+          pin.addEventListener('click', async () => { try { await api('/api/account/history/' + encodeURIComponent(item.id), { method: 'PATCH', body: JSON.stringify({ pinned: !item.pinned }) }); await showHistory(); } catch (error) { alert(error.message); } });
+          const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Delete';
+          remove.addEventListener('click', async () => { if (!confirm('Delete this history item?')) return; try { await api('/api/account/history/' + encodeURIComponent(item.id), { method: 'DELETE' }); await showHistory(); } catch (error) { alert(error.message); } });
+          actions.append(resume, pin, remove); li.append(actions); list.append(li);
         }
       } catch (error) { list.innerHTML = ''; const li = document.createElement('li'); li.textContent = error.message; list.append(li); }
     }
