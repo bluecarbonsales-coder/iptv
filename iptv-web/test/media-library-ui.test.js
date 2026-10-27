@@ -13,7 +13,7 @@ test('Media Library exposes search but keeps source import and manual URL saving
   assert.match(html, /id="searchForm"/);
   assert.match(html, /PRIVATE SOURCE SETTINGS/);
   assert.doesNotMatch(html, /id="m3uForm"|id="playlistUrl"|id="saveForm"|id="savedUrl"/);
-  assert.doesNotMatch(html, /href="\\/sources\\.html"/);
+  assert.doesNotMatch(html, /sources\.html/);
 });
 test('server registers authenticated library endpoints and indexes discovered VOD results', () => {
   assert.match(server, /app\.get\('\/api\/library', api\.librarySearch\)/);
