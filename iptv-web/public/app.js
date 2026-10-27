@@ -646,7 +646,8 @@
     if (!relay) showOverlay(t('connecting') + ' (direct — CORS may block this)', true);
     else showOverlay(t('connecting'), true);
 
-    const directFile = /\.(mp4|m4v|webm|mov|ogv|ogg|mp3|aac)(?:$|[?#])/i.test(src.url);
+    // Treat known non-HLS media containers as files so they are not incorrectly passed to hls.js as manifests. Actual codec/container support still depends on the browser.
+    const directFile = /\.(mp4|m4v|webm|mov|ogv|ogg|mp3|aac|m4a|wav|oga|opus|mkv|avi|flv|wmv|mpeg|mpg|3gp|m2ts|ts)(?:$|[?#])/i.test(src.url);
     const probeVideo = document.createElement('video');
     const nativeHls = !directFile && !!probeVideo.canPlayType('application/vnd.apple.mpegurl');
     if (!window.DPlayer) {
