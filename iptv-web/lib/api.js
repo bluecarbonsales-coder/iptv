@@ -1,5 +1,5 @@
 'use strict';
-// JSON API + M3U export over the catalog.
+// JSON API for the catalogue and playback relay; playlist export is disabled.
 const { sendJson, escapeXml } = require('./util');
 const { Catalog } = require('./catalog');
 const { upstreamFetch, bodyToString } = require('./fetch-upstream');
@@ -769,37 +769,6 @@ function createApi(catalog, refresh, dataDir) {
     res.end(lines.join('\n') + '\n');
   };
 
-  const exportM3u = (req, res, params, query) => {
-    if (!catalog.ready) {
-      res.writeHead(503, { 'Content-Type': 'text/plain' });
-      return res.end('catalog not ready\n');
-    }
-    const origin = baseUrl(req);
-    const hits = catalog.filterAll(Object.assign({}, query, { ids: query.ids || '' }));
-    const lines = ['#EXTM3U'];
-    for (const c of hits) {
-      const group = (c.cats || [])[0] || 'Uncategorised';
-      const logo = c.logo ? `${origin}/img?u=${encodeURIComponent(c.logo)}` : '';
-      for (const s of c.streams || []) {
-        const p = new URLSearchParams({ u: s.u });
-        if (s.r) p.set('r', s.r);
-        if (s.ua) p.set('ua', s.ua);
-        const outUrl = query.proxy === '1' ? `${origin}/hls?${p.toString()}` : s.u;
-        lines.push(
-          `#EXTINF:-1 tvg-id="${escapeXml(c.id)}" tvg-logo="${escapeXml(logo)}" group-title="${escapeXml(group)}",${c.name}${s.q ? ` (${s.q})` : ''}`
-        );
-        if (s.r) lines.push(`#EXTVLCOPT:http-referrer=${s.r}`);
-        if (s.ua) lines.push(`#EXTVLCOPT:http-user-agent=${s.ua}`);
-        lines.push(outUrl);
-      }
-    }
-    res.writeHead(200, {
-      'Content-Type': 'audio/x-mpegurl; charset=utf-8',
-      'Content-Disposition': 'attachment; filename="playlist.m3u"',
-      'Access-Control-Allow-Origin': '*',
-    });
-    res.end(lines.join('\n') + '\n');
-  };
 
   const health = (req, res) => {
     sendJson(req, res, catalog.ready ? 200 : 503, {
@@ -973,7 +942,7 @@ function createApi(catalog, refresh, dataDir) {
     });
   };
 
-  return { meta, channels, channel, refreshNow, playlist, playlistProxied, exportM3u, health, sourceList, addSource, updateSource, deleteSource, enableAllSources, listVodSources, addVodSource, importVodSourceList, updateVodSource, deleteVodSource, enableAllVodSources, vodSearch, vodSearchLegacy, vodDetail, vodCatalogState, vodProviders, vodCatalogRefresh, librarySearch, libraryStats, saveLibraryItem, deleteLibraryItem, clearVodCache: () => vodSearchCache.clear() };
+  return { meta, channels, channel, refreshNow, playlist, playlistProxied, health, sourceList, addSource, updateSource, deleteSource, enableAllSources, listVodSources, addVodSource, importVodSourceList, updateVodSource, deleteVodSource, enableAllVodSources, vodSearch, vodSearchLegacy, vodDetail, vodCatalogState, vodProviders, vodCatalogRefresh, librarySearch, libraryStats, saveLibraryItem, deleteLibraryItem, clearVodCache: () => vodSearchCache.clear() };
 }
 
 module.exports = { createApi };
