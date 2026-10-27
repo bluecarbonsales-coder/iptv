@@ -10,8 +10,8 @@
 //   GET  /api/meta             facets: countries, categories, qualities, counts
 //   GET  /api/channels         ?q=&country=&category=&minQuality=&nsfw=&page=&limit=&sort=
 //   GET  /api/channel/:id      full record incl. every stream URL
-//   GET  /api/playlist         ?u=<m3u url>   import an external playlist (server-side fetch)
-//   GET  /api/playlist.m3u     ?u=<m3u url>   same playlist, rewritten through /hls
+//   GET  /api/playlist         ?u=<m3u url>   owner-authenticated playlist import
+//   GET  /api/playlist.m3u     disabled: playlist downloads are not permitted
 //   GET  /api/export.m3u       disabled: media playlist export is not permitted
 //   POST /api/refresh          re-download the iptv-org API and rebuild the catalogue
 //   GET  /hls?u=&r=&ua=        HLS manifest + segment relay (CORS / mixed content / geo fix)
