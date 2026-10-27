@@ -105,7 +105,7 @@ button, input, select { font: inherit; color: inherit; }
 .icon-btn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 /* ---------- layout ---------- */
-.layout { display: grid; grid-template-columns: var(--side-w) 1fr; align-items: start; gap: 0; margin-top: var(--header-h); }
+.layout { display: grid; grid-template-columns: var(--side-w) 1fr; align-items: start; gap: 0; }
 .sidebar {
   position: sticky;
   top: var(--header-h);
@@ -313,7 +313,7 @@ select option { background: var(--bg-2); }
 .vod-record:hover { text-decoration: underline; }
 
 /* Keep the channel player inline in the page instead of a full-screen popup. */
-.player { position: relative; inset: auto; z-index: 1; width: 100%; padding: 14px 0 26px; background: transparent; backdrop-filter: none; display: block; }
+.player { position: sticky; top: var(--header-h); inset: auto; z-index: 35; width: 100%; padding: 8px; margin: 0; background: rgba(8, 9, 13, .97); backdrop-filter: blur(16px); display: block; border-bottom: 1px solid #e8c78b30; }
 .player-shell { width: min(1180px, 100%); max-height: none; margin: 0 auto; box-shadow: var(--shadow); }
 .video-wrap { max-height: 72vh; }
 .video-wrap video { max-height: 72vh; }
@@ -347,4 +347,4 @@ select option { background: var(--bg-2); }
 .topbar .tab.active { color: #17130b; background: var(--accent); border-color: var(--accent); }
 .topbar .tab:hover, .topbar .icon-btn:hover { border-color: #e8c78b80; color: #f5deb0; }
 .player-shell { border-color: #e8c78b30; }
-@media (max-width: 900px) { .layout { margin-top: var(--header-h); } .player { padding: 8px; } }
+@media (max-width: 900px) { .layout { margin-top: 0; } .player { padding: 8px; } }
