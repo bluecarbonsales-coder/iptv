@@ -24,6 +24,12 @@ test('Theatre keeps playback source and episode controls visible beside the play
   assert.match(theatreHtml, /@media\(max-width:760px\)/);
 });
 
+test('Theatre provider selector requests the selected provider from the server', () => {
+  assert.match(theatreHtml, /p\\.set\\('sourceId',state\\.sourceFilter\\)/);
+  assert.match(theatreHtml, /providerOptions/);
+  assert.match(theatreHtml, /state\\.sourceFilter=state\\.sourceFilter/);
+});
+
 test('Theatre does not render or load the unwanted preference-sharing section', () => {
   assert.doesNotMatch(theatreHtml, /visitor-discovery\.js/i);
   assert.doesNotMatch(theatreHtml, /Improve local resource discovery/i);
