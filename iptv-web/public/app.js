@@ -579,7 +579,7 @@
     }
     const sel = $('#pSource');
     sel.innerHTML = player.sources
-       .map((s, i) => `<option value="${i}">${i + 1}. ${esc(s.title || s.quality || 'auto')}${s.labels && s.labels.length ? ' · ' + esc(s.labels.join('/')) : ''} — ${esc((s.url || '').slice(0, 58))}</option>`)
+       .map((s, i) => `<option value="${i}">${i + 1}. ${esc(s.title || s.quality || 'auto')}${s.labels && s.labels.length ? ' · ' + esc(s.labels.join('/')) : ''}</option>`)
       .join('');
     sel.value = '0';
     pushRecent(item.id);
@@ -1050,17 +1050,6 @@
     $('#pClose').onclick = closePlayer;
     $('#pFav').onclick = () => player.item && toggleFav(player.item.id);
     $('#pReload').onclick = () => play(player.index);
-    $('#pCopy').onclick = async () => {
-      const src = player.sources[player.index];
-      if (!src) return;
-      const url = $('#pProxy').checked ? location.origin + proxyUrl(src) : src.url;
-      try {
-        await navigator.clipboard.writeText(url);
-        toast(t('copied'));
-      } catch {
-        prompt('Stream URL', url);
-      }
-    };
     $('#pSource').addEventListener('change', (e) => play(parseInt(e.target.value, 10) || 0));
     $('#pQuality').addEventListener('change', (e) => {
       if (player.hls) {
