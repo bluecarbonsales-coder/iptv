@@ -434,8 +434,8 @@ app.patch('/api/vod/sources/:id', adminRoute(api.updateVodSource));
 app.delete('/api/vod/sources/:id', adminRoute(api.deleteVodSource));
 app.get('/api/library', api.librarySearch);
 app.get('/api/library/stats', api.libraryStats);
-app.post('/api/library/items', api.saveLibraryItem);
-app.delete('/api/library/items/:id', api.deleteLibraryItem);
+app.post('/api/library/items', adminRoute(api.saveLibraryItem));
+app.delete('/api/library/items/:id', adminRoute(api.deleteLibraryItem));
 // Theatre catalogue: browsable, paginated metadata index built from every enabled
 // provider (paged harvest) plus the open-licence Internet Archive collections.
 app.get('/api/vod/catalog', api.vodCatalogState);
@@ -449,7 +449,7 @@ app.delete('/api/sources/:id', adminRoute(api.deleteSource));
 app.get('/api/channels', api.channels);
 app.get('/api/channel/:id', api.channel);
 app.get('/api/playlist.m3u', mediaExportDisabled);
-app.get('/api/playlist', api.playlist);
+app.get('/api/playlist', adminRoute(api.playlist));
 app.get('/api/export.m3u', mediaExportDisabled);
 app.post('/api/refresh', refreshGuard);
 app.get('/hls', hls.handler);
@@ -589,7 +589,7 @@ app.put('/api/v1/settings/media', adminRoute(async (req, res) => {
 app.get('/api/v1/iptv/meta', api.meta);
 app.get('/api/v1/iptv/channels', api.channels);
 app.get('/api/v1/iptv/channels/:id', api.channel);
-app.get('/api/v1/iptv/playlist', api.playlist);
+app.get('/api/v1/iptv/playlist', adminRoute(api.playlist));
 app.get('/api/v1/iptv/playlist.m3u', mediaExportDisabled);
 app.get('/api/v1/iptv/export.m3u', mediaExportDisabled);
 app.get('/api/v1/iptv/hls', hls.handler);
