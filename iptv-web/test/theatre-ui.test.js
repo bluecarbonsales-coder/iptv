@@ -11,7 +11,7 @@ test('Theatre keeps playback source and episode controls visible beside the play
   assert.match(theatreHtml, /id="playerTools"[^>]*aria-label="Playback settings and episode list"/);
   assert.doesNotMatch(theatreHtml, /id="playerTools"[^>]*hidden/);
   assert.match(theatreHtml, /id="sourceSelect"/);
-  assert.match(theatreHtml, /\.player-modal\.show\{display:flex;position:fixed;inset:70px 0 0/);
+  assert.match(theatreHtml, /\.player-modal\.show\{display:flex;position:sticky;top:70px/);
   assert.match(theatreHtml, /id="playerToolsToggle"[^>]*aria-expanded="true"/);
   assert.match(theatreHtml, /id="playerToolsToggle"[^>]*aria-controls="playerTools"/);
   assert.match(theatreHtml, /function setPlayerTools\(open\)/);
@@ -24,6 +24,10 @@ test('Theatre keeps playback source and episode controls visible beside the play
   assert.match(theatreHtml, /@media\(max-width:760px\)/);
 });
 
+test('Theatre provider selector requests the selected provider from the server', () => {
+  assert.match(theatreHtml, /p\.set\('sourceId',state\.sourceFilter\)/);
+  assert.match(theatreHtml, /providerOptions/);
+});
 test('Theatre does not render or load the unwanted preference-sharing section', () => {
   assert.doesNotMatch(theatreHtml, /visitor-discovery\.js/i);
   assert.doesNotMatch(theatreHtml, /Improve local resource discovery/i);
