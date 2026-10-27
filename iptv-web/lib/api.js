@@ -1,5 +1,5 @@
 'use strict';
-// JSON API + M3U export over the catalog.
+// JSON API for the catalogue and playback relay; playlist export is disabled.
 const { sendJson, escapeXml } = require('./util');
 const { Catalog } = require('./catalog');
 const { upstreamFetch, bodyToString } = require('./fetch-upstream');
@@ -606,6 +606,7 @@ function createApi(catalog, refresh, dataDir) {
       pages: 1,
       items: unique.slice(0, 240),
       providers: providerSummary,
+      providerOptions: sources.map((source) => ({ id: String(source.id), name: String(source.name) })).concat((!['series', 'documentary'].includes(kind) ? [{ id: 'archive', name: 'Internet Archive (open-license fallback)' }] : [])),
       filteredShortForm,
       errors,
     };
@@ -768,37 +769,6 @@ function createApi(catalog, refresh, dataDir) {
     res.end(lines.join('\n') + '\n');
   };
 
-  const exportM3u = (req, res, params, query) => {
-    if (!catalog.ready) {
-      res.writeHead(503, { 'Content-Type': 'text/plain' });
-      return res.end('catalog not ready\n');
-    }
-    const origin = baseUrl(req);
-    const hits = catalog.filterAll(Object.assign({}, query, { ids: query.ids || '' }));
-    const lines = ['#EXTM3U'];
-    for (const c of hits) {
-      const group = (c.cats || [])[0] || 'Uncategorised';
-      const logo = c.logo ? `${origin}/img?u=${encodeURIComponent(c.logo)}` : '';
-      for (const s of c.streams || []) {
-        const p = new URLSearchParams({ u: s.u });
-        if (s.r) p.set('r', s.r);
-        if (s.ua) p.set('ua', s.ua);
-        const outUrl = query.proxy === '1' ? `${origin}/hls?${p.toString()}` : s.u;
-        lines.push(
-          `#EXTINF:-1 tvg-id="${escapeXml(c.id)}" tvg-logo="${escapeXml(logo)}" group-title="${escapeXml(group)}",${c.name}${s.q ? ` (${s.q})` : ''}`
-        );
-        if (s.r) lines.push(`#EXTVLCOPT:http-referrer=${s.r}`);
-        if (s.ua) lines.push(`#EXTVLCOPT:http-user-agent=${s.ua}`);
-        lines.push(outUrl);
-      }
-    }
-    res.writeHead(200, {
-      'Content-Type': 'audio/x-mpegurl; charset=utf-8',
-      'Content-Disposition': 'attachment; filename="playlist.m3u"',
-      'Access-Control-Allow-Origin': '*',
-    });
-    res.end(lines.join('\n') + '\n');
-  };
 
   const health = (req, res) => {
     sendJson(req, res, catalog.ready ? 200 : 503, {
@@ -870,13 +840,14 @@ function createApi(catalog, refresh, dataDir) {
   const vodSearch = async (req, res, params, query) => {
     const kind = BROWSE_KINDS_LIB.includes(query.type) || query.type === 'all' ? query.type : 'all';
     const term = String(query.q || '').trim().slice(0, 120);
+    const sourceId = String(query.sourceId || '').trim().slice(0, 100);
     const limit = Math.max(1, Math.min(120, Number.parseInt(query.limit, 10) || 24));
     const requestedPage = Math.max(1, Number.parseInt(query.page, 10) || 1);
     const started = Date.now();
     const health = catalogLib.state(sourceDataDir);
     const registry = vodLib.loadSourcesSync(sourceDataDir);
     const enabled = (registry.sources || []).filter((source) => source.enabled !== false);
-    const index = catalogLib.browse(sourceDataDir, { kind, q: term, page: 1, limit: 120 });
+    const index = catalogLib.browse(sourceDataDir, { kind, q: term, sourceId, page: 1, limit: 120 });
 
     let items = index.items;
     let total = index.total;
@@ -888,7 +859,7 @@ function createApi(catalog, refresh, dataDir) {
     if (term) {
       // An explicit search still consults the providers (and the Archive) live, then
       // stores what it found so the next lookup is served from the index.
-      const liveSources = enabled.filter((source) => kind === 'all' || source.kind === kind || source.kind === 'all');
+      const liveSources = enabled.filter((source) => (!sourceId || String(source.id) === sourceId) && (kind === 'all' || source.kind === kind || source.kind === 'all'));
       const live = await catalogLib.searchProviders(liveSources, term, { page: 1 });
       const merged = [];
       const seen = new Set();
@@ -899,7 +870,7 @@ function createApi(catalog, refresh, dataDir) {
         push(catalogLib.catalogueItem(item, item.kind));
       }
       let archiveCount = 0;
-      if (!['series', 'documentary'].includes(kind)) {
+      if ((!sourceId || sourceId === 'archive') && !['series', 'documentary'].includes(kind)) {
         try {
           const found = await archiveLib.search(term, kind === 'all' ? 'all' : kind, 30);
           for (const found1 of found) {
@@ -936,12 +907,10 @@ function createApi(catalog, refresh, dataDir) {
       }
       if (archiveCount) providers = providers.concat([{ name: 'Internet Archive (open-license fallback)', ok: true, available: true, broken: false, slow: false, ms: null, received: archiveCount, count: archiveCount, error: null, checkedAt: new Date().toISOString() }]);
     } else if (index.total === 0) {
-      // Nothing indexed yet (first boot, wiped index, first deploy on a new volume):
-      // answer like the classic live search instead of an empty Theatre, and build the
-      // index in the background so the next page load is served from it. vodSearchLegacy
-      // is the original implementation, kept verbatim for exactly this cold-start case.
+      // Build an empty catalogue in the background. Only fall back to mixed live search
+      // when no provider was selected; a provider-specific request must stay scoped.
       catalogLib.ensureFresh(sourceDataDir).catch(() => {});
-      return vodSearchLegacy(req, res, params, query);
+      if (!sourceId) return vodSearchLegacy(req, res, params, query);
     } else if (catalogLib.isStale(sourceDataDir)) {
       // Stale but populated: answer immediately from the index and rebuild in the
       // background (single flight, results land in the next page load).
@@ -957,6 +926,7 @@ function createApi(catalog, refresh, dataDir) {
       limit,
       items: items.slice((page - 1) * limit, page * limit),
       providers,
+      providerOptions: enabled.filter((source) => kind === 'all' || source.kind === kind || source.kind === 'all').map((source) => ({ id: String(source.id), name: String(source.name) })).concat((!['series', 'documentary'].includes(kind) ? [{ id: 'archive', name: 'Internet Archive (open-license fallback)' }] : [])),
       filteredShortForm,
       errors,
       tookMs: Date.now() - started,
@@ -972,7 +942,7 @@ function createApi(catalog, refresh, dataDir) {
     });
   };
 
-  return { meta, channels, channel, refreshNow, playlist, playlistProxied, exportM3u, health, sourceList, addSource, updateSource, deleteSource, enableAllSources, listVodSources, addVodSource, importVodSourceList, updateVodSource, deleteVodSource, enableAllVodSources, vodSearch, vodSearchLegacy, vodDetail, vodCatalogState, vodProviders, vodCatalogRefresh, librarySearch, libraryStats, saveLibraryItem, deleteLibraryItem, clearVodCache: () => vodSearchCache.clear() };
+  return { meta, channels, channel, refreshNow, playlist, playlistProxied, health, sourceList, addSource, updateSource, deleteSource, enableAllSources, listVodSources, addVodSource, importVodSourceList, updateVodSource, deleteVodSource, enableAllVodSources, vodSearch, vodSearchLegacy, vodDetail, vodCatalogState, vodProviders, vodCatalogRefresh, librarySearch, libraryStats, saveLibraryItem, deleteLibraryItem, clearVodCache: () => vodSearchCache.clear() };
 }
 
 module.exports = { createApi };
