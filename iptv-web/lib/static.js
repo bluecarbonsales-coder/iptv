@@ -8,6 +8,21 @@ const { send } = require('./util');
 
 const COMPRESSIBLE = /^(text|application\/(json|javascript|manifest\+json)|image\/svg)/;
 
+// ?v=<mtime> for root-absolute script/stylesheet references, so a deploy invalidates the URL a
+// browser already holds. References that do not resolve to a file under public/ are left alone.
+const ASSET_REF = /(\s(?:src|href)=["'])(\/(?!\/)[^"'?#]+\.(?:js|css))(["'])/g;
+function stampAssets(html, rootDir) {
+  return html.replace(ASSET_REF, (match, pre, url, post) => {
+    try {
+      const abs = path.join(rootDir, url.replace(/^\/+/, ''));
+      if (!abs.startsWith(rootDir)) return match;
+      return `${pre}${url}?v=${Math.round(fs.statSync(abs).mtimeMs)}${post}`;
+    } catch {
+      return match;
+    }
+  });
+}
+
 function serveStatic(rootDir, options = {}) {
   const gzCache = new Map();
   return async function (req, res) {
@@ -38,8 +53,13 @@ function serveStatic(rootDir, options = {}) {
 
     const type = mimeFor(abs);
     const etag = `W/"${stat.size}-${stat.mtimeMs}"`;
+    // Code and markup must not outlive a deploy in browser caches: /app.js used to carry
+    // max-age=86400, so a fixed player kept serving the broken file for a day after the fix.
+    // These revalidate (the ETag above still answers 304 when nothing changed); images, fonts
+    // and vendored bundles keep the long cache.
+    const revalidate = /^text\/html/.test(type) || /\.(?:js|css|json|webmanifest|map)$/i.test(abs);
     const headers = {
-      'Cache-Control': /(?:index|watch)\.html$/.test(abs) ? 'no-cache' : 'public, max-age=86400',
+      'Cache-Control': revalidate ? 'no-cache' : 'public, max-age=86400',
       ETag: etag,
       'Last-Modified': stat.mtime.toUTCString(),
       'Access-Control-Allow-Origin': '*',
@@ -50,13 +70,22 @@ function serveStatic(rootDir, options = {}) {
     }
     headers['Content-Type'] = type;
 
+    const body = /^text\/html/.test(type)
+      ? Buffer.from(stampAssets(fs.readFileSync(abs, 'utf8'), rootDir))
+      : null;
+    const size = body ? body.length : stat.size;
+
     const useGzip = options.gzip !== false && COMPRESSIBLE.test(type) && /gzip/.test(req.headers['accept-encoding'] || '');
-    if (useGzip && stat.size > 800) {
-      let buf = gzCache.get(etag);
+    if (useGzip && size > 800) {
+      // Stamped HTML is deliberately not cached here: its bytes also depend on the assets'
+      // mtimes, which this page's etag does not cover. Pages are ~10 KB, so re-gzipping is free.
+      let buf = body ? null : gzCache.get(etag);
       if (!buf) {
-        buf = zlib.gzipSync(fs.readFileSync(abs), { level: 6 });
-        if (gzCache.size > 60) gzCache.clear();
-        gzCache.set(etag, buf);
+        buf = zlib.gzipSync(body || fs.readFileSync(abs), { level: 6 });
+        if (!body) {
+          if (gzCache.size > 60) gzCache.clear();
+          gzCache.set(etag, buf);
+        }
       }
       headers['Content-Encoding'] = 'gzip';
       headers['Vary'] = 'Accept-Encoding';
@@ -64,10 +93,10 @@ function serveStatic(rootDir, options = {}) {
       res.writeHead(200, headers);
       return res.end(req.method === 'HEAD' ? undefined : buf);
     }
-    headers['Content-Length'] = stat.size;
+    headers['Content-Length'] = size;
     res.writeHead(200, headers);
     if (req.method === 'HEAD') return res.end();
-    return fs.createReadStream(abs).pipe(res);
+    return body ? res.end(body) : fs.createReadStream(abs).pipe(res);
   };
 }
 
