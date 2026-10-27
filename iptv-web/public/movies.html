@@ -130,7 +130,7 @@ async function load(page){
     }
     // When provider catalogues are empty, keep the screen useful with TMDB discovery/search.
     // These are metadata records only; they are never falsely presented as playable streams.
-    if(!state.items.length && state.kind!=='favorites'){
+    if(!state.items.length && state.kind!=='favorites' && !state.sourceFilter){
       try{
         const metaUrl=state.q
           ? '/api/metadata/search?'+new URLSearchParams({q:state.q,page:'1'}).toString()
