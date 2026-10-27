@@ -36,6 +36,7 @@ const sourceLib = require('./lib/sources');
 const vodLib = require('./lib/vod');
 const platformApiDocs = require('./lib/platform-api-docs');
 const hls = require('./lib/hls');
+const transcode = require('./lib/transcode');
 const img = require('./lib/img');
 const refreshLib = require('./lib/refresh');
 const { createAutomation } = require('./lib/automation');
@@ -453,6 +454,7 @@ app.get('/api/playlist', adminRoute(api.playlist));
 app.get('/api/export.m3u', mediaExportDisabled);
 app.post('/api/refresh', refreshGuard);
 app.get('/hls', hls.handler);
+app.get('/transcode', adminRoute(transcode.handler));
 app.head('/hls', hls.handler);
 app.get('/img', img.handler);
 

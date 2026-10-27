@@ -79,7 +79,7 @@
             <span data-i18n="quality">Quality</span>
             <select id="pQuality"><option value="-1">Auto</option></select>
           </label>
-          <label class="inline check"><input type="checkbox" id="pProxy" checked /> <span data-i18n="relay">Relay</span></label>
+          <label class="inline check" data-owner-only hidden><input type="checkbox" id="pProxy" checked /> <span data-i18n="relay">Relay</span></label>
           <div class="p-labels" id="pLabels"></div>
           <div class="p-status" id="pStatus"></div>
         </div>
@@ -151,10 +151,10 @@
           <a class="btn" href="/admin.html">Open source settings</a>
         </div>
 
-        <div class="side-block">
-          <div class="side-head"><span data-i18n="playback">Playback</span></div>
+        <div class="side-block" data-owner-only hidden>
+          <div class="side-head"><span data-i18n="playback">Playback &amp; proxy</span></div>
           <label class="check"><input type="checkbox" id="optProxy" checked /> <span data-i18n="useProxy">Relay through this server (fixes CORS &amp; blocked streams)</span></label>
-          <p class="hint" id="proxyNote"></p>
+          <p class="hint" id="proxyNote">Available after owner sign-in. Relaying makes the server connect to the provider; it does not make the provider see the viewer’s IP.</p>
         </div>
 
         <div class="side-block side-meta" id="metaBlock"></div>

@@ -155,6 +155,7 @@
       try { await api('/api/account/logout', { method: 'POST', body: '{}' }); } catch {}
       $('ownerPassword').value = '';
       await refresh();
+      window.dispatchEvent(new CustomEvent('owner:logged-out'));
     });
     $('ownerChange').addEventListener('click', () => {
       $('ownerMenu').hidden = true;

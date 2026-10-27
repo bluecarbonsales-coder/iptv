@@ -633,8 +633,10 @@
     player.index = index;
     destroyHls();
     destroyDPlayer();
-    const relay = $('#pProxy').checked;
-    const target = relay ? proxyUrl(src) : src.url;
+    const proxyControl = $('#pProxy').closest('[data-owner-only]');
+    const relay = $('#pProxy').checked && Boolean(proxyControl && !proxyControl.hidden);
+    const needsTranscode = relay && /\.(mkv|avi|flv|wmv|mpeg|mpg|m2v|3gp|vob)(?:$|[?#])/i.test(src.url);
+    const target = relay ? (needsTranscode ? '/transcode?' + new URLSearchParams({ u: src.url }) : proxyUrl(src)) : src.url;
     $('#pQuality').innerHTML = '<option value="-1">Auto</option>';
     setStatus(src.quality ? `${src.quality} · ${relay ? 'relay' : 'direct'}` : relay ? 'relay' : 'direct');
 
@@ -646,7 +648,8 @@
     if (!relay) showOverlay(t('connecting') + ' (direct — CORS may block this)', true);
     else showOverlay(t('connecting'), true);
 
-    const directFile = /\.(mp4|m4v|webm|mov|ogv|ogg|mp3|aac)(?:$|[?#])/i.test(src.url);
+    // Treat known non-HLS media containers as files so they are not incorrectly passed to hls.js as manifests. Actual codec/container support still depends on the browser.
+    const directFile = /\.(mp4|m4v|webm|mov|ogv|ogg|mp3|aac|m4a|wav|oga|opus|mkv|avi|flv|wmv|mpeg|mpg|3gp|m2ts|ts)(?:$|[?#])/i.test(src.url);
     const probeVideo = document.createElement('video');
     const nativeHls = !directFile && !!probeVideo.canPlayType('application/vnd.apple.mpegurl');
     if (!window.DPlayer) {
@@ -970,6 +973,9 @@
       $('#pProxy').checked = state.proxy;
       updateProxyNote();
     });
+    window.addEventListener('owner:authenticated', () => { if (player.item) play(player.index); });
+    window.addEventListener('owner:logged-out', () => { if (player.item) play(player.index); });
+
     $('#pProxy').addEventListener('change', (e) => {
       state.proxy = e.target.checked;
       $('#optProxy').checked = state.proxy;
