@@ -51,7 +51,7 @@
     const root = document.createElement('div');
     root.id = 'ownerAccountRoot';
     root.innerHTML = `
-      <div class="owner-bar" id="ownerBar" hidden><button type="button" class="owner-signin" id="ownerSignIn" aria-label="Private owner access" title="Private owner access" aria-expanded="false">⚙</button><div class="owner-menu" id="ownerMenu" hidden><span class="owner-pill" id="ownerLabel" hidden>Signed in</span><button type="button" id="ownerHistoryButton" hidden>History</button><button type="button" id="ownerChange" hidden>All settings</button><button type="button" id="ownerLogout" hidden>Sign out</button></div></div>
+      <div class="owner-bar" id="ownerBar" hidden><button type="button" class="owner-signin" id="ownerSignIn" aria-label="Private owner access" title="Private owner access" aria-expanded="false">⚙</button><div class="owner-menu" id="ownerMenu" hidden><span class="owner-pill" id="ownerLabel" hidden>Signed in</span><button type="button" id="ownerHistoryButton" hidden>History</button><button type="button" id="ownerAdmin" hidden>Manage all services</button><button type="button" id="ownerChange" hidden>Account credentials</button><button type="button" id="ownerLogout" hidden>Sign out</button></div></div>
       <div class="owner-gate" id="ownerGate" hidden><form class="owner-card" id="ownerLoginForm"><h2>Welcome back</h2><p>Sign in once to access IPTV, Radio, Theatre and owner settings.</p><label>Username<input id="ownerUsername" autocomplete="username" required></label><label>Password<input id="ownerPassword" type="password" autocomplete="current-password" required></label><button class="owner-primary" type="submit">Sign in</button><div class="owner-error" id="ownerLoginError" role="status"></div><p style="font-size:12px">First installation uses the configured ADMIN_USERNAME and ADMIN_PASSWORD. Change them after signing in.</p></form></div>
       <div class="owner-gate" id="ownerHistoryPanel" hidden><section class="owner-card"><h2>Your media history</h2><p>Saved to this server and shared across IPTV, Radio and Theatre.</p><ul class="owner-history-list" id="ownerHistoryList"><li>Loading…</li></ul><button type="button" id="ownerHistoryClose" style="width:100%">Close</button></section></div><div class="owner-gate" id="ownerSettings" hidden><form class="owner-card" id="ownerSettingsForm"><h2>Owner account settings</h2><p>Use your current credentials to update the shared login. The new password must be at least 12 characters.</p><label>Current username<input id="ownerCurrentUsername" autocomplete="username" required></label><label>Current password<input id="ownerCurrentPassword" type="password" autocomplete="current-password" required></label><label>New username<input id="ownerNewUsername" autocomplete="username" required></label><label>New password<input id="ownerNewPassword" type="password" autocomplete="new-password" minlength="12" required></label><button class="owner-primary" type="submit">Save account changes</button><button type="button" id="ownerSettingsCancel" style="width:100%;margin-top:8px">Cancel</button><div class="owner-error" id="ownerSettingsError" role="status"></div></form></div>`;
     document.head.appendChild(style);
@@ -109,6 +109,7 @@
         $('ownerMenu').hidden = true;
         $('ownerLabel').hidden = !authenticated;
         $('ownerHistoryButton').hidden = !authenticated;
+        $('ownerAdmin').hidden = !authenticated;
         $('ownerChange').hidden = !authenticated;
         $('ownerLogout').hidden = !authenticated;
         $('ownerLabel').textContent = authenticated ? 'Signed in · ' + username : '';
@@ -123,6 +124,7 @@
         $('ownerMenu').hidden = true;
         $('ownerLabel').hidden = true;
         $('ownerHistoryButton').hidden = true;
+        $('ownerAdmin').hidden = true;
         $('ownerChange').hidden = true;
         $('ownerLogout').hidden = true;
         syncOwnerOnly(false);
@@ -142,6 +144,7 @@
     $('ownerSignIn').addEventListener('click', () => { if (username) { $('ownerMenu').hidden = !$('ownerMenu').hidden; $('ownerSignIn').setAttribute('aria-expanded', String(!$('ownerMenu').hidden)); } else { gate.hidden = false; $('ownerUsername').focus(); } });
     $('ownerGate').addEventListener('click', event => { if (event.target === gate) gate.hidden = true; });
     $('ownerHistoryButton').addEventListener('click', () => { $('ownerMenu').hidden = true; showHistory(); });
+    $('ownerAdmin').addEventListener('click', () => { location.href = '/admin.html'; });
     $('ownerHistoryClose').addEventListener('click', () => { $('ownerHistoryPanel').hidden = true; });
     $('ownerLogout').addEventListener('click', async () => {
       $('ownerMenu').hidden = true;
