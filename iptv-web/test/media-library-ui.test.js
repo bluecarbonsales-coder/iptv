@@ -9,21 +9,17 @@ const html = fs.readFileSync(path.join(root, 'public', 'library.html'), 'utf8');
 const server = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
 const api = fs.readFileSync(path.join(root, 'lib', 'api.js'), 'utf8');
 
-test('Media Library page exposes search, M3U import, and persistent direct-link save forms', () => {
+test('Media Library exposes search but keeps source import and manual URL saving private', () => {
   assert.match(html, /id="searchForm"/);
-  assert.match(html, /id="m3uForm"/);
-  assert.match(html, /id="playlistUrl"/);
-  assert.match(html, /id="saveForm"/);
-  assert.match(html, /id="savedUrl"/);
-  assert.match(html, /postJson\('\/api\/sources'/);
-  assert.match(html, /postJson\('\/api\/library\/items'/);
+  assert.match(html, /PRIVATE SOURCE SETTINGS/);
+  assert.doesNotMatch(html, /id="m3uForm"|id="playlistUrl"|id="saveForm"|id="savedUrl"/);
+  assert.doesNotMatch(html, /href="\\/sources\\.html"/);
 });
-
 test('server registers authenticated library endpoints and indexes discovered VOD results', () => {
   assert.match(server, /app\.get\('\/api\/library', api\.librarySearch\)/);
   assert.match(server, /app\.get\('\/api\/library\/stats', api\.libraryStats\)/);
-  assert.match(server, /app\.post\('\/api\/library\/items', api\.saveLibraryItem\)/);
-  assert.match(server, /app\.delete\('\/api\/library\/items\/:id', api\.deleteLibraryItem\)/);
+  assert.match(server, /app\.post\('\/api\/library\/items', adminRoute\(api\.saveLibraryItem\)\)/);
+  assert.match(server, /app\.delete\('\/api\/library\/items\/:id', adminRoute\(api\.deleteLibraryItem\)\)/);
   assert.match(api, /mediaLibrary\.upsert\(sourceDataDir, unique\.map/);
   assert.match(api, /authorizeSourceWrite\(req, res\)/);
 });
