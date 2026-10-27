@@ -635,7 +635,7 @@
     destroyDPlayer();
     const proxyControl = $('#pProxy').closest('[data-owner-only]');
     const relay = $('#pProxy').checked && Boolean(proxyControl && !proxyControl.hidden);
-    const needsTranscode = relay && /\\.(mkv|avi|flv|wmv|mpeg|mpg|m2v|3gp|vob)(?:$|[?#])/i.test(src.url);
+    const needsTranscode = relay && /\.(mkv|avi|flv|wmv|mpeg|mpg|m2v|3gp|vob)(?:$|[?#])/i.test(src.url);
     const target = relay ? (needsTranscode ? '/transcode?' + new URLSearchParams({ u: src.url }) : proxyUrl(src)) : src.url;
     $('#pQuality').innerHTML = '<option value="-1">Auto</option>';
     setStatus(src.quality ? `${src.quality} · ${relay ? 'relay' : 'direct'}` : relay ? 'relay' : 'direct');
