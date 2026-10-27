@@ -25,12 +25,11 @@ test('server registers authenticated library endpoints and indexes discovered VO
 });
 
 test('M3U export routes are disabled and remote playlist parsing is owner-only', () => {
-  assert.match(server, /app\\.get\\('\\/api\\/playlist\\.m3u', mediaExportDisabled\\)/);
-  assert.match(server, /app\\.get\\('\\/api\\/export\\.m3u', mediaExportDisabled\\)/);
-  assert.match(server, /app\\.get\\('\\/api\\/playlist', adminRoute\\(api\\.playlist\\)\\)/);
+  assert.match(server, /app\.get\('\/api\/playlist\.m3u', mediaExportDisabled\)/);
+  assert.match(server, /app\.get\('\/api\/export\.m3u', mediaExportDisabled\)/);
+  assert.match(server, /app\.get\('\/api\/playlist', adminRoute\(api\.playlist\)\)/);
   assert.doesNotMatch(api, /const exportM3u|Content-Disposition/);
 });
-
 test('Theatre navigation links to the persistent Media Library', () => {
   const movies = fs.readFileSync(path.join(root, 'public', 'movies.html'), 'utf8');
   assert.match(movies, /href="\/library\.html"/);
