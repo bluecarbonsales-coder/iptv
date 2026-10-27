@@ -554,7 +554,8 @@ function browse(dataDir, params = {}) {
   const limit = Math.max(1, Math.min(120, Number.parseInt(params.limit, 10) || KIND_DEFAULT_LIMIT));
   const requestedPage = Math.max(1, Number.parseInt(params.page, 10) || 1);
   const all = readIndex(dataDir).filter(isVodItem);
-  const byKind = all.filter((item) => matchesKind(item, kind));
+  const sourceId = String(params.sourceId || '').trim();
+  const byKind = all.filter((item) => matchesKind(item, kind) && (!sourceId || String(item.sourceId || '') === sourceId));
   const hits = words.length
     ? byKind.filter((item) => {
       const haystack = normalizeText([item.name, item.year, item.category, item.overview, item.sourceName].join(' '));
