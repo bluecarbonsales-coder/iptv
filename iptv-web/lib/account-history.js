@@ -23,7 +23,7 @@ function createAccountHistory(dataDir) {
     if (type && !TYPES.has(type)) throw Object.assign(new Error('type must be iptv, radio, or theatre'), { statusCode: 400 });
     const all = read();
     const rows = Array.isArray(all.owner) ? all.owner : [];
-    return rows.filter(item => (!type || item.type === type) && Date.now() - Date.parse(item.updatedAt) < 365 * 86400000);
+    return rows.filter(item => (!type || item.type === type) && Date.now() - Date.parse(item.updatedAt) < 365 * 86400000).sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
   }
   function update(id, patch) {
     const all = read();
