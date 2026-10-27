@@ -145,7 +145,6 @@ async function handler(req, res, params, query) {
         statusText: response.statusText,
         headers: response.headers,
       });
-      upstream.response.url = response.url;
     } catch (err) {
       return fail(res, 502, { error: 'media format detection failed', upstream: url, detail: err.message });
     }
