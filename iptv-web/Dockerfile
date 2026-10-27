@@ -1,5 +1,8 @@
 FROM node:22-alpine
 
+# FFmpeg transcodes legacy containers to broadly supported H.264/AAC fragmented MP4.
+RUN apk add --no-cache ffmpeg
+
 # Install reviewed IMAP, SMTP and MIME packages for the Mail Workspace.
 WORKDIR /app
 COPY package.json ./
