@@ -606,6 +606,7 @@ function createApi(catalog, refresh, dataDir) {
       pages: 1,
       items: unique.slice(0, 240),
       providers: providerSummary,
+      providerOptions: sources.map((source) => ({ id: String(source.id), name: String(source.name) })).concat((!['series', 'documentary'].includes(kind) ? [{ id: 'archive', name: 'Internet Archive (open-license fallback)' }] : [])),
       filteredShortForm,
       errors,
     };
@@ -925,7 +926,7 @@ function createApi(catalog, refresh, dataDir) {
       limit,
       items: items.slice((page - 1) * limit, page * limit),
       providers,
-      providerOptions: enabled.map((source) => ({ id: String(source.id), name: String(source.name) })).concat([{ id: 'archive', name: 'Internet Archive (open-license fallback)' }]),
+      providerOptions: enabled.filter((source) => kind === 'all' || source.kind === kind || source.kind === 'all').map((source) => ({ id: String(source.id), name: String(source.name) })).concat((!['series', 'documentary'].includes(kind) ? [{ id: 'archive', name: 'Internet Archive (open-license fallback)' }] : [])),
       filteredShortForm,
       errors,
       tookMs: Date.now() - started,
