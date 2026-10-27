@@ -485,7 +485,6 @@ function createApi(catalog, refresh, dataDir) {
   const vodSearchLegacy = async (req, res, params, query) => {
     const kind = vodLib.KINDS.has(query.type) ? query.type : 'all';
     const term = String(query.q || '').trim().slice(0, 120);
-    const sourceId = String(query.sourceId || '').trim().slice(0, 100);
     const cacheKey = kind + '\u0000' + term.toLowerCase();
     const cached = vodSearchCache.get(cacheKey);
     if (cached && Date.now() - cached.time < 45000) return sendJson(req, res, 200, cached.payload);
@@ -847,13 +846,12 @@ function createApi(catalog, refresh, dataDir) {
     const health = catalogLib.state(sourceDataDir);
     const registry = vodLib.loadSourcesSync(sourceDataDir);
     const enabled = (registry.sources || []).filter((source) => source.enabled !== false);
-    const sourceIdsByName = new Map((registry.sources || []).map((source) => [String(source.name), String(source.id)]));
     const index = catalogLib.browse(sourceDataDir, { kind, q: term, sourceId, page: 1, limit: 120 });
 
     let items = index.items;
     let total = index.total;
     let pages = index.pages;
-    let providers = (health.providers || []).map((row) => ({ ...providerRowFromHealth(row), id: sourceIdsByName.get(String(row.name)) || (String(row.name).toLowerCase().includes('archive') ? 'archive' : '') }));
+    let providers = (health.providers || []).map(providerRowFromHealth);
     let errors = [];
     let filteredShortForm = 0;
 
@@ -904,10 +902,9 @@ function createApi(catalog, refresh, dataDir) {
       pages = Math.max(1, Math.ceil(total / limit));
       errors = errors.concat(live.errors);
       if (live.providers.length) {
-        const liveProviders = live.providers.map((row) => ({ ...row, id: sourceIdsByName.get(String(row.name)) || '' }));
-        providers = liveProviders.concat(providers.filter((row) => !liveProviders.some((liveRow) => liveRow.name === row.name)));
+        providers = live.providers.concat(providers.filter((row) => !live.providers.some((liveRow) => liveRow.name === row.name)));
       }
-      if (archiveCount) providers = providers.concat([{ id: 'archive', name: 'Internet Archive (open-license fallback)', ok: true, available: true, broken: false, slow: false, ms: null, received: archiveCount, count: archiveCount, error: null, checkedAt: new Date().toISOString() }]);
+      if (archiveCount) providers = providers.concat([{ name: 'Internet Archive (open-license fallback)', ok: true, available: true, broken: false, slow: false, ms: null, received: archiveCount, count: archiveCount, error: null, checkedAt: new Date().toISOString() }]);
     } else if (index.total === 0) {
       // Build an empty catalogue in the background. Only fall back to mixed live search
       // when no provider was selected; a provider-specific request must stay scoped.
@@ -928,6 +925,7 @@ function createApi(catalog, refresh, dataDir) {
       limit,
       items: items.slice((page - 1) * limit, page * limit),
       providers,
+      providerOptions: enabled.map((source) => ({ id: String(source.id), name: String(source.name) })).concat([{ id: 'archive', name: 'Internet Archive (open-license fallback)' }]),
       filteredShortForm,
       errors,
       tookMs: Date.now() - started,
