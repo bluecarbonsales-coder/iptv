@@ -10,8 +10,8 @@
 //   GET  /api/meta             facets: countries, categories, qualities, counts
 //   GET  /api/channels         ?q=&country=&category=&minQuality=&nsfw=&page=&limit=&sort=
 //   GET  /api/channel/:id      full record incl. every stream URL
-//   GET  /api/playlist         ?u=<m3u url>   owner-authenticated playlist import
-//   GET  /api/playlist.m3u     disabled: playlist downloads are not permitted
+//   GET  /api/playlist         ?u=<m3u url>   import an external playlist (server-side fetch)
+//   GET  /api/playlist.m3u     ?u=<m3u url>   same playlist, rewritten through /hls
 //   GET  /api/export.m3u       disabled: media playlist export is not permitted
 //   POST /api/refresh          re-download the iptv-org API and rebuild the catalogue
 //   GET  /hls?u=&r=&ua=        HLS manifest + segment relay (CORS / mixed content / geo fix)
@@ -434,8 +434,8 @@ app.patch('/api/vod/sources/:id', adminRoute(api.updateVodSource));
 app.delete('/api/vod/sources/:id', adminRoute(api.deleteVodSource));
 app.get('/api/library', api.librarySearch);
 app.get('/api/library/stats', api.libraryStats);
-app.post('/api/library/items', adminRoute(api.saveLibraryItem));
-app.delete('/api/library/items/:id', adminRoute(api.deleteLibraryItem));
+app.post('/api/library/items', api.saveLibraryItem);
+app.delete('/api/library/items/:id', api.deleteLibraryItem);
 // Theatre catalogue: browsable, paginated metadata index built from every enabled
 // provider (paged harvest) plus the open-licence Internet Archive collections.
 app.get('/api/vod/catalog', api.vodCatalogState);
@@ -449,7 +449,7 @@ app.delete('/api/sources/:id', adminRoute(api.deleteSource));
 app.get('/api/channels', api.channels);
 app.get('/api/channel/:id', api.channel);
 app.get('/api/playlist.m3u', mediaExportDisabled);
-app.get('/api/playlist', adminRoute(api.playlist));
+app.get('/api/playlist', api.playlist);
 app.get('/api/export.m3u', mediaExportDisabled);
 app.post('/api/refresh', refreshGuard);
 app.get('/hls', hls.handler);
@@ -589,7 +589,7 @@ app.put('/api/v1/settings/media', adminRoute(async (req, res) => {
 app.get('/api/v1/iptv/meta', api.meta);
 app.get('/api/v1/iptv/channels', api.channels);
 app.get('/api/v1/iptv/channels/:id', api.channel);
-app.get('/api/v1/iptv/playlist', adminRoute(api.playlist));
+app.get('/api/v1/iptv/playlist', api.playlist);
 app.get('/api/v1/iptv/playlist.m3u', mediaExportDisabled);
 app.get('/api/v1/iptv/export.m3u', mediaExportDisabled);
 app.get('/api/v1/iptv/hls', hls.handler);

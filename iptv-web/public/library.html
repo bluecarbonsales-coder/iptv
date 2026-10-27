@@ -12,11 +12,26 @@ main{max-width:1440px;margin:auto;padding:28px clamp(16px,3vw,44px) 70px}.eyebro
 </style>
 </head>
 <body>
-<header class="top"><a class="brand" href="/movies.html">NAFISA <span>THEATRE</span></a><nav class="nav"><a href="/movies.html">Discover</a><a href="/watch.html">Live TV</a><a href="/library.html">Saved library</a></nav></header>
+<header class="top"><a class="brand" href="/movies.html">NAFISA <span>THEATRE</span></a><nav class="nav"><a href="/movies.html">Discover</a><a href="/watch.html">Live TV</a><a href="/library.html">Saved library</a><a href="/sources.html">Sources</a></nav></header>
 <main>
 <div class="head"><div><div class="eyebrow">YOUR MEDIA INDEX</div><h1>Saved library</h1><div class="muted">One searchable catalog for live channels and media discovered from your configured providers.</div></div><div class="muted" id="updated">Loading index…</div></div>
 <form class="searchrow" id="searchForm"><input id="q" type="search" placeholder="Search titles, channels, years, categories…" autocomplete="off"><select id="type" aria-label="Media type"><option value="all">Everything</option><option value="channel">Live channels</option><option value="movies">Movies</option><option value="series">Series</option><option value="anime">Anime</option><option value="documentary">Documentaries</option><option value="video">Other video</option></select><button>Search library</button></form>
-<section style="margin:18px 0;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:#ffffff04"><div class="eyebrow">PRIVATE SOURCE SETTINGS</div><p class="muted" style="margin:4px 0 0">Playlist imports and provider configuration are available only after owner sign-in. Use the gear icon in the upper-right, then choose “Manage all services”.</p></section>
+<section aria-labelledby="importTitle" style="margin:18px 0;padding:16px;border:1px solid var(--line);border-radius:14px;background:#ffffff04">
+<div class="eyebrow" id="importTitle">IMPORT & SAVE</div>
+<p class="muted" style="margin:4px 0 10px">Import a remote M3U/M3U8 playlist into your persistent IPTV sources, or save a direct media link to this library. Use the private owner icon in the upper-right to sign in if prompted.</p>
+<form class="searchrow" id="m3uForm" style="margin:10px 0">
+<input id="playlistName" type="text" placeholder="Playlist name (optional)" maxlength="80" aria-label="Playlist name">
+<input id="playlistUrl" type="url" placeholder="https://example.com/playlist.m3u" required aria-label="M3U playlist URL">
+<button type="submit">Import M3U</button>
+</form>
+<form class="searchrow" id="saveForm" style="margin:10px 0">
+<input id="savedTitle" type="text" placeholder="Saved title" maxlength="240" required aria-label="Saved title">
+<input id="savedUrl" type="url" placeholder="https://example.com/video.m3u8" required aria-label="Direct media URL">
+<select id="savedKind" aria-label="Saved media type"><option value="movies">Movie</option><option value="series">Series</option><option value="anime">Anime</option><option value="documentary">Documentary</option><option value="video">Other video</option></select>
+<button type="submit">Save link</button>
+</form>
+<div class="muted" id="actionStatus" role="status" aria-live="polite"></div>
+</section>
 <div class="stats" id="stats"></div><div class="grid" id="results"><div class="empty">Loading your catalog…</div></div><div class="pages" id="pages"></div>
 <div class="foot">The library index is stored in the server's persistent data directory. Live TV's main iptv-org catalog and imported M3U channels are searchable here. VOD results are saved as you discover them; use the authenticated Hermes library sync endpoint to index initial pages from configured VOD providers. A source being listed does not guarantee it is online or licensed for every region.</div>
 </main>
@@ -43,12 +58,46 @@ main{max-width:1440px;margin:auto;padding:28px clamp(16px,3vw,44px) 70px}.eyebro
         const target=item.kind==='channel'?'/watch.html':'/movies.html';
         const meta=[item.year,item.category,item.sourceName].filter(Boolean).join(' · ');
         return '<article class="item">'+image+'<div class="meta"><div class="name">'+esc(item.name)+'</div><div class="sub">'+esc(meta||'Saved media')+'</div><span class="kind">'+esc(label(item.kind))+'</span><div class="sub">'+(item.episodes&&item.episodes.length?item.episodes.length+' episodes':'')+'</div><div class="sub"><a href="'+target+'?q='+encodeURIComponent(item.name)+'">Open in portal →</a></div></div></article>';
-      }).join(''):'<div class="empty">No saved items match this search yet. Browse Theatre to discover titles or use the private owner settings to configure sources.</div>';
+      }).join(''):'<div class="empty">No saved items match this search yet. Browse the Theatre to discover titles, import an M3U playlist above, or save a direct media link.</div>';
       $('pages').innerHTML='<button id="prev" '+(page<=1?'disabled':'')+'>← Previous</button><span class="stat">Page '+page+' of '+totalPages+' · '+Number(data.total||0).toLocaleString()+' results</span><button id="next" '+(page>=totalPages?'disabled':'')+'>Next →</button>';
       $('prev').onclick=()=>{if(page>1){page--;load(false)}};
       $('next').onclick=()=>{if(page<totalPages){page++;load(false)}};
     } catch(err) { $('results').innerHTML='<div class="empty">Could not load library: '+esc(err.message)+'</div>'; }
   }
+  async function postJson(url, body) {
+    const response = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    const data = await response.json().catch(()=>({}));
+    if (!response.ok) {
+      const hint = response.status === 401 ? ' Sign in using the private owner icon, then return here.' : '';
+      throw new Error((data.error || 'Request failed: HTTP '+response.status) + hint);
+    }
+    return data;
+  }
+  $('m3uForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const status = $('actionStatus');
+    const url = $('playlistUrl').value.trim();
+    const name = $('playlistName').value.trim();
+    status.textContent = 'Validating and importing playlist…';
+    try {
+      const result = await postJson('/api/sources', { url, name: name || new URL(url).hostname });
+      status.textContent = 'Imported '+(result.source?.name || name || 'playlist')+'. The channel catalogue is refreshing.';
+      $('playlistUrl').value = '';
+      load(true);
+    } catch (error) { status.textContent = error.message; }
+  });
+  $('saveForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const status = $('actionStatus');
+    const name = $('savedTitle').value.trim(), url = $('savedUrl').value.trim(), kind = $('savedKind').value;
+    status.textContent = 'Saving media link…';
+    try {
+      const result = await postJson('/api/library/items', { item: { name, title:name, url, kind, sourceId:'saved', sourceName:'Saved manually' } });
+      status.textContent = 'Saved. '+result.total+' items are now indexed.';
+      $('savedTitle').value = ''; $('savedUrl').value = '';
+      load(true);
+    } catch (error) { status.textContent = error.message; }
+  });
   $('searchForm').addEventListener('submit',e=>{e.preventDefault();load(true)});
   $('type').addEventListener('change',()=>load(true));
   $('q').addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(()=>load(true),250)});
