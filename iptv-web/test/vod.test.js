@@ -116,7 +116,7 @@ test('prefers the working Apple CMS list action discovered during probing', () =
 test('new VOD registries enable bundled provider sources', () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'iptv-vod-defaults-'));
   try {
-    assert.equal(DEFAULT_SOURCES.length, 33);
+    assert.equal(DEFAULT_SOURCES.length, 37);
     assert.ok(DEFAULT_SOURCES.every((source) => source.enabled === true));
     assert.equal(vod.ensureDefaultSources(dataDir), true);
     const registry = vod.loadSourcesSync(dataDir);
