@@ -18,7 +18,7 @@ main{max-width:1440px;margin:auto;padding:28px clamp(16px,3vw,44px) 70px}.eyebro
 <form class="searchrow" id="searchForm"><input id="q" type="search" placeholder="Search titles, channels, years, categories…" autocomplete="off"><select id="type" aria-label="Media type"><option value="all">Everything</option><option value="channel">Live channels</option><option value="movies">Movies</option><option value="series">Series</option><option value="anime">Anime</option><option value="documentary">Documentaries</option><option value="video">Other video</option></select><button>Search library</button></form>
 <section aria-labelledby="importTitle" style="margin:18px 0;padding:16px;border:1px solid var(--line);border-radius:14px;background:#ffffff04">
 <div class="eyebrow" id="importTitle">IMPORT & SAVE</div>
-<p class="muted" style="margin:4px 0 10px">Import a remote M3U/M3U8 playlist into your persistent IPTV sources, or save a direct media link to this library. Sign in through Source settings if prompted.</p>
+<p class="muted" style="margin:4px 0 10px">Import a remote M3U/M3U8 playlist into your persistent IPTV sources, or save a direct media link to this library. Use the private owner icon in the upper-right to sign in if prompted.</p>
 <form class="searchrow" id="m3uForm" style="margin:10px 0">
 <input id="playlistName" type="text" placeholder="Playlist name (optional)" maxlength="80" aria-label="Playlist name">
 <input id="playlistUrl" type="url" placeholder="https://example.com/playlist.m3u" required aria-label="M3U playlist URL">
@@ -68,7 +68,7 @@ main{max-width:1440px;margin:auto;padding:28px clamp(16px,3vw,44px) 70px}.eyebro
     const response = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
     const data = await response.json().catch(()=>({}));
     if (!response.ok) {
-      const hint = response.status === 401 ? ' Sign in through Source settings, then return here.' : '';
+      const hint = response.status === 401 ? ' Sign in using the private owner icon, then return here.' : '';
       throw new Error((data.error || 'Request failed: HTTP '+response.status) + hint);
     }
     return data;

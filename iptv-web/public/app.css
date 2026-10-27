@@ -105,7 +105,7 @@ button, input, select { font: inherit; color: inherit; }
 .icon-btn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 /* ---------- layout ---------- */
-.layout { display: grid; grid-template-columns: var(--side-w) 1fr; align-items: start; gap: 0; }
+.layout { display: grid; grid-template-columns: var(--side-w) 1fr; align-items: start; gap: 0; margin-top: var(--header-h); }
 .sidebar {
   position: sticky;
   top: var(--header-h);
@@ -219,7 +219,7 @@ select option { background: var(--bg-2); }
 .loadmore { display: flex; justify-content: center; padding: 22px 0; }
 
 /* ---------- player ---------- */
-.player { position: relative; inset: auto; background: transparent; backdrop-filter: none; z-index: 1; display: block; padding: 0; margin: 0 16px 24px; }
+.player { position: sticky; top: var(--header-h); inset: auto; background: rgba(8, 9, 13, .97); backdrop-filter: blur(16px); z-index: 35; display: block; padding: 10px 16px; margin: 0; border-bottom: 1px solid #e8c78b30; }
 .player[hidden] { display: none !important; }
 .player-shell { width: min(1180px, 100%); max-height: none; margin: 0 auto; display: flex; flex-direction: column; background: var(--bg-2); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; }
 .player-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
@@ -341,3 +341,10 @@ select option { background: var(--bg-2); }
 .brand svg rect { fill: #e8c78b; }
 .brand svg path { fill: #17130b; }
 .tab.active, .tab:hover { border-color: #e8c78b55; }
+
+/* Keep the live player docked directly beneath the fixed cinema header. */
+.topbar { background: rgba(8, 9, 13, .97); border-bottom-color: #e8c78b30; }
+.topbar .tab.active { color: #17130b; background: var(--accent); border-color: var(--accent); }
+.topbar .tab:hover, .topbar .icon-btn:hover { border-color: #e8c78b80; color: #f5deb0; }
+.player-shell { border-color: #e8c78b30; }
+@media (max-width: 900px) { .layout { margin-top: var(--header-h); } .player { padding: 8px; } }

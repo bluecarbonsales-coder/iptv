@@ -28,14 +28,14 @@
   <section id="loginPanel" class="panel login">
     <div class="eyebrow">ADMIN LOGIN</div>
     <h1>Manage your sources</h1>
-    <p class="muted">Use the simple admin login. Your password stays in this page while you are signed in.</p>
-    <form id="loginForm">
+    <p class="muted">Source settings are private. Use the discreet owner icon in the upper-right corner to sign in to the shared IPTV, Radio and Theatre account.</p>
+    <form id="loginForm" hidden>
       <label class="field">Username<input id="username" autocomplete="username" value="" required></label>
       <label class="field" style="margin-top:12px">Password<input id="password" type="password" autocomplete="current-password" value="" required></label>
       <div class="toolbar"><button class="primary" type="submit">Sign in</button></div>
     </form>
     <p class="status" id="loginStatus" role="status"></p>
-    <p class="note">Use the administrator credentials configured for this installation. Change the initial credentials immediately after first sign-in.</p>
+    <p class="note">After signing in, return here or refresh this page to manage all media sources and shared settings.</p>
   </section>
 
   <section id="manager" hidden>

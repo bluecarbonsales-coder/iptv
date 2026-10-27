@@ -12,7 +12,7 @@
 //   GET  /api/channel/:id      full record incl. every stream URL
 //   GET  /api/playlist         ?u=<m3u url>   import an external playlist (server-side fetch)
 //   GET  /api/playlist.m3u     ?u=<m3u url>   same playlist, rewritten through /hls
-//   GET  /api/export.m3u       same filters as /api/channels, as a downloadable playlist
+//   GET  /api/export.m3u       disabled: media playlist export is not permitted
 //   POST /api/refresh          re-download the iptv-org API and rebuild the catalogue
 //   GET  /hls?u=&r=&ua=        HLS manifest + segment relay (CORS / mixed content / geo fix)
 //   GET  /img?u=               logo relay with disk cache
@@ -421,13 +421,17 @@ app.get('/api/radio/resolve/:uuid', radio.resolveStation);
 app.get('/api/radio/stream/:ticket', radio.stream);
 
 app.get('/healthz', api.health);
+function mediaExportDisabled(req, res) {
+  return sendJson(req, res, 403, { error: 'Media playlist export is disabled.' }, { 'Cache-Control': 'no-store' });
+}
+
 app.get('/api/meta', api.meta);
-app.get('/api/sources', api.sourceList);
-app.get('/api/vod/sources', api.listVodSources);
-app.post('/api/vod/sources', api.addVodSource);
-app.post('/api/vod/import', api.importVodSourceList);
-app.patch('/api/vod/sources/:id', api.updateVodSource);
-app.delete('/api/vod/sources/:id', api.deleteVodSource);
+app.get('/api/sources', adminRoute(api.sourceList));
+app.get('/api/vod/sources', adminRoute(api.listVodSources));
+app.post('/api/vod/sources', adminRoute(api.addVodSource));
+app.post('/api/vod/import', adminRoute(api.importVodSourceList));
+app.patch('/api/vod/sources/:id', adminRoute(api.updateVodSource));
+app.delete('/api/vod/sources/:id', adminRoute(api.deleteVodSource));
 app.get('/api/library', api.librarySearch);
 app.get('/api/library/stats', api.libraryStats);
 app.post('/api/library/items', api.saveLibraryItem);
@@ -439,14 +443,14 @@ app.get('/api/vod/providers', api.vodProviders);
 app.post('/api/vod/refresh', adminRoute((req, res) => api.vodCatalogRefresh(req, res)));
 app.get('/api/vod', api.vodSearch);
 app.get('/api/vod/:sourceId/:vodId', api.vodDetail);
-app.post('/api/sources', api.addSource);
-app.patch('/api/sources/:id', api.updateSource);
-app.delete('/api/sources/:id', api.deleteSource);
+app.post('/api/sources', adminRoute(api.addSource));
+app.patch('/api/sources/:id', adminRoute(api.updateSource));
+app.delete('/api/sources/:id', adminRoute(api.deleteSource));
 app.get('/api/channels', api.channels);
 app.get('/api/channel/:id', api.channel);
-app.get('/api/playlist.m3u', api.playlistProxied);
+app.get('/api/playlist.m3u', mediaExportDisabled);
 app.get('/api/playlist', api.playlist);
-app.get('/api/export.m3u', api.exportM3u);
+app.get('/api/export.m3u', mediaExportDisabled);
 app.post('/api/refresh', refreshGuard);
 app.get('/hls', hls.handler);
 app.head('/hls', hls.handler);
@@ -586,8 +590,8 @@ app.get('/api/v1/iptv/meta', api.meta);
 app.get('/api/v1/iptv/channels', api.channels);
 app.get('/api/v1/iptv/channels/:id', api.channel);
 app.get('/api/v1/iptv/playlist', api.playlist);
-app.get('/api/v1/iptv/playlist.m3u', api.playlistProxied);
-app.get('/api/v1/iptv/export.m3u', api.exportM3u);
+app.get('/api/v1/iptv/playlist.m3u', mediaExportDisabled);
+app.get('/api/v1/iptv/export.m3u', mediaExportDisabled);
 app.get('/api/v1/iptv/hls', hls.handler);
 app.head('/api/v1/iptv/hls', hls.handler);
 app.get('/api/v1/iptv/image', img.handler);

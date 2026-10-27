@@ -530,4 +530,26 @@
       await mutateThenReload(section, routes[section] + '/' + encodeURIComponent(id), { method: 'DELETE' });
     }
   }));
+  async function activateSharedOwnerSession() {
+    await request('/admin/api/check');
+    $('#loginPanel').hidden = true;
+    $('#manager').hidden = false;
+    $('#password').value = '';
+    for (const section of Object.keys(routes)) load(section);
+    loadApiIndex();
+    loadApiControl();
+    loadHealth(false);
+    loadMediaSettings();
+  }
+  window.addEventListener('owner:authenticated', () => {
+    activateSharedOwnerSession().catch(error => {
+      $('#loginStatus').textContent = 'Could not open settings: ' + error.message;
+      $('#loginStatus').classList.add('error');
+    });
+  });
+  activateSharedOwnerSession().catch(() => {
+    $('#loginStatus').textContent = 'Use the private owner icon in the upper-right corner to sign in.';
+    $('#loginStatus').classList.remove('error');
+  });
+
 })();
