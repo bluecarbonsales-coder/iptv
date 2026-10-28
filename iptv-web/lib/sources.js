@@ -11,6 +11,7 @@ const crypto = require('crypto');
 const { parseM3U, isHlsManifest } = require('./m3u');
 const { upstreamFetch, bodyToString } = require('./fetch-upstream');
 const { withFileLock } = require('./registry-lock');
+const { canonicalLanguages, fallbackLanguageForCountry } = require('./languages');
 
 const MAX_SOURCES = parseInt(process.env.MAX_SOURCES || '64', 10);
 
@@ -158,23 +159,44 @@ async function fetchSource(src, opts = {}) {
   return items;
 }
 
+// tvg-country in third-party lists is sometimes a name ("Spain", "United States"), so only a
+// bare two-letter code is trusted; anything else falls back to the source's own country.
+function countryCode(value) {
+  const code = String(value == null ? '' : value).split(/[;,]/)[0].trim().toUpperCase();
+  return /^[A-Z]{2}$/.test(code) ? code : null;
+}
+
 // Build catalogue channel records for one source's parsed items.
 // Entries are grouped by group|name so a provider listing the same channel several
 // times (mirrors/qualities) yields one channel with multiple playable sources.
 function buildChannels(src, items) {
   const byKey = new Map();
+  // Each item's own tags win; the source's configured language/country is the fallback. That
+  // fallback is what makes the language tab usable for the curated lists (Pluto TV España,
+  // Free-TV Türkiye, The Roku Channel …): their playlists carry no tvg-language, so without it
+  // every one of their channels landed under "All languages" and the Spanish/Turkish/English
+  // filters showed none of them.
+  const srcLanguages = canonicalLanguages(src.language);
+  const srcCountry = countryCode(src.country);
   for (const it of items) {
     const group = (it.group || '').trim() || null;
     const name = (it.name || '').trim() || 'Channel';
     const key = `${group || ''}|${name}`;
     let ch = byKey.get(key);
     if (!ch) {
+      const itemLanguages = canonicalLanguages(it.language);
+      const country = countryCode(it.country) || srcCountry;
+      let languages = itemLanguages.length ? itemLanguages : srcLanguages.slice();
+      if (!languages.length && country) {
+        const guess = fallbackLanguageForCountry(country);
+        if (guess) languages = [guess];
+      }
       ch = {
         id: `x-${src.id}-${crypto.createHash('sha1').update(key).digest('hex').slice(0, 10)}`,
         name,
         alt: [],
-        country: (it.country || '').split(/[;,]/)[0].toUpperCase() || null,
-        languages: [],
+        country,
+        languages,
         cats: group ? [group] : [],
         nsfw: false,
         network: null,

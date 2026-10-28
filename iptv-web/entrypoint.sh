@@ -32,9 +32,13 @@ try {
       existing.enabled = true;
       existing.upstreamRepository = seed.upstreamRepository;
       existing.managedBy = seed.managedBy;
+      // The language/country of a list decides which language tab its channels appear under,
+      // and the seed is where it is maintained — keep the registry in step with it.
+      if (seed.language) existing.language = seed.language; else delete existing.language;
+      if (seed.country) existing.country = seed.country; else delete existing.country;
       continue;
     }
-    registry.sources.push({
+    const record = {
       id: seed.id,
       name: seed.name,
       url: seed.url,
@@ -42,7 +46,10 @@ try {
       createdAt: new Date().toISOString(),
       managedBy: seed.managedBy,
       upstreamRepository: seed.upstreamRepository
-    });
+    };
+    if (seed.language) record.language = seed.language;
+    if (seed.country) record.country = seed.country;
+    registry.sources.push(record);
     byUrl.set(seed.url, registry.sources[registry.sources.length - 1]);
   }
   for (const source of registry.sources) source.enabled = true;

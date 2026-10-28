@@ -42,6 +42,7 @@ const refreshLib = require('./lib/refresh');
 const { createAutomation } = require('./lib/automation');
 const { createAgentApi } = require('./lib/agent');
 const { createPortalApi } = require('./lib/portal');
+const { applyNetworkPreferences } = require('./lib/net-preferences');
 const { createResourceAvailability } = require('./lib/resource-availability');
 const { createRadioApi } = require('./lib/radio');
 const { createMailApi } = require('./lib/mail-workspace');
@@ -74,6 +75,14 @@ const log = (...a) => console.log(new Date().toISOString(), ...a);
 // catches what escapes it. Remove these only if a supervisor with a crash budget is added.
 process.on('unhandledRejection', (reason) => log('unhandled rejection:', (reason && reason.stack) || reason));
 process.on('uncaughtException', (error) => log('uncaught exception:', (error && error.stack) || error));
+
+// Outbound address-family preference. Inside the container there is no IPv6 route while
+// dual-stack origins still publish AAAA records; Node then fails the whole request instead of
+// falling back to IPv4 (the radio directory and some stream origins were unreachable because
+// of exactly this). See lib/net-preferences.js.
+const netPrefs = applyNetworkPreferences();
+log(`network: ${netPrefs.reason}`);
+
 log(`catalog: ${loaded ? `${catalog.meta.total} channels / ${catalog.meta.streams} streams (updated ${catalog.meta.updated})` : 'NOT FOUND'}`);
 
 let refreshing = null;

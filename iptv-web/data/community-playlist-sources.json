@@ -2,34 +2,12 @@
   {
     "id": "community-collect-iptv",
     "name": "Collect-IPTV (auto-updated M3U)",
+    "language": "zho",
+    "country": "CN",
     "url": "https://raw.githubusercontent.com/zilong7728/Collect-IPTV/main/best_sorted.m3u",
     "enabled": true,
     "managedBy": "community-defaults",
     "upstreamRepository": "https://github.com/zilong7728/Collect-IPTV"
-  },
-  {
-    "id": "community-fanmingming-live",
-    "name": "fanmingming/live IPv6 M3U",
-    "url": "https://raw.githubusercontent.com/fanmingming/live/main/tv/m3u/ipv6.m3u",
-    "enabled": true,
-    "managedBy": "community-defaults",
-    "upstreamRepository": "https://github.com/fanmingming/live"
-  },
-  {
-    "id": "community-imdazui-tvlist",
-    "name": "Tvlist-awesome-m3u-m3u8 Mobile IPv6",
-    "url": "https://raw.githubusercontent.com/imDazui/Tvlist-awesome-m3u-m3u8/master/m3u/%E7%A7%BB%E5%8A%A8ipv6.m3u",
-    "enabled": true,
-    "managedBy": "community-defaults",
-    "upstreamRepository": "https://github.com/imDazui/Tvlist-awesome-m3u-m3u8"
-  },
-  {
-    "id": "community-zhuiju-vma",
-    "name": "awesome-zhuiju-free: VMA IPTV list",
-    "url": "https://pan.vma.cc/down.php/f83b92a24d61858666f13c5db938a292.txt",
-    "enabled": true,
-    "managedBy": "community-defaults",
-    "upstreamRepository": "https://github.com/laoma528/awesome-zhuiju-free"
   },
   {
     "id": "community-freetv-iptv",
@@ -40,16 +18,10 @@
     "upstreamRepository": "https://github.com/Free-TV/IPTV"
   },
   {
-    "id": "community-kimentanm-aptv",
-    "name": "Kimentanm/aptv IPTV list",
-    "url": "https://raw.githubusercontent.com/Kimentanm/aptv/master/m3u/iptv.m3u",
-    "enabled": true,
-    "managedBy": "community-defaults",
-    "upstreamRepository": "https://github.com/Kimentanm/aptv"
-  },
-  {
     "id": "community-hujingguang-chinaiptv",
     "name": "ChinaIPTV auto-updated CN list",
+    "language": "zho",
+    "country": "CN",
     "url": "https://raw.githubusercontent.com/hujingguang/ChinaIPTV/main/cnTV_AutoUpdate.m3u8",
     "enabled": true,
     "managedBy": "community-defaults",
@@ -57,7 +29,9 @@
   },
   {
     "id": "community-pluto-es",
-    "name": "Pluto TV Espa\u00f1a (ES)",
+    "name": "Pluto TV España (ES)",
+    "language": "spa",
+    "country": "ES",
     "url": "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plutotv_es.m3u",
     "enabled": true,
     "managedBy": "community-defaults",
@@ -65,7 +39,9 @@
   },
   {
     "id": "community-pluto-mx",
-    "name": "Pluto TV M\u00e9xico (ES)",
+    "name": "Pluto TV México (ES)",
+    "language": "spa",
+    "country": "MX",
     "url": "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plutotv_mx.m3u",
     "enabled": true,
     "managedBy": "community-defaults",
@@ -74,6 +50,8 @@
   {
     "id": "community-pluto-ar",
     "name": "Pluto TV Argentina (ES)",
+    "language": "spa",
+    "country": "AR",
     "url": "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plutotv_ar.m3u",
     "enabled": true,
     "managedBy": "community-defaults",
@@ -82,6 +60,8 @@
   {
     "id": "community-pluto-cl",
     "name": "Pluto TV Chile (ES)",
+    "language": "spa",
+    "country": "CL",
     "url": "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plutotv_cl.m3u",
     "enabled": true,
     "managedBy": "community-defaults",
@@ -89,7 +69,9 @@
   },
   {
     "id": "community-plex-es",
-    "name": "Plex Espa\u00f1a (ES)",
+    "name": "Plex España (ES)",
+    "language": "spa",
+    "country": "ES",
     "url": "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plex_es.m3u",
     "enabled": true,
     "managedBy": "community-defaults",
@@ -97,7 +79,9 @@
   },
   {
     "id": "community-plex-mx",
-    "name": "Plex M\u00e9xico (ES)",
+    "name": "Plex México (ES)",
+    "language": "spa",
+    "country": "MX",
     "url": "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plex_mx.m3u",
     "enabled": true,
     "managedBy": "community-defaults",
@@ -105,7 +89,9 @@
   },
   {
     "id": "community-samsung-es",
-    "name": "Samsung TV Plus Espa\u00f1a (ES)",
+    "name": "Samsung TV Plus España (ES)",
+    "language": "spa",
+    "country": "ES",
     "url": "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/samsungtvplus_es.m3u",
     "enabled": true,
     "managedBy": "community-defaults",
@@ -113,7 +99,9 @@
   },
   {
     "id": "community-freetv-es",
-    "name": "Free-TV Espa\u00f1a (ES)",
+    "name": "Free-TV España (ES)",
+    "language": "spa",
+    "country": "ES",
     "url": "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlists/playlist_spain.m3u8",
     "enabled": true,
     "managedBy": "community-defaults",
@@ -121,7 +109,9 @@
   },
   {
     "id": "community-freetv-mx",
-    "name": "Free-TV M\u00e9xico (ES)",
+    "name": "Free-TV México (ES)",
+    "language": "spa",
+    "country": "MX",
     "url": "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlists/playlist_mexico.m3u8",
     "enabled": true,
     "managedBy": "community-defaults",
@@ -129,7 +119,9 @@
   },
   {
     "id": "community-freetv-tr",
-    "name": "Free-TV T\u00fcrkiye (TR)",
+    "name": "Free-TV Türkiye (TR)",
+    "language": "tur",
+    "country": "TR",
     "url": "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlists/playlist_turkey.m3u8",
     "enabled": true,
     "managedBy": "community-defaults",
@@ -138,6 +130,8 @@
   {
     "id": "community-pluto-us",
     "name": "Pluto TV US (EN)",
+    "language": "eng",
+    "country": "US",
     "url": "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plutotv_us.m3u",
     "enabled": true,
     "managedBy": "community-defaults",
@@ -146,6 +140,8 @@
   {
     "id": "community-pluto-gb",
     "name": "Pluto TV UK (EN)",
+    "language": "eng",
+    "country": "GB",
     "url": "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plutotv_gb.m3u",
     "enabled": true,
     "managedBy": "community-defaults",
@@ -154,6 +150,8 @@
   {
     "id": "community-plex-gb",
     "name": "Plex UK (EN)",
+    "language": "eng",
+    "country": "GB",
     "url": "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plex_gb.m3u",
     "enabled": true,
     "managedBy": "community-defaults",
@@ -162,6 +160,8 @@
   {
     "id": "community-samsung-gb",
     "name": "Samsung TV Plus UK (EN)",
+    "language": "eng",
+    "country": "GB",
     "url": "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/samsungtvplus_gb.m3u",
     "enabled": true,
     "managedBy": "community-defaults",
@@ -170,6 +170,8 @@
   {
     "id": "community-roku-us",
     "name": "The Roku Channel (EN)",
+    "language": "eng",
+    "country": "US",
     "url": "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/roku_all.m3u",
     "enabled": true,
     "managedBy": "community-defaults",
@@ -178,6 +180,8 @@
   {
     "id": "community-tubi-us",
     "name": "Tubi TV (EN)",
+    "language": "eng",
+    "country": "US",
     "url": "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/tubi_all.m3u",
     "enabled": true,
     "managedBy": "community-defaults",
@@ -186,6 +190,8 @@
   {
     "id": "community-freetv-us",
     "name": "Free-TV USA (EN)",
+    "language": "eng",
+    "country": "US",
     "url": "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlists/playlist_usa.m3u8",
     "enabled": true,
     "managedBy": "community-defaults",

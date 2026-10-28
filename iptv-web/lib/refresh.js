@@ -7,6 +7,11 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 const { QUALITY_HEIGHT } = require('./catalog');
+const { canonicalLanguage } = require('./languages');
+// This file also runs as a child process (`node lib/refresh.js`), so it needs the same
+// IPv4 preference the server applies — otherwise the download of the iptv-org dump can hit
+// the same dual-stack failure inside the container.
+require('./net-preferences').applyNetworkPreferences();
 
 const FILES = ['channels.json', 'streams.json', 'logos.json', 'categories.json', 'countries.json', 'languages.json', 'feeds.json'];
 
@@ -96,7 +101,15 @@ function build(api, stats) {
     const explicit = (Array.isArray(channel.languages) ? channel.languages : [])
       .map((code) => String(code || '').trim().toLowerCase());
     const pool = fromFeeds.length ? fromFeeds : explicit.length ? explicit : countryLanguages.get(channel.country) || [];
-    return [...new Set(pool.filter((code) => /^[a-z]{2,3}$/.test(code)))];
+    // Canonicalise before the facet is built: a feed carrying the 639-2/B form ("FRE", "GER",
+    // "DUT", "JAP", "CZE", "ARM") otherwise becomes a second entry next to the 639-3 code and
+    // a language filter misses half of that language's channels.
+    const out = [];
+    for (const code of pool) {
+      const canonical = canonicalLanguage(code);
+      if (canonical && !out.includes(canonical)) out.push(canonical);
+    }
+    return out;
   };
 
   const logosByChannel = new Map();

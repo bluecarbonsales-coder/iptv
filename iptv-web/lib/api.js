@@ -7,6 +7,7 @@ const { parseM3U, isHlsManifest } = require('./m3u');
 const { readBody } = require('./util');
 const sourceLib = require('./sources');
 const vodLib = require('./vod');
+const { canonicalLanguages } = require('./languages');
 const { matchesAdminCredentials } = require('./admin-auth');
 const archiveLib = require('./archive-vod');
 const commonsLib = require('./commons-vod');
@@ -84,6 +85,13 @@ function createApi(catalog, refresh, dataDir) {
       if (!sourceLib.isHttpUrl(url)) return sendJson(req, res, 400, { error: 'URL must use http or https' });
 
       const candidate = { id: sourceLib.newId(), name, url, enabled: body.enabled !== false, createdAt: new Date().toISOString() };
+      // Optional language/country for the list as a whole ("Spanish", "spa", "ES"). Public
+      // playlists rarely tag their entries, and without this the channels of a language-specific
+      // list land under no language at all instead of the Spanish/Turkish/English tabs.
+      const language = canonicalLanguages(body.language).join(',');
+      const country = String(body.country || '').trim().toUpperCase();
+      if (language) candidate.language = language;
+      if (/^[A-Z]{2}$/.test(country)) candidate.country = country;
       const items = await sourceLib.fetchSource(candidate);
       candidate.lastCount = sourceLib.buildChannels(candidate, items).length;
       candidate.lastStreamCount = items.length;
@@ -121,6 +129,12 @@ function createApi(catalog, refresh, dataDir) {
         patch.url = url;
       }
       if (body.enabled !== undefined) patch.enabled = body.enabled === true;
+      // Blank clears the field; unknown names are dropped rather than stored (lib/languages.js).
+      if (body.language !== undefined) patch.language = canonicalLanguages(body.language).join(',') || null;
+      if (body.country !== undefined) {
+        const country = String(body.country).trim().toUpperCase();
+        patch.country = /^[A-Z]{2}$/.test(country) ? country : null;
+      }
 
       const updated = await withLock(liveLockKey, () => {
         const sources = sourceLib.loadSourcesSync(sourceDataDir).sources;
@@ -155,7 +169,7 @@ function createApi(catalog, refresh, dataDir) {
   };
 
   function publicSource(s) {
-    return { id: s.id, name: s.name, url: vodLib.redactUrl(s.url), enabled: s.enabled !== false, count: s.lastCount || 0, streams: s.lastStreamCount || 0, updated: s.lastUpdated || null, error: s.lastError || null };
+    return { id: s.id, name: s.name, url: vodLib.redactUrl(s.url), enabled: s.enabled !== false, language: s.language || null, country: s.country || null, count: s.lastCount || 0, streams: s.lastStreamCount || 0, updated: s.lastUpdated || null, error: s.lastError || null };
   }
   const listVodSources = (req, res) => {
     if (!authorizeSourceWrite(req, res)) return;
