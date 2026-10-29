@@ -134,3 +134,29 @@ kbd { border:1px solid var(--line); border-radius:5px; padding:1px 6px; color:#7
   .now-playing audio { width:calc(100% - 44px); }
 }
 @media(prefers-reduced-motion:reduce) { *,*::before,*::after { transition-duration:.01ms!important;animation-duration:.01ms!important;scroll-behavior:auto!important; } }
+
+/* Shared Nafisa Theatre shell: match the dark cinema palette across services */
+:root{--radio-bg:#08090d;--radio-panel:#11131b;--radio-line:#282c38;--radio-text:#f6f4f0;--radio-muted:#a3a5b2;--radio-accent:#e8c78b;--radio-accent-2:#f5deb0}
+html,body{background:var(--radio-bg);color:var(--radio-text)}
+body{background:radial-gradient(ellipse at 72% -10%,#292337 0,transparent 42%),var(--radio-bg)}
+.radio-top{background:#08090de8;border-bottom:1px solid #282c38;backdrop-filter:blur(18px)}
+.radio-wrap{max-width:1600px}
+.radio-brand{color:#f6f4f0;font-weight:850;letter-spacing:.08em}
+.radio-brand b{color:var(--radio-accent);font-weight:850}
+.brand-orb{background:var(--radio-accent);color:#17120b;box-shadow:none}
+.radio-nav a{border-color:transparent;border-radius:10px;color:#a3a5b2}
+.radio-nav a:hover,.radio-nav a.active{background:#e8c78b12;border-color:#e8c78b35;color:#f5deb0}
+.radio-hero,.radio-discover,.station-card,.radio-player,.station-detail,.radio-filters,.radio-results{border-color:var(--radio-line)}
+.radio-hero{background:linear-gradient(120deg,#171821,#101019 62%,#191721);border-radius:18px;box-shadow:0 12px 32px #0003}
+.radio-hero h1 span,.radio-hero .hero-kicker,.radio-hero a,.radio-status a{color:var(--radio-accent)}
+.radio-discover,.station-card,.now-playing{background:#11131b;border-color:#282c38}
+.radio-search,.radio-filters select,.radio-filters input,.radio-search input{background:#090a0f;border-color:#303342;color:#f6f4f0}
+.radio-search:focus-within{border-color:#e8c78b}
+.r-btn,.radio-search-row>.r-btn{background:#e8c78b;color:#19140c;border-color:#e8c78b}
+.r-btn:hover{filter:brightness(1.08)}
+.station-card:hover,.station-card.active{border-color:#e8c78b80;box-shadow:0 12px 28px #0003}
+.station-card button,.pagination button{border-color:#303342}
+.station-card .play,.now-stop{background:#e8c78b;color:#19140c}
+.pagination button.active{background:#e8c78b;color:#19140c;border-color:#e8c78b}
+.radio-footer{border-color:#282c38;color:#a3a5b2}
+@media(max-width:620px){.radio-top .nav-inner{gap:10px}.radio-live-status{display:none}}
