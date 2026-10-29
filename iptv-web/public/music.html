@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#08090d">
+<meta name="description" content="Search and explore music in the Nafisa media workspace.">
+<title>Music Studio · Nafisa Theatre</title>
+<style>
+:root{color-scheme:dark;--bg:#08090d;--panel:#11131b;--line:#282c38;--text:#f6f4f0;--muted:#a3a5b2;--gold:#e8c78b}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font:15px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}a{color:inherit;text-decoration:none}.top{min-height:70px;display:flex;align-items:center;gap:22px;padding:12px 24px;border-bottom:1px solid #ffffff12;background:#08090de8;position:sticky;top:0;z-index:5;backdrop-filter:blur(18px)}.brand{font-weight:850;letter-spacing:.13em;white-space:nowrap}.brand span{color:var(--gold)}nav{display:flex;gap:8px;flex-wrap:wrap}nav a{padding:8px 11px;border:1px solid transparent;border-radius:10px;color:var(--muted);font-size:13px}nav a:hover,nav a.active{border-color:#e8c78b38;background:#e8c78b12;color:var(--gold)}.top .open{margin-left:auto;border:1px solid #e8c78b65;background:var(--gold);color:#17130d;border-radius:11px;padding:10px 14px;font-weight:750;white-space:nowrap}.wrap{max-width:1600px;margin:auto;padding:24px clamp(14px,3vw,42px) 40px}.hero{display:flex;justify-content:space-between;align-items:end;gap:20px;margin-bottom:20px;padding:26px clamp(18px,3vw,36px);border:1px solid #ffffff13;border-radius:20px;background:radial-gradient(ellipse at 85% 0%,#5c49331f,transparent 45%),linear-gradient(115deg,#171720,#0f1017)}.kicker{color:var(--gold);font-size:10px;font-weight:800;letter-spacing:.2em}.hero h1{margin:8px 0;font-size:clamp(28px,4vw,46px);letter-spacing:-.05em;line-height:1.1}.hero p{max-width:700px;margin:0;color:var(--muted)}.pill{border:1px solid var(--line);border-radius:999px;padding:7px 11px;color:var(--muted);font-size:11px;white-space:nowrap}.frame-shell{height:calc(100vh - 250px);min-height:600px;overflow:hidden;border:1px solid #ffffff18;border-radius:18px;background:#0e1017;box-shadow:0 24px 70px #0006}.frame-shell iframe{display:block;width:100%;height:100%;border:0;background:#0e1017}.fallback{margin:14px 3px 0;color:var(--muted);font-size:12px}.fallback a{color:var(--gold);text-decoration:underline;text-underline-offset:3px}.foot{padding:20px 0;color:#737989;font-size:11px}@media(max-width:760px){.top{gap:12px;padding:12px 14px;flex-wrap:wrap}.brand{font-size:13px}nav{order:3;width:100%;overflow:auto;flex-wrap:nowrap}nav a{white-space:nowrap}.top .open{font-size:12px;padding:8px 10px}.hero{align-items:start;flex-direction:column}.frame-shell{height:calc(100dvh - 310px);min-height:520px;border-radius:12px}.wrap{padding-top:14px}}
+</style>
+</head>
+<body>
+<header class="top">
+<a class="brand" href="/">NAFISA <span>THEATRE</span></a>
+<nav aria-label="Main navigation">
+<a href="/movies.html">Movies</a><a href="/watch.html">IPTV</a><a href="/radio.html">Radio</a><a class="active" href="/music.html" aria-current="page">Music</a><a href="/mail.html">Email</a>
+</nav>
+<a class="open" href="https://music.zkkp.nyc.mn/music" target="_blank" rel="noopener noreferrer">Open Music ↗</a>
+</header>
+<main class="wrap">
+<section class="hero"><div><div class="kicker">SEARCH · LISTEN · COLLECT</div><h1>Music Studio</h1><p>Search across supported music services, preview tracks, explore albums and playlists, view lyrics, and download tracks where available. This uses the project's hosted web edition.</p></div><span class="pill">External web service</span></section>
+<section class="frame-shell" aria-label="Go Music DL web application">
+<iframe src="https://music.zkkp.nyc.mn/music" title="Go Music DL web application" loading="eager" referrerpolicy="no-referrer" allow="autoplay; clipboard-read; clipboard-write; fullscreen" allowfullscreen></iframe>
+</section>
+<p class="fallback">If the music service refuses to load inside this page, use <a href="https://music.zkkp.nyc.mn/music" target="_blank" rel="noopener noreferrer">Open Music Studio in a new tab ↗</a>. The embedded service is hosted externally; its availability and embedding policy are controlled by that service.</p>
+<footer class="foot">Go Music DL is a separate open-source project. Review its licensing and applicable rights before downloading or redistributing music.</footer>
+</main>
+</body>
+</html>
