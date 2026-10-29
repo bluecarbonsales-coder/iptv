@@ -140,7 +140,7 @@ kbd { border:1px solid var(--line); border-radius:5px; padding:1px 6px; color:#7
 html,body{background:var(--radio-bg);color:var(--radio-text)}
 body{background:radial-gradient(ellipse at 72% -10%,#292337 0,transparent 42%),var(--radio-bg)}
 .radio-top{background:#08090de8;border-bottom:1px solid #282c38;backdrop-filter:blur(18px)}
-.radio-wrap{max-width:1600px}
+.radio-wrap{max-width:1600px;margin:0 auto}
 .radio-brand{color:#f6f4f0;font-weight:850;letter-spacing:.08em}
 .radio-brand b{color:var(--radio-accent);font-weight:850}
 .brand-orb{background:var(--radio-accent);color:#17120b;box-shadow:none}
