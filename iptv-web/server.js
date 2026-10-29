@@ -245,6 +245,15 @@ app.post('/api/history/:visitorId', async (req, res, params) => {
     sendJson(req, res, 200, watchHistory.record(params.visitorId, body));
   } catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message || 'could not save history' }); }
 });
+app.delete('/api/history/:visitorId', (req, res, params) => {
+  try { sendJson(req, res, 200, watchHistory.clear(params.visitorId)); }
+  catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message || 'could not clear history' }); }
+});
+app.delete('/api/history/:visitorId/:recordId', (req, res, params) => {
+  try { sendJson(req, res, 200, watchHistory.remove(params.visitorId, params.recordId)); }
+  catch (err) { sendJson(req, res, err.statusCode || 400, { error: err.message || 'could not delete history item' }); }
+});
+
 app.post('/api/visitor/context', async (req, res) => {
   const now = Date.now();
   if (now - visitorContextWindowStart >= 60000) {
