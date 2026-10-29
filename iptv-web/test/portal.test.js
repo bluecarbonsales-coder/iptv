@@ -53,7 +53,7 @@ test('management token comparison checks exact values and defaults are extensibl
 });
 
 
-test('existing portal data is migrated with Nodecast TV while preserving custom links and removals', () => {
+test('existing portal data is migrated with Nodecast TV + Music Studio while preserving custom links and removals', () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'iptv-portal-migration-'));
   try {
     fs.writeFileSync(path.join(dataDir, 'portal-services.json'), JSON.stringify({
@@ -69,7 +69,9 @@ test('existing portal data is migrated with Nodecast TV while preserving custom 
     assert.ok(ids.includes('seedhub'));
     assert.ok(ids.includes('streambert'));
     assert.ok(ids.includes('nodecast-tv'));
-    assert.equal(JSON.parse(fs.readFileSync(path.join(dataDir, 'portal-services.json'), 'utf8')).version, 4);
+    // v5 adds the Music Studio service, so a fully-migrated store lands on version 5.
+    assert.ok(ids.includes('music-dl'));
+    assert.equal(JSON.parse(fs.readFileSync(path.join(dataDir, 'portal-services.json'), 'utf8')).version, 5);
 
     // User removals should persist once the one-time migration has completed.
     const saved = JSON.parse(fs.readFileSync(path.join(dataDir, 'portal-services.json'), 'utf8'));
