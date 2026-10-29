@@ -50,6 +50,24 @@
 .player-stage video{height:auto;max-height:calc(90vh - 160px)}
 @media(min-width:761px){.player-modal{box-shadow:0 20px 65px #0005}.player-body{min-height:0}.player-stage{min-height:0}}
 @media(max-width:900px){.hero-compact{min-height:104px;padding:16px}}@media(max-width:620px){.hero-compact{min-height:96px;padding:14px}}
+
+/* Tencent Video-inspired player and episode selector */
+.player-modal.show{background:#090a0f;border:1px solid #ffffff14;border-radius:0 0 16px 16px;box-shadow:0 22px 70px #0009}
+.player-top{background:linear-gradient(90deg,#171821,#0d0e14);gap:12px}
+.player-top strong{font-size:15px;letter-spacing:-.015em}
+.player-stage{background:#000;padding:0;position:relative}
+.player-stage video{width:100%;height:100%;object-fit:contain;outline:0}
+.player-toolbar{background:linear-gradient(0deg,#0b0c11,#11131a);border-top:1px solid #ffffff14}
+.player-controls{background:#101119;border-top:1px solid #ffffff12}
+.player-controls select,.player-field select{border-radius:9px;background:#0b0c12;border-color:#303342}
+.episodes{padding:22px 26px 26px;background:linear-gradient(180deg,#11131a,#0b0c11);border:1px solid #ffffff10;border-radius:18px;margin-top:18px}
+.episodes h2,.episodes h3{letter-spacing:-.025em}
+.episode-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:9px;margin-top:16px;max-height:300px;overflow:auto;padding:2px 4px 8px 2px;scrollbar-color:#383b48 transparent}
+.episode{min-height:42px;display:flex;align-items:center;justify-content:center;gap:5px;padding:9px 8px;border:1px solid #2a2d38;border-radius:9px;background:#ffffff05;color:#c7c9d2;font-size:13px;font-weight:650;transition:background .16s,border-color .16s,color .16s,transform .16s}
+.episode:hover{background:#e8c78b12;border-color:#e8c78b80;color:#f7e5c3;transform:translateY(-1px)}
+.episode.active{background:linear-gradient(135deg,#f3dcae,#dfb96f);border-color:#f3dcae;color:#21190d;box-shadow:0 4px 14px #e8c78b20;font-weight:850}
+@media(max-width:720px){.episodes{padding:16px 13px;border-radius:14px}.episode-list{grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:7px;max-height:260px}.episode{min-height:40px;padding:8px 5px;font-size:12px}.player-top{padding:0 12px}.player-stage video{max-height:calc(100vh - 170px)}}
+
 </style></head>
 <body>
 <header class="top"><button class="iconbtn" id="menu" aria-label="Open navigation" aria-expanded="false">☰</button><a class="brand" href="/">NAFISA <span>THEATRE</span></a><span class="crumb">MOVIES · SERIES · ANIMATION</span><label class="search">⌕ <input id="search" type="search" placeholder="Search movies, series, anime…" autocomplete="off"></label><a class="iconbtn" href="/watch.html" title="Open IPTV" aria-label="Open IPTV" style="display:grid;place-items:center;font-size:17px">⌂</a></header>
