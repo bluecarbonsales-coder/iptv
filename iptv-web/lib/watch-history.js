@@ -71,6 +71,21 @@ function createHistoryStore(dataDir) {
     saveAll(all);
     return { ok: true, saved: true, count: all[id].length };
   }
-  return { get, record };
+  function remove(id, recordId) {
+    if (!validId(id)) throw Object.assign(new Error('invalid visitor history id'), { statusCode: 400 });
+    if (typeof recordId !== 'string' || !/^[a-f0-9-]{16,64}$/i.test(recordId)) throw Object.assign(new Error('invalid history record id'), { statusCode: 400 });
+    const all = readAll(), records = Array.isArray(all[id]) ? all[id] : [];
+    const next = records.filter((record) => record && record.id !== recordId);
+    const removed = next.length !== records.length;
+    if (removed) { all[id] = next; saveAll(all); }
+    return { ok: true, removed, count: next.length };
+  }
+  function clear(id) {
+    if (!validId(id)) throw Object.assign(new Error('invalid visitor history id'), { statusCode: 400 });
+    const all = readAll(), count = Array.isArray(all[id]) ? all[id].length : 0;
+    if (count) { all[id] = []; saveAll(all); }
+    return { ok: true, removed: count, count: 0 };
+  }
+  return { get, record, remove, clear };
 }
 module.exports = { createHistoryStore };
