@@ -84,7 +84,7 @@ function createPortalApi(options = {}) {
   function writeStore(services) {
     fs.mkdirSync(dataDir, { recursive: true });
     const tempPath = storePath + '.' + process.pid + '.' + crypto.randomBytes(5).toString('hex') + '.tmp';
-    fs.writeFileSync(tempPath, JSON.stringify({ version: 4, services }, null, 2) + '\n', { mode: 0o600 });
+    fs.writeFileSync(tempPath, JSON.stringify({ version: 5, services }, null, 2) + '\n', { mode: 0o600 });
     fs.renameSync(tempPath, storePath);
   }
 
