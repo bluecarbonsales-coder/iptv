@@ -26,10 +26,10 @@ function safeItem(raw) {
     title: String(ep && ep.title || ('Episode ' + (i + 1))).slice(0, 240),
     url: String(ep && ep.url || '').slice(0, 3000),
   })).filter(ep => /^https?:\/\//i.test(ep.url)) : [];
-  const searchText = normalize([
-    name, raw.overview, raw.description, raw.year, raw.category, raw.sourceName,
-    ...(Array.isArray(raw.cats) ? raw.cats : []), ...episodes.map(ep => ep.title),
-  ].join(' '));
+  // No precomputed searchText: every reader (search(), lib/vod-catalog.js#browse) builds
+  // its own haystack from these fields, so the field was ~25% of the file's bytes for
+  // nothing. providerUpdatedAt is the provider's own row timestamp (see vod.toIsoTime).
+  const providerUpdatedAt = /^\d{4}-\d{2}-\d{2}T/.test(String(raw.providerUpdatedAt || '')) ? String(raw.providerUpdatedAt) : null;
   return {
     id, key, sourceId,
     sourceName: String(raw.sourceName || (sourceId === 'saved' ? 'Saved manually' : sourceId)).slice(0, 120),
@@ -42,8 +42,25 @@ function safeItem(raw) {
     episodes, pageUrl: typeof raw.pageUrl === 'string' ? raw.pageUrl.slice(0, 2000) : null,
     licenseUrl: typeof raw.licenseUrl === 'string' ? raw.licenseUrl.slice(0, 2000) : null,
     addedAt: raw.addedAt || new Date().toISOString(),
-    updatedAt: new Date().toISOString(), lastSeenAt: new Date().toISOString(), searchText,
+    updatedAt: new Date().toISOString(), lastSeenAt: new Date().toISOString(),
+    providerUpdatedAt,
   };
+}
+// Cap enforcement. It used to be plain insertion order (`items.slice(-MAX_ITEMS)`), which
+// dropped the records that are re-harvested every hour and kept rows nobody had seen for
+// days: with a full 250k index the whole library was a rolling ~27-hour window and titles
+// vanished while their provider still listed them. Keep the most recently *observed*
+// records instead (array order is preserved — only the excess is removed).
+function recencyOf(item) {
+  return String((item && (item.lastSeenAt || item.providerUpdatedAt || item.addedAt)) || '');
+}
+function trimItems(items, max) {
+  const cap = Math.max(1, Number(max) || MAX_ITEMS);
+  if (!Array.isArray(items) || items.length <= cap) return items;
+  const ranked = items.map((item, index) => ({ item, index }));
+  ranked.sort((a, b) => recencyOf(a.item).localeCompare(recencyOf(b.item)) || a.index - b.index);
+  const keep = new Set(ranked.slice(items.length - cap).map((entry) => entry.item.key || entry.item.id));
+  return items.filter((item) => keep.has(item.key || item.id));
 }
 function read(dataDir) {
   try {
@@ -55,7 +72,7 @@ function write(dataDir, data) {
   fs.mkdirSync(dataDir, { recursive: true, mode: 0o700 });
   const target = filePath(dataDir), temp = target + '.' + process.pid + '.' + crypto.randomUUID() + '.tmp';
   try {
-    fs.writeFileSync(temp, JSON.stringify({ version: 1, updatedAt: new Date().toISOString(), items: data.items.slice(-MAX_ITEMS) }), { mode: 0o600, flag: 'wx' });
+    fs.writeFileSync(temp, JSON.stringify({ version: 1, updatedAt: new Date().toISOString(), items: trimItems(data.items, MAX_ITEMS) }), { mode: 0o600, flag: 'wx' });
     fs.renameSync(temp, target);
   } finally {
     try { if (fs.existsSync(temp)) fs.unlinkSync(temp); } catch {}
@@ -71,15 +88,22 @@ function upsert(dataDir, rawItems) {
     if (!item) continue;
     const prior = byKey.get(item.key);
     if (prior) {
-      byKey.set(item.key, { ...prior, ...item, addedAt: prior.addedAt || item.addedAt });
+      // searchText: undefined drops the dead field from records written by older builds.
+      // providerUpdatedAt survives an upsert that carries no timestamp (a saved item or a
+      // detail view) instead of blanking what the harvest already knew.
+      byKey.set(item.key, {
+        ...prior, ...item, addedAt: prior.addedAt || item.addedAt, searchText: undefined,
+        providerUpdatedAt: item.providerUpdatedAt || prior.providerUpdatedAt || null,
+      });
       updated++;
     } else {
       byKey.set(item.key, item);
       added++;
     }
   }
-  const items = [...byKey.values()].slice(-MAX_ITEMS);
-  write(dataDir, { items });
+  const items = trimItems([...byKey.values()], MAX_ITEMS);
+  // A pass that found nothing new must not rewrite the whole index file.
+  if (added || updated) write(dataDir, { items });
   return { added, updated, total: items.length };
 }
 function search(dataDir, params = {}) {
@@ -122,4 +146,4 @@ function stats(dataDir) {
   for (const item of items) byType[item.kind || 'channel'] = (byType[item.kind || 'channel'] || 0) + 1;
   return { total: items.length, byType, updatedAt: read(dataDir).updatedAt };
 }
-module.exports = { filePath, upsert, search, allItems, remove, prune, stats, safeItem, MAX_ITEMS };
+module.exports = { filePath, upsert, search, allItems, remove, prune, stats, safeItem, trimItems, MAX_ITEMS };

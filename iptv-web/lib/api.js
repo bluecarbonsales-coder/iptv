@@ -832,6 +832,7 @@ function createApi(catalog, refresh, dataDir) {
       refreshing: current.refreshing,
       storedTitles: current.storedTitles,
       refreshMinutes: current.refreshMinutes,
+      recent: current.recent,
       totals: current.totals,
       archive: current.archive,
       options: current.options,
@@ -861,7 +862,13 @@ function createApi(catalog, refresh, dataDir) {
     const health = catalogLib.state(sourceDataDir);
     const registry = vodLib.loadSourcesSync(sourceDataDir);
     const enabled = (registry.sources || []).filter((source) => source.enabled !== false);
-    const index = catalogLib.browse(sourceDataDir, { kind, q: term, sourceId, page: 1, limit: 120 });
+    // Browse the requested page directly. This used to read page 1 with a hard-coded limit of
+    // 120 and then slice that 120-row window for the answer while advertising `pages` for the
+    // whole catalogue: everything past page 5 came back empty, so the Theatre was effectively
+    // a 120-title list. A search term still needs the first 120 index rows to merge live hits.
+    const index = term
+      ? catalogLib.browse(sourceDataDir, { kind, q: term, sourceId, page: 1, limit: 120 })
+      : catalogLib.browse(sourceDataDir, { kind, sourceId, page: requestedPage, limit });
 
     let items = index.items;
     let total = index.total;
@@ -931,14 +938,16 @@ function createApi(catalog, refresh, dataDir) {
       catalogLib.ensureFresh(sourceDataDir).catch(() => {});
     }
 
-    const page = Math.min(requestedPage, pages);
+    // The browse path already returns exactly one page; only the merged live-search list
+    // still has to be sliced here.
+    const page = term ? Math.min(requestedPage, pages) : index.page;
     sendJson(req, res, 200, {
       type: kind,
       total,
       page,
       pages,
       limit,
-      items: items.slice((page - 1) * limit, page * limit),
+      items: term ? items.slice((page - 1) * limit, page * limit) : items,
       providers,
       providerOptions: enabled.filter((source) => kind === 'all' || source.kind === kind || source.kind === 'all').map((source) => ({ id: String(source.id), name: String(source.name) })).concat((!['series', 'documentary'].includes(kind) ? [{ id: 'archive', name: 'Internet Archive (open-license fallback)' }] : [])),
       filteredShortForm,
@@ -949,6 +958,11 @@ function createApi(catalog, refresh, dataDir) {
         ageMs: health.ageMs,
         refreshing: catalogLib.state(sourceDataDir).refreshing,
         refreshMinutes: health.refreshMinutes,
+        // When the providers' newest pages were last swept — the number that answers
+        // "has this site noticed today's releases yet?".
+        recentUpdatedAt: (health.recent && health.recent.updatedAt) || null,
+        recentAgeMs: (health.recent && health.recent.ageMs) || null,
+        recentMinutes: (health.recent && health.recent.minutes) || null,
         storedTitles: index.libraryTotal,
         counts: index.counts,
         source: term ? 'live+index' : 'index',

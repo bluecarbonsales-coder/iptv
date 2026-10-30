@@ -39,6 +39,12 @@ const PROVIDER_PAGE_LIMIT = intEnv('VOD_CATALOG_PAGE_LIMIT', 60, 5, 200);
 const CONCURRENCY = intEnv('VOD_CATALOG_CONCURRENCY', 6, 1, 16);
 const REFRESH_MINUTES = intEnv('VOD_CATALOG_REFRESH_MINUTES', 60, 5, 1440);
 const FRESH_PAGES = intEnv('VOD_CATALOG_FRESH_PAGES', 2, 0, 5);
+// "Recent" pass: a cheap newest-pages-only sweep of every provider (no deep window, no
+// archive, no metadata enrichment) so a title the providers just published shows up in the
+// Theatre within minutes instead of waiting for the next hourly full pass.
+const RECENT_MINUTES = intEnv('VOD_CATALOG_RECENT_MINUTES', 15, 1, 1440);
+const RECENT_PAGES = intEnv('VOD_CATALOG_RECENT_PAGES', 2, 1, 5);
+const RECENT_CONCURRENCY = intEnv('VOD_CATALOG_RECENT_CONCURRENCY', 12, 1, 16);
 const ARCHIVE_PAGES = intEnv('VOD_CATALOG_ARCHIVE_PAGES', 3, 0, 8);
 const ARCHIVE_ROWS = intEnv('VOD_CATALOG_ARCHIVE_ROWS', 100, 10, 100);
 const TIMEOUT_MS = intEnv('VOD_CATALOG_TIMEOUT_MS', 20000, 3000, 60000);
@@ -128,6 +134,10 @@ async function harvestSource(source, options = {}) {
   const pages = Math.max(1, options.pages || PROVIDER_PAGES);
   const freshPages = Math.max(0, Math.min(5, options.freshPages ?? FRESH_PAGES));
   const startPage = Math.max(1, options.startPage || 1);
+  // freshOnly: read the newest pages and stop — the cheap "has anything been updated?"
+  // sweep. It must not advance the rotating deep-window cursor, or the deep pass would
+  // start skipping pages.
+  const freshOnly = options.freshOnly === true;
   const started = Date.now();
   const items = [];
   const seen = new Set();
@@ -183,14 +193,16 @@ async function harvestSource(source, options = {}) {
   // Pass 2: the rotating deep window. Providers here expose 20 titles per page and
   // thousands of pages (total counts run to ~10^5), so each refresh walks on from
   // where the previous one stopped and the persisted index covers more over time.
-  for (let page = startPage; page < startPage + pages; page += 1) {
-    const rows = await fetchPage(page);
-    if (!rows.length) break;
-    addRows(rows);
-    if (items.length >= MAX_ITEMS_PER_SOURCE) break;
+  if (!freshOnly) {
+    for (let page = startPage; page < startPage + pages; page += 1) {
+      const rows = await fetchPage(page);
+      if (!rows.length) break;
+      addRows(rows);
+      if (items.length >= MAX_ITEMS_PER_SOURCE) break;
+    }
   }
 
-  const nextPage = pageCount && startPage + pages <= pageCount ? startPage + pages : 1;
+  const nextPage = freshOnly ? startPage : (pageCount && startPage + pages <= pageCount ? startPage + pages : 1);
   const ms = Date.now() - started;
   const ok = items.length > 0;
   return {
@@ -227,6 +239,9 @@ function catalogueItem(item, kind) {
     kind: item.kind || kind || 'movies',
     pageUrl: item.pageUrl || null,
     licenseUrl: item.licenseUrl || null,
+    // The provider's own row timestamp (vod_time), so the Theatre can order the catalogue
+    // by what the providers actually just published.
+    providerUpdatedAt: item.providerUpdatedAt || null,
   };
 }
 
@@ -378,7 +393,12 @@ async function repairLegacyArchiveIds(dataDir) {
   return { removed, restored: found.length, stored: stored && stored.total || 0 };
 }
 
-async function refreshCatalogue(options = {}) {
+// Serialized with the recent pass (see serialized()) — both write the same index file.
+function refreshCatalogue(options = {}) {
+  return serialized(() => runFullPass(options));
+}
+
+async function runFullPass(options = {}) {
   const dataDir = options.dataDir;
   const started = Date.now();
   const legacyArchiveIds = pruneLegacyArchiveIds(dataDir);
@@ -498,6 +518,104 @@ async function refreshCatalogue(options = {}) {
   return summary;
 }
 
+// ------------------------------------------------------------ recent-updates pass
+// The full pass walks a rotating deep window and takes minutes; new releases ride along in
+// its first pages, which is why they could take up to an hour (or a missed window) to show
+// up. This is the cheap counterpart the server runs on a short timer: newest page(s) of every
+// provider only — no deep window, no archive, no metadata enrichment — so a title published
+// minutes ago is in the Theatre on the next tick.
+function recentPath(dataDir) { return path.join(dataDir, 'vod-recent.json'); }
+function readRecent(dataDir) {
+  try {
+    const raw = JSON.parse(fs.readFileSync(recentPath(dataDir), 'utf8'));
+    return {
+      version: 1,
+      updatedAt: raw.updatedAt || null,
+      durationMs: raw.durationMs || null,
+      pagesPerProvider: raw.pagesPerProvider || null,
+      providers: Array.isArray(raw.providers) ? raw.providers : [],
+      totals: raw.totals || null,
+    };
+  } catch { return { version: 1, updatedAt: null, durationMs: null, pagesPerProvider: null, providers: [], totals: null }; }
+}
+function writeRecent(dataDir, value) {
+  fs.mkdirSync(dataDir, { recursive: true, mode: 0o700 });
+  const target = recentPath(dataDir);
+  const temp = target + '.' + process.pid + '.tmp';
+  fs.writeFileSync(temp, JSON.stringify({ version: 1, ...value }, null, 2), { mode: 0o600 });
+  fs.renameSync(temp, target);
+}
+
+// Both passes read-modify-write the same index file, so they must never overlap.
+let catalogueChain = Promise.resolve();
+function serialized(task) {
+  const run = catalogueChain.then(task, task);
+  catalogueChain = run.then(() => {}, () => {});
+  return run;
+}
+
+async function runRecentPass(options = {}) {
+  const dataDir = options.dataDir;
+  const started = Date.now();
+  const registry = vodLib.loadSourcesSync(dataDir);
+  const sources = (options.sources || registry.sources || []).filter((source) => source.enabled !== false);
+  const kinds = Array.isArray(options.kinds) && options.kinds.length ? options.kinds : BROWSE_KINDS;
+  const pages = Math.max(1, options.pages || RECENT_PAGES);
+  const results = await mapLimit(sources, Math.max(1, options.concurrency || RECENT_CONCURRENCY), (source) => harvestSource(source, {
+    kinds,
+    freshPages: pages,
+    freshOnly: true,
+  }).catch((error) => ({
+    source, ok: false, items: [], received: 0, requests: 0, kindCounts: {}, nextPage: 1,
+    error: String(error && error.message || error).slice(0, 180),
+  })));
+
+  const harvested = flattenHarvest(results, kinds);
+  const stored = harvested.length ? mediaLibrary.upsert(dataDir, harvested.map((item) => catalogueItem(item, item.kind))) : null;
+  const providers = results.map((result, index) => {
+    const source = sources[index] || (result && result.source) || {};
+    const value = (result && result.value) || result || {};
+    return {
+      id: source.id || null,
+      name: source.name || null,
+      ok: value.ok === true && (value.items || []).length > 0,
+      titles: (value.items || []).length,
+      error: value.error || null,
+      checkedAt: new Date().toISOString(),
+    };
+  });
+
+  const summary = {
+    updatedAt: new Date().toISOString(),
+    durationMs: Date.now() - started,
+    pagesPerProvider: pages,
+    sources: sources.length,
+    providers,
+    totals: {
+      harvested: harvested.length,
+      added: (stored && stored.added) || 0,
+      updated: (stored && stored.updated) || 0,
+      stored: (stored && stored.total) || 0,
+      providersOnline: providers.filter((provider) => provider.ok).length,
+      providersBroken: providers.filter((provider) => !provider.ok).length,
+    },
+  };
+  try { writeRecent(dataDir, summary); } catch { /* health file is best effort */ }
+  return summary;
+}
+
+let recentState = { promise: null, lastSummary: null, startedAt: null };
+function refreshRecent(options = {}) {
+  if (recentState.promise) return recentState.promise;
+  recentState.startedAt = Date.now();
+  recentState.promise = serialized(() => runRecentPass(options))
+    .then((summary) => { recentState.lastSummary = summary; return summary; })
+    .catch((error) => { console.error('vod recent-updates pass failed:', error && error.message || error); return null; })
+    .finally(() => { recentState.promise = null; });
+  return recentState.promise;
+}
+function ensureRecent(dataDir, options = {}) { return refreshRecent({ dataDir, ...options }); }
+
 // ---------------------------------------------------------------- index browsing
 
 const indexCache = { file: null, mtimeMs: 0, items: [] };
@@ -549,6 +667,7 @@ function toBrowseItem(item) {
     streams: 1,
     labels: [],
     kind: item.kind || 'video',
+    providerUpdatedAt: item.providerUpdatedAt || null,
   };
 }
 
@@ -567,7 +686,23 @@ function browse(dataDir, params = {}) {
       return words.every((word) => haystack.includes(word));
     })
     : byKind;
-  hits.sort((a, b) => String(b.addedAt || b.updatedAt || '').localeCompare(String(a.addedAt || a.updatedAt || '')) || String(a.name).localeCompare(String(b.name)));
+  // Newest first by what the *provider* last updated — never by when this box happened to
+  // discover the row. Discovery order made the first pages churn between arbitrary harvest
+  // slices, and because the Internet Archive collections are harvested last in every full
+  // pass their rows held the newest `addedAt`: the Movies tab showed 120 archive clips and
+  // nothing else (pages 6+ were empty). Records without a provider timestamp rank after the
+  // provider rows and among themselves newest-discovered first; the provider filter still
+  // lists the archive on its own.
+  const providerTime = (item) => (item && item.providerUpdatedAt ? String(item.providerUpdatedAt) : '');
+  const byName = (a, b) => String(a.name || '').localeCompare(String(b.name || ''));
+  hits.sort((a, b) => {
+    const left = providerTime(a);
+    const right = providerTime(b);
+    if (left && right) return right.localeCompare(left) || byName(a, b);
+    if (left) return -1;
+    if (right) return 1;
+    return String(b.addedAt || b.updatedAt || '').localeCompare(String(a.addedAt || a.updatedAt || '')) || byName(a, b);
+  });
   const pages = Math.max(1, Math.ceil(hits.length / limit));
   const page = Math.min(requestedPage, pages);
   const counts = { all: all.length };
@@ -619,15 +754,27 @@ const refreshState = { promise: null, startedAt: 0, lastSummary: null };
 
 function state(dataDir) {
   const health = readHealth(dataDir);
+  const recent = readRecent(dataDir);
   const stored = readIndex(dataDir).filter(isVodItem).length;
   const updatedAt = health.updatedAt ? Date.parse(health.updatedAt) : 0;
   const ageMs = updatedAt ? Date.now() - updatedAt : null;
+  const recentAt = recent.updatedAt ? Date.parse(recent.updatedAt) : 0;
   return {
     updatedAt: health.updatedAt,
     ageMs,
     storedTitles: stored,
     refreshMinutes: REFRESH_MINUTES,
     refreshing: Boolean(refreshState.promise),
+    // The short-timer newest-pages sweep: how long ago the providers' latest titles were
+    // checked, which is what "did this site notice the new release?" actually tracks.
+    recent: {
+      updatedAt: recent.updatedAt,
+      ageMs: recentAt ? Date.now() - recentAt : null,
+      minutes: RECENT_MINUTES,
+      pagesPerProvider: recent.pagesPerProvider || RECENT_PAGES,
+      refreshing: Boolean(recentState.promise),
+      totals: recent.totals || null,
+    },
     providers: health.providers,
     archive: health.archive,
     metadata: health.metadata || null,
@@ -663,8 +810,9 @@ function ensureFresh(dataDir, options = {}) {
 }
 
 module.exports = {
-  PROVIDER_PAGES, PROVIDER_PAGE_LIMIT, CONCURRENCY, REFRESH_MINUTES, ARCHIVE_PAGES, ARCHIVE_ROWS, BROWSE_KINDS,
+  PROVIDER_PAGES, PROVIDER_PAGE_LIMIT, CONCURRENCY, REFRESH_MINUTES, FRESH_PAGES, RECENT_MINUTES, RECENT_PAGES, ARCHIVE_PAGES, ARCHIVE_ROWS, BROWSE_KINDS,
   healthPath, readHealth, writeHealth, categoryTree, typeIdsFor, harvestSource, refreshCatalogue,
+  recentPath, readRecent, refreshRecent, ensureRecent,
   browse, searchProviders, state, isStale, ensureFresh, readIndex, catalogueItem, mapLimit,
   pruneLegacyArchiveIds, repairLegacyArchiveIds,
 };

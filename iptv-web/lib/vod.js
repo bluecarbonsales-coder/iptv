@@ -185,6 +185,24 @@ function parseEpisodes(item) {
   }
   return episodes;
 }
+// The row's own update time. MacCMS/Apple CMS providers send "YYYY-MM-DD HH:MM:SS" in
+// China local time (a few send a unix timestamp); keeping it is what lets the Theatre
+// order the catalogue by the *provider's* freshness instead of by the moment this box
+// happened to discover the row. Unparsable values become null — never a guessed time.
+function toIsoTime(value) {
+  const raw = String(value == null ? '' : value).trim();
+  if (!raw) return null;
+  if (/^\d{9,13}$/.test(raw)) {
+    const numeric = Number(raw);
+    const date = new Date(raw.length <= 10 ? numeric * 1000 : numeric);
+    return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+  }
+  let text = raw.replace(/\//g, '-').replace('T', ' ').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) text += ' 00:00:00';
+  if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/.test(text)) return null;
+  const date = new Date(text.replace(' ', 'T') + '+08:00');
+  return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+}
 function normalizeItem(item, source) {
   const id = String(item.vod_id ?? item.id ?? item.id_vod ?? '').trim();
   const name = text(item.vod_name || item.name || item.title);
@@ -201,6 +219,8 @@ function normalizeItem(item, source) {
     year: text(item.vod_year || item.year || ''),
     category: text(item.type_name || item.vod_class || item.category || ''),
     remarks: text(item.vod_remarks || item.remarks || item.state || ''),
+    // See toIsoTime(): the provider's own row timestamp, ordered against in the Theatre.
+    providerUpdatedAt: toIsoTime(item.vod_time || item.vod_time_add || item.vod_timeh),
     kind,
     detailUrl: source.detail || null,
     episodes: parseEpisodes(item),
@@ -363,7 +383,7 @@ function publicSource(source) {
 module.exports = {
   MAX_VOD_SOURCES, KINDS, registryPath, loadSourcesSync, saveSources, ensureDefaultSources,
   newId, isHttpUrl, normalizeApiUrl, apiQuery, fetchJson, listFrom, classify, isShortForm,
-  parseEpisodes, normalizeItem, probeSource, preferredListAction, searchSource, getDetail, parseSourceList, redactUrl, publicSource,
+  parseEpisodes, normalizeItem, toIsoTime, probeSource, preferredListAction, searchSource, getDetail, parseSourceList, redactUrl, publicSource,
   // Exported for the catalogue harvester (lib/vod-catalog.js), which calls this on
   // every provider response to surface providers that answer with an error payload.
   providerStatus,

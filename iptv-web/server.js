@@ -856,6 +856,18 @@ server.listen(PORT, HOST, () => {
       .catch((error) => log('movie catalogue refresh failed:', error && error.message || error));
     setTimeout(kickCatalogue, 20000).unref();
     setInterval(kickCatalogue, 10 * 60 * 1000).unref();
+    // Newest-pages sweep on a short timer. The deep pass above walks a rotating window and
+    // takes minutes, so a just-published title could wait a full interval before the Theatre
+    // knew about it. This reads only each provider's newest pages (lib/vod-catalog.js
+    // refreshRecent) — ~15s of provider requests — so "the movies update" is bounded by
+    // VOD_CATALOG_RECENT_MINUTES, not by the hourly window. It is serialized against the deep
+    // pass, which writes the same index file.
+    const kickRecent = () => vodCatalogLib.ensureRecent(DATA_DIR)
+      .then((summary) => { if (summary) log(`movie catalogue recent sweep: ${summary.totals.harvested} titles seen, ${summary.totals.added} new, ${summary.totals.updated} updated, ${summary.totals.providersOnline}/${summary.sources} providers online (${summary.durationMs}ms)`); })
+      .catch((error) => log('movie catalogue recent sweep failed:', error && error.message || error));
+    setTimeout(kickRecent, 90 * 1000).unref();
+    const recentIntervalMs = Math.max(1, vodCatalogLib.RECENT_MINUTES) * 60 * 1000;
+    setInterval(kickRecent, recentIntervalMs).unref();
   }
   log('Agent, source and portal management APIs use the shared HTTP Basic admin login; token authentication is disabled.');
   // Rebuild the channel catalogue on its own schedule. refreshNow() is single-flight, so an
